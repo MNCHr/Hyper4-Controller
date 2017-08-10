@@ -1,9 +1,18 @@
+import virtualdevice
 
 class Composition():
-  pass
+  def __init__(self):
+    self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
 
 class Chain(Composition):
-  pass
+  def __init__(self):
+    self.vdev_chain = []
+  def insert(self, vdev_name, pos):
+    pass
+  def append(self, vdev_name):
+    pass
+  def remove(self, vdev_name):
+    pass
 
 class DAG(Composition):
   pass
