@@ -72,12 +72,17 @@ class Administrator(Client):
   prompt = 'HP4# '
 
   def do_create_device(self, line):
-    "Create device: create_device <ip_addr> <port> <dev_type: bmv2_SSwitch | Agilio>"
+    """Create device: create_device <name> <ip_addr> <port>
+     \r<pre: \'SimplePre\'|\'SimplePreLAG\'|\'None\'>
+     \r<dev_type: bmv2_SSwitch | Agilio> <# entries> <ports>
+    """
     resp = self.send_request(self.user + ' create_device ' + line)
     print(resp)
 
   def do_list_devices(self, line):
-    "List devices: list_devices"
+    """List devices: list_devices
+     \rtest
+    """
     resp = self.send_request(self.user + ' list_devices ' + line)
     print(resp)
 
