@@ -69,17 +69,25 @@ class Controller(object):
     json = '/home/ubuntu/hp4-src/hp4/hp4.json'
     runtime_CLI.load_json_config(hp4_client, json)
     rta = runtime_CLI.RuntimeAPI(pre, hp4_client)
-    self.devices[dev_name] = Device(rta, num_entries, ports)
+
+    if dev_type == 'bmv2_SSwitch':
+      self.devices[dev_name] = device.Bmv2_SSwitch(rta, num_entries, ports)
+    elif dev_type == 'Agilio':
+      self.devices[dev_name] = device.Agilio(rta, num_entries, ports)
+    else:
+      return 'Error - device type ' + dev_type + ' unknown'
+
     return "Added device: " + dev_name
 
   def create_slice(self, parameters):
     "Create a slice"
     hp4slice = parameters[1]
     self.slices[hp4slice] = Slice(hp4slice)
-    return "Added slice: " + hp4slice
+    return "Created slice: " + hp4slice
 
   def grant_lease(self, parameters):
-    return 'Not implemented yet'
+    code.interact(local=locals())
+    hp4slice = parameters[0]
 
   def create_virtual_device(self, parameters):
     return 'Not implemented yet'
@@ -132,8 +140,10 @@ class ChainController(Controller):
     
   def insert(self, parameters):
     return 'Not implemented yet'
+
   def append(self, parameters):
     return 'Not implemented yet'
+
   def remove(self, parameters):
     return 'Not implemented yet'
 

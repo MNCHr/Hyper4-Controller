@@ -78,8 +78,8 @@ class Administrator(Client):
 
   def do_create_device(self, line):
     """Create device: create_device <name> <ip_addr> <port>
-     \r<pre: \'SimplePre\'|\'SimplePreLAG\'|\'None\'>
-     \r<dev_type: bmv2_SSwitch | Agilio> <# entries> <ports>
+     \r<dev_type: bmv2_SSwitch | Agilio> <pre: \'SimplePre\'|\'SimplePreLAG\'|\'None\'>
+     \r<# entries> <ports>
     """
     resp = self.send_request(self.user + ' create_device ' + line)
     print(resp)
