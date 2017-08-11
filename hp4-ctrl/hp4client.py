@@ -51,6 +51,11 @@ class SliceManager(Client):
     resp = self.send_request(self.user + ' destroy_virtual_device ' + line)
     print(resp)
 
+  def do_translate(self, line):
+    "Translate API command: translate <virtual device> <command>"
+    resp = self.send_request(self.user + ' translate ' + line)
+    print(resp)
+
 class ChainSliceManager(SliceManager):
 
   def do_insert(self, line):
@@ -137,7 +142,7 @@ def parse_args(args):
                       type=int, action="store", default=33333)
   parser.add_argument('--startup', help='file with commands to run at startup',
                       type=str, action="store")
-  parser.add_argument('user', help='username', type=str, action="store")
+  parser.add_argument('user', help='<slice name> | \'admin\'', type=str, action="store")
   parser.set_defaults(func=client)
 
   return parser.parse_args(args)

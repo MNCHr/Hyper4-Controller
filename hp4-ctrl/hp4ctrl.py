@@ -10,18 +10,44 @@ import device
 import virtualdevice
 from hp4translator import VDevCommand_to_HP4Command
 
-class Controller():
+import code
+
+class Controller(object):
   def __init__(self, args):
     self.slices = {} # slice name (str) : Slice
     self.devices = {} # device name (str) : Device
     self.host = args.host
     self.port = args.port
     self.debug = args.debug
+    self.slicemgr_commands = ['create_virtual_device',
+                              'migrate_virtual_device',
+                              'remove_virtual_device',
+                              'destroy_virtual_device']
 
   def handle_request(self, request):
-    pass
+    "Handle a request"
+    if len(request) < 2:
+      return "Request format: <slice name | admin> <command> [parameter list]"
+    requester = request.split()[0]
+    command = request.split()[1]
+    parameters = [requester] + request.split()[2:]
+    if requester not in self.slices and requester != 'admin':
+      return "Denied; no slice " + requester
+    if (requester != 'admin'
+          and command not in self.slicemgr_commands):
+      return "Denied; command not available to " + requester
 
-  def handle_create_device(self, parameters):
+    resp = ""
+    try:
+      resp = getattr(self, command)(parameters)
+    except AttributeError:
+      return "Command not found: " + command
+    except:
+      return "Unexpected error: " + str(sys.exc_info()[0])
+
+    return resp
+
+  def create_device(self, parameters):
     # parameters:
     # <'admin'> <name> <ip_addr> <port> <dev_type: 'bmv2_SSwitch' | 'Agilio'>
     # <pre: 'None' | 'SimplePre' | 'SimplePreLAG'> <# entries> <ports>
@@ -38,7 +64,7 @@ class Controller():
       hp4_client, mc_client = runtime_CLI.thrift_connect(ip, port,
                   runtime_CLI.RuntimeAPI.get_thrift_services(prelookup[pre]))
     except:
-        return "Error - handle_create_device(" + dev_name + "): " + str(sys.exc_info()[0])
+        return "Error - create_device(" + dev_name + "): " + str(sys.exc_info()[0])
 
     json = '/home/ubuntu/hp4-src/hp4/hp4.json'
     runtime_CLI.load_json_config(hp4_client, json)
@@ -46,26 +72,26 @@ class Controller():
     self.devices[dev_name] = Device(rta, num_entries, ports)
     return "Added device: " + dev_name
 
-  def handle_create_slice(self, parameters):
+  def create_slice(self, parameters):
     "Create a slice"
     hp4slice = parameters[1]
     self.slices[hp4slice] = Slice(hp4slice)
     return "Added slice: " + hp4slice
 
-  def handle_create_lease(self):
-    pass
+  def grant_lease(self, parameters):
+    return 'Not implemented yet'
 
-  def handle_create_vdev(self):
-    pass
+  def create_virtual_device(self, parameters):
+    return 'Not implemented yet'
 
-  def handle_migrate_vdev(self):
-    pass
+  def migrate_virtual_device(self, parameters):
+    return 'Not implemented yet'
 
-  def handle_delete_vdev(self):
-    pass
+  def remove_virtual_device(self, parameters):
+    return 'Not implemented yet'
 
-  def handle_translate(self):
-    pass
+  def handle_translate(self, parameters):
+    return 'Not implemented yet'
 
   def serverloop(self):
     serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -95,12 +121,21 @@ class Controller():
       print(msg)
 
 class ChainController(Controller):
-  def handle_insert(self):
-    pass
-  def handle_append(self):
-    pass
-  def handle_remove(self):
-    pass
+  def __init__(self, args):
+    super(ChainController, self).__init__(args)
+    self.slicemgr_commands.append('insert')
+    self.slicemgr_commands.append('append')
+    self.slicemgr_commands.append('remove')
+
+  def handle_request(self, request):
+    return super(ChainController, self).handle_request(request)
+    
+  def insert(self, parameters):
+    return 'Not implemented yet'
+  def append(self, parameters):
+    return 'Not implemented yet'
+  def remove(self, parameters):
+    return 'Not implemented yet'
 
 class Slice():
   def __init__(self, name):
