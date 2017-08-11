@@ -8,10 +8,52 @@ import hp4loader
 import os
 import device
 import virtualdevice
-import composition
+from composition import Chain
 from hp4translator import VDevCommand_to_HP4Command
 
 import code
+
+class Lease():
+  def __init__(self, dev, memory_limit, ports, comp_type):
+    self.device = dev
+    self.memory_limit = memory_limit
+    self.memory_usage = 0
+    self.ports = ports
+    self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
+    if comp_type == 'chain':
+      self.composition = Chain()
+    elif comp_type == 'dag':
+      pass
+    elif comp_type == 'virtualnetwork':
+      pass
+    else:
+      raise CompTypeException("invalid comp type: " + comp_type)
+
+  def load_vdev(self, vdev):
+    pass
+
+  def remove_vdev(self, vdev_name):
+    "Remove virtual device from Lease (does not destroy virtual device)"
+    # pull data plane-related rules from device
+    for handle in self.vdevs[vdev_name].table_rules_handles.keys():
+      table = self.vdevs[vdev_name].table_rules_handles[handle].table
+      rule_identifier = table + ' ' + str(handle)
+      self.device.do_table_delete(rule_identifier)
+      del self.vdevs[vdev_name].table_rules_handles[handle]
+    # pull code-related rules from device
+    for handle in self.vdev[vdev_name].code_handles.keys():
+      table = self.vdevs[vdev_name].code_handles[handle].rule.table
+      rule_identifier = table + ' ' + str(handle)
+      self.device.do_table_delete(rule_identifier)
+      del self.vdevs[vdev_name].code_handles[handle]
+    # if applicable, remove vdev from composition
+    if vdev_name in self.composition.vdevs:
+      self.composition.remove(vdev_name)
+    # make lease forget about it (Lease's owning Slice still has it)
+    del self.vdevs[vdev_name]
+
+  def send_command(self, p4cmd):
+    return dev.send_command(dev.command_to_string(p4cmd))
 
 class Controller(object):
   def __init__(self, args):
@@ -57,7 +99,7 @@ class Controller(object):
     port = parameters[3]
     dev_type = parameters[4]
     pre = parameters[5]
-    num_entries = parameters[6]
+    max_entries = int(parameters[6])
     ports = parameters[7:]
     prelookup = {'None': 0, 'SimplePre': 1, 'SimplePreLAG': 2}
     
@@ -72,9 +114,9 @@ class Controller(object):
     rta = runtime_CLI.RuntimeAPI(pre, hp4_client)
 
     if dev_type == 'bmv2_SSwitch':
-      self.devices[dev_name] = device.Bmv2_SSwitch(rta, num_entries, ports)
+      self.devices[dev_name] = device.Bmv2_SSwitch(rta, max_entries, ports)
     elif dev_type == 'Agilio':
-      self.devices[dev_name] = device.Agilio(rta, num_entries, ports)
+      self.devices[dev_name] = device.Agilio(rta, max_entries, ports)
     else:
       return 'Error - device type ' + dev_type + ' unknown'
 
@@ -91,8 +133,8 @@ class Controller(object):
     # <'admin'> <slice> <device> <memory limit> <ports>
     hp4slice = parameters[1]
     dev_name = parameters[2]
-    mem_limit = parameters[3]
-    ports = paramaters[4:]
+    mem_limit = int(parameters[3])
+    ports = parameters[4:]
 
     # verify request:
     if hp4slice not in self.slices:
@@ -101,7 +143,7 @@ class Controller(object):
     if dev_name not in self.devices:
       return 'Error: no device ' + dev_name
 
-    if mem_limit > (self.devices[dev_name].max_entries - self.devices[dev_name].reserved.entries):
+    if mem_limit > (self.devices[dev_name].max_entries - self.devices[dev_name].reserved_entries):
       return 'Error: memory request exceeds memory available'
 
     for port in ports:
@@ -111,8 +153,11 @@ class Controller(object):
     for port in ports:
       self.devices[dev_name].phys_ports.remove(port)
 
+    code.interact(local=locals())
+
     self.slices[hp4slice].leases[dev_name] = Lease(self.devices[dev_name],
                                                    mem_limit, ports, 'chain')
+
     return 'Lease granted; ' + hp4slice + ' given access to ' + dev_name
 
   def revoke_lease(self, parameters):
@@ -192,48 +237,6 @@ class Slice():
 
 class CompTypeException(Exception):
   pass
-
-class Lease():
-  def __init__(self, dev, memory_limit, ports, comp_type):
-    self.device = dev
-    self.memory_limit = memory_limit
-    self.memory_usage = 0
-    self.ports = ports
-    self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
-    if comp_type = 'chain':
-      self.composition = Chain()
-    elif comp_type = 'dag':
-      pass
-    elif comp_type = 'virtualnetwork':
-      pass
-    else:
-      raise CompTypeException("invalid comp type: " + comp_type)
-
-  def load_vdev(self, vdev):
-    pass
-
-  def remove_vdev(self, vdev_name):
-  "Remove virtual device from Lease (does not destroy virtual device)"
-    # pull data plane-related rules from device
-    for handle in self.vdevs[vdev_name].table_rules_handles.keys():
-      table = self.vdevs[vdev_name].table_rules_handles[handle].table
-      rule_identifier = table + ' ' + str(handle)
-      self.device.do_table_delete(rule_identifier)
-      del self.vdevs[vdev_name].table_rules_handles[handle]
-    # pull code-related rules from device
-    for handle in self.vdev[vdev_name].code_handles.keys():
-      table = self.vdevs[vdev_name].code_handles[handle].rule.table
-      rule_identifier = table + ' ' + str(handle)
-      self.device.do_table_delete(rule_identifier)
-      del self.vdevs[vdev_name].code_handles[handle]
-    # if applicable, remove vdev from composition
-    if vdev_name in self.composition.vdevs:
-      self.composition.remove(vdev_name)
-    # make lease forget about it (Lease's owning Slice still has it)
-    del self.vdevs[vdev_name]
-
-  def send_command(self, p4cmd):
-    return dev.send_command(dev.command_to_string(p4cmd))
 
 def server(args):
   ctrl = ChainController(args)
