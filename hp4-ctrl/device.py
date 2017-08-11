@@ -12,9 +12,14 @@ class Capturing(list):
     sys.stdout = self._stdout
 
 class Device():
-  def __init__(self, ip_addr, port):
-    self.ip_addr = ip_addr
-    self.port = port
+  def __init__(self, rta, num_entries, phys_ports):
+    self.rta = rta
+    self.assignments = {} # {pport : vdev_ID}
+    self.assignment_handles = {} # {pport : tset_context rule handle}
+    self.max_entries = num_entries
+    self.phys_ports = phys_ports
+    self.phys_ports_remaining = list(phys_ports)
+
   def send_command(self, cmd_str_rep):
     pass
   def command_to_string(cmd):
@@ -34,8 +39,7 @@ class Agilio(Device):
   def string_to_command(string):
     pass
 
-d = Device(...)
-l = Lease(...)
-l.send_command(<P4Command>)
-
-
+# usage
+# d = Device(...)
+# l = Lease(...)
+# l.send_command(<P4Command>)

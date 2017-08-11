@@ -6,25 +6,45 @@ import runtime_CLI
 import socket
 import hp4loader
 import os
+import device
 import virtualdevice
 from hp4translator import VDevCommand_to_HP4Command
 
 class Controller():
-  def __init__(self):
+  def __init__(self, args):
     self.slices = {} # slice name (str) : Slice
     self.devices = {} # device name (str) : Device
+    self.host = args.host
+    self.port = args.port
+    self.debug = args.debug
 
   def handle_request(self, request):
     pass
 
   def handle_create_device(self, parameters):
-    # parameters: dev_name, ip_addr, port, num_ifaces, dev_type
-    #"Create device: create_device <ip_addr> <port> <dev_type: bmv2_SSwitch | Agilio> <ports>"
+    # parameters:
+    # <'admin'> <name> <ip_addr> <port> <dev_type: 'bmv2_SSwitch' | 'Agilio'>
+    # <pre: 'None' | 'SimplePre' | 'SimplePreLAG'> <# entries> <ports>
     dev_name = parameters[1]
     ip = parameters[2]
     port = parameters[3]
     dev_type = parameters[4]
+    pre = parameters[5]
+    num_entries = parameters[6]
+    ports = parameters[7:]
+    prelookup = {'None': 0, 'SimplePre': 1, 'SimplePreLAG': 2}
     
+    try:
+      hp4_client, mc_client = runtime_CLI.thrift_connect(ip, port,
+                  runtime_CLI.RuntimeAPI.get_thrift_services(prelookup[pre]))
+    except:
+        return "Error - handle_create_device(" + dev_name + "): " + str(sys.exc_info()[0])
+
+    json = '/home/ubuntu/hp4-src/hp4/hp4.json'
+    runtime_CLI.load_json_config(hp4_client, json)
+    rta = runtime_CLI.RuntimeAPI(pre, hp4_client)
+    self.devices[dev_name] = Device(rta, num_entries, ports)
+    return "Added device: " + dev_name
 
   def handle_create_slice(self, parameters):
     "Create a slice"
@@ -46,6 +66,33 @@ class Controller():
 
   def handle_translate(self):
     pass
+
+  def serverloop(self):
+    serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    serversocket.bind((self.host, self.port))
+    serversocket.listen(5)
+
+    while True:
+      clientsocket = None
+      try:
+        clientsocket, addr = serversocket.accept()
+        self.dbugprint("Got a connection from %s" % str(addr))
+        data = clientsocket.recv(1024)
+        self.dbugprint(data)
+        response = self.handle_request(data)
+        clientsocket.sendall(response)
+        clientsocket.close()
+      except KeyboardInterrupt:
+        if clientsocket:
+          clientsocket.close()
+        serversocket.close()
+        self.dbugprint("Keyboard Interrupt, sockets closed")
+        break
+
+  def dbugprint(self, msg):
+    if self.debug:
+      print(msg)
 
 class ChainController(Controller):
   def handle_insert(self):
@@ -72,8 +119,8 @@ class Lease():
 
 def server(args):
   ctrl = ChainController(args)
-  ctrl.add_user([])
-  ctrl.serverloop(args.host, args.port)
+  ctrl.dbugprint('Starting server at %s:%d' % (args.host, args.port))
+  ctrl.serverloop()
 
 def parse_args(args):
   class ActionToPreType(argparse.Action):
