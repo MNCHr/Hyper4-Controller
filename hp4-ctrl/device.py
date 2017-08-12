@@ -1,4 +1,4 @@
-import p4command
+from p4command import P4Command
 
 # http://stackoverflow.com/questions/16571150/how-to-capture-stdout-output-from-a-python-function-call
 class Capturing(list):
@@ -47,20 +47,38 @@ class Device():
       if ('Invalid' in out) or ('Error' in out):
         raise DeleteRuleError(out)
 
+  @staticmethod
   def command_to_string(cmd):
     pass
+
+  @staticmethod
   def string_to_command(string):
     pass
 
 class Bmv2_SSwitch(Device):
+  @staticmethod
   def command_to_string(cmd):
-    pass
+    command_str = cmd.command_type
+    command_str += ' ' + cmd.rule.table
+    command_str += ' ' + cmd.rule.action
+    command_str += ' ' + ' '.join(cmd.rule.mparams)
+    command_str += ' => ' + ' '.join(cmd.rule.aparams)
+
+  @staticmethod
   def string_to_command(string):
-    pass
+    command_str = re.split('\s*=>\s*', string)
+    command_type = command_str[0].split()[0]
+    table = command_str[0].split()[1]
+    action = command_str[0].split()[2]
+    mparams = command_str[0].split()[3:]
+    aparams = command_str[1].split()
+    return P4Command(command_type, Rule(table, action, mparams, aparams))
 
 class Agilio(Device):
+  @staticmethod
   def command_to_string(cmd):
     pass
+  @staticmethod
   def string_to_command(string):
     pass
 

@@ -242,7 +242,21 @@ class Controller(object):
     self.slices[hp4slice].leases[dev_name].withdraw_vdev(vdev_name)
     return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
 
-  def handle_translate(self, parameters):
+  def translate(self, parameters):
+    # parameters:
+    # <slice name> <virtual device> <style: 'bmv2' | 'agilio'> <command>
+    hp4slice = parameters[0]
+    vdev_name = parameters[1]
+    style = parameters[2]
+    vdev_command_str = ' '.join(parameters[3:])
+    if style == 'bmv2':
+      p4command = Bmv2_SSwitch.string_to_command(vdev_command_str)
+    elif style == 'agilio':
+      p4command = Agilio.string_to_command(vdev_command_str)
+    else:
+      return 'Error - ' + style + ' not one of (\'bmv2\', \'agilio\')'
+    
+  
     return 'Not implemented yet'
 
   def serverloop(self):

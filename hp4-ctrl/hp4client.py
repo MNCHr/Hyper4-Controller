@@ -52,7 +52,7 @@ class SliceManager(Client):
     print(resp)
 
   def do_translate(self, line):
-    "Translate API command: translate <virtual device> <command>"
+    "Translate API command: translate <virtual device> <\'bmv2\' | \'agilio\'> <command>"
     resp = self.send_request(self.user + ' translate ' + line)
     print(resp)
 
