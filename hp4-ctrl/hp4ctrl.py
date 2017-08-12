@@ -8,16 +8,17 @@ import hp4loader
 import os
 import device
 import virtualdevice
+from hp4loader import HP4Loader
 from composition import Chain
 from hp4translator import VDevCommand_to_HP4Command
 
 import code
 
 class Lease():
-  def __init__(self, dev, memory_limit, ports, comp_type):
+  def __init__(self, dev, entry_limit, ports, comp_type):
     self.device = dev
-    self.memory_limit = memory_limit
-    self.memory_usage = 0
+    self.entry_limit = entry_limit
+    self.entry_usage = 0
     self.ports = ports
     self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
     if comp_type == 'chain':
@@ -30,10 +31,13 @@ class Lease():
       raise CompTypeException("invalid comp type: " + comp_type)
 
   def load_vdev(self, vdev):
+    "Load virtual device onto physical device"
     pass
 
-  def remove_vdev(self, vdev_name):
+  def withdraw_vdev(self, vdev_name):
     "Remove virtual device from Lease (does not destroy virtual device)"
+    num_entries = len(self.vdevs[vdev_name].table_rules_handles)
+    num_entries += len(self.vdevs[vdev_name].code_handles)
     # pull data plane-related rules from device
     for handle in self.vdevs[vdev_name].table_rules_handles.keys():
       table = self.vdevs[vdev_name].table_rules_handles[handle].table
@@ -41,14 +45,17 @@ class Lease():
       self.device.do_table_delete(rule_identifier)
       del self.vdevs[vdev_name].table_rules_handles[handle]
     # pull code-related rules from device
-    for handle in self.vdev[vdev_name].code_handles.keys():
+    for handle in self.vdevs[vdev_name].code_handles.keys():
       table = self.vdevs[vdev_name].code_handles[handle].rule.table
       rule_identifier = table + ' ' + str(handle)
       self.device.do_table_delete(rule_identifier)
       del self.vdevs[vdev_name].code_handles[handle]
+    self.entry_usage -= num_entries
     # if applicable, remove vdev from composition
     if vdev_name in self.composition.vdevs:
       self.composition.remove(vdev_name)
+    # update vdev.dev_name
+    self.vdevs[vdev_name].dev_name = 'none'
     # make lease forget about it (Lease's owning Slice still has it)
     del self.vdevs[vdev_name]
 
@@ -66,6 +73,12 @@ class Controller(object):
                               'migrate_virtual_device',
                               'remove_virtual_device',
                               'destroy_virtual_device']
+    self.next_vdev_ID = 1
+
+  def assign_vdev_ID(self):
+    vdev_ID = self.next_vdev_ID
+    self.next_vdev_ID += 1
+    return vdev_ID
 
   def handle_request(self, request):
     "Handle a request"
@@ -133,7 +146,7 @@ class Controller(object):
     # <'admin'> <slice> <device> <memory limit> <ports>
     hp4slice = parameters[1]
     dev_name = parameters[2]
-    mem_limit = int(parameters[3])
+    entry_limit = int(parameters[3])
     ports = parameters[4:]
 
     # verify request:
@@ -143,7 +156,8 @@ class Controller(object):
     if dev_name not in self.devices:
       return 'Error: no device ' + dev_name
 
-    if mem_limit > (self.devices[dev_name].max_entries - self.devices[dev_name].reserved_entries):
+    if (entry_limit > (self.devices[dev_name].max_entries
+                       - self.devices[dev_name].reserved_entries)):
       return 'Error: memory request exceeds memory available'
 
     for port in ports:
@@ -153,10 +167,8 @@ class Controller(object):
     for port in ports:
       self.devices[dev_name].phys_ports.remove(port)
 
-    code.interact(local=locals())
-
     self.slices[hp4slice].leases[dev_name] = Lease(self.devices[dev_name],
-                                                   mem_limit, ports, 'chain')
+                                                   entry_limit, ports, 'chain')
 
     return 'Lease granted; ' + hp4slice + ' given access to ' + dev_name
 
@@ -167,18 +179,68 @@ class Controller(object):
     dev_name = parameters[2]
     lease = self.slices[hp4slice].leases[dev_name]
     for vdev in lease.vdevs.keys():
-      lease.remove_vdev(vdev)
+      lease.withdraw_vdev(vdev)
     del self.slices[hp4slice].leases[dev_name]
+    return 'Lease revoked: ' + hp4slice + ' lost access to ' + dev_name
 
   def create_virtual_device(self, parameters):
     # invoke loader
-    return 'Not implemented yet'
+    # parameters:
+    # <slice_name> <program_path> <vdev_name>
+    hp4slice = parameters[0]
+    program_path = parameters[1]
+    vdev_name = parameters[2]
+    vdev_ID = self.assign_vdev_ID()
+
+    self.slices[hp4slice].vdevs[vdev_name] = self.hp4l.load(vdev_name, vdev_ID,
+                                                            program_path)
+    
+    return 'Virtual device ' + vdev_name + ' created'
 
   def migrate_virtual_device(self, parameters):
-    return 'Not implemented yet'
+    # parameters:
+    # <slice_name> <vdev_name> <dest device>
+    hp4slice = parameters[0]
+    vdev_name = parameters[1]
+    dest_dev_name = parameters[2]
 
-  def remove_virtual_device(self, parameters):
-    return 'Not implemented yet'
+    # validate request
+    # - validate slice
+    if hp4slice not in self.slices:
+      return 'Error - ' + hp4slice + ' not a valid slice'
+    # - validate vdev_name
+    if vdev_name not in self.slices[hp4slice].vdevs:
+      return 'Error - ' + vdev_name + ' not a valid virtual device'
+    # - validate dest_dev_name
+    if dest_dev_name not in self.devices:
+      return 'Error - ' + dest_dev_name + ' not a valid device'
+    # - validate lease
+    if dest_dev_name not in self.slices[hp4slice].leases:
+      return 'Error - ' + dest_dev_name + ' not among leases owned by ' + hp4slice
+    # - validate lease has sufficient entries
+    vdev = self.slices[hp4slice].vdevs[vdev_name]
+    vdev_entries = len(vdev.code) + len(vdev.table_rules)
+    entries_available = (self.slices[hp4slice].leases[dest_dev_name].entry_limit
+                       - self.slices[hp4slice].leases[dest_dev_name].entry_usage)
+    if (vdev_entries > entries_available):
+      return 'Error - request(' + str(vdev_entries) + ') exceeds entries \
+              available(' + entries_available + ') for lease on ' + dest_dev_name
+
+    src_dev_name = self.slices[hp4slice].vdevs[vdev_name].dev_name
+    if src_dev_name in self.devices:
+      self.slices[hp4slice].leases[src_dev_name].withdraw_vdev(vdev_name)
+    self.slices[hp4slice].leases[dest_dev_name].load_vdev(vdev)
+
+    return 'Virtual device ' + vdev_name + ' migrated to ' + dest_dev_name
+
+  def withdraw_virtual_device(self, parameters):
+    hp4slice = parameters[0]
+    vdev_name = parameters[1]
+    dev_name = self.slices[hp4slice].vdevs[vdev_name].dev_name
+    if dev_name not in self.devices:
+      return 'Error - ' + vdev_name + ' not at a known device'
+    self.slices[hp4slice].leases[dev_name].withdraw_vdev(vdev_name)
+    return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
 
   def handle_translate(self, parameters):
     return 'Not implemented yet'

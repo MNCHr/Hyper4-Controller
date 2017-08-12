@@ -8,3 +8,4 @@ class VirtualDevice():
     self.guide = guide
     self.code_handles = {} # {handle (int): p4cmd (P4Command)}
     self.table_rules_handles = {} # {handle (int): p4r (P4Rule)}
+    self.dev_name = 'none'

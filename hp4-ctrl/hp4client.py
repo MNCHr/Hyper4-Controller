@@ -44,7 +44,7 @@ class SliceManager(Client):
 
   def do_withdraw_virtual_device(self, line):
     "Remove virtual device from current location: withdraw_virtual_device <virtual device>"
-    resp = self.send_request(self.user + ' remove_virtual_device ' + line)
+    resp = self.send_request(self.user + ' withdraw_virtual_device ' + line)
 
   def do_destroy_virtual_device(self, line):
     "Destroy virtual device (remove AND delete): destroy_virtual_device <virtual device>"
@@ -102,7 +102,7 @@ class Administrator(Client):
     print(resp)
 
   def do_grant_lease(self, line):
-    "Grant lease (slice access to a device): grant_lease <slice> <device> <memory limit> <ports>"
+    "Grant lease (slice access to a device): grant_lease <slice> <device> <entry limit> <ports>"
     resp = self.send_request(self.user + ' grant_lease ' + line)
     print(resp)
 
