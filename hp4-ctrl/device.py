@@ -20,9 +20,6 @@ class ModRuleError(Exception):
 class DeleteRuleError(Exception):
   pass
 
-# TODO: eliminate, probably
-NO_HANDLE_YET = -1
-
 class Device():
   def __init__(self, rta, max_entries, phys_ports):
     self.rta = rta

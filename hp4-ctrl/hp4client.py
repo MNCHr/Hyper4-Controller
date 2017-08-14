@@ -97,7 +97,7 @@ class Administrator(Client):
     print(resp)
 
   def do_list_slices(self, line):
-    "List slices: list_slices"
+    "List slices: list_slices [-d for detail]"
     resp = self.send_request(self.user + ' list_slices ' + line)
     print(resp)
 

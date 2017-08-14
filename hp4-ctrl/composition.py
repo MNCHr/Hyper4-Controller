@@ -15,6 +15,12 @@ class Chain(Composition):
   def append(self, vdev_name):
     pass
 
+  def __str__(self):
+    ret = ''
+    for i in range(len(self.vdev_chain)):
+      ret += ' -> ' + self.vdev_chain[i]
+    return ret
+
 class DAG(Composition):
   pass
 

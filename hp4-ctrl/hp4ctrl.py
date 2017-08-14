@@ -9,6 +9,7 @@ import os
 import device
 import virtualdevice
 import p4rule
+import textwrap
 from hp4loader import HP4Loader
 from composition import Chain
 from hp4translator import Translator
@@ -62,6 +63,14 @@ class Lease():
 
   def send_command(self, p4cmd):
     return dev.send_command(dev.command_to_string(p4cmd))
+
+  def __str__(self):
+    ret = 'entry limit/usage: ' + str(self.entry_limit) + '/' + str(self.entry_usage)
+    ret += '; ports:' + str(self.ports) + '; virtual devices:'
+    for vdev in self.vdevs:
+      ret += ' ' + vdev
+    ret += '; composition: ' + str(self.composition)
+    return ret
 
 class Controller(object):
   def __init__(self, args):
@@ -141,6 +150,34 @@ class Controller(object):
     hp4slice = parameters[1]
     self.slices[hp4slice] = Slice(hp4slice)
     return "Created slice: " + hp4slice
+
+  def list_slices(self, parameters):
+    "List slices"
+    # parameters:
+    # <'admin'> [-d for detail]
+    message = ''
+    for hp4slice in self.slices:
+      message += hp4slice + '\n'
+      devdetail = ''
+      for dev in self.slices[hp4slice].leases:
+        devwrapper = textwrap.TextWrapper(initial_indent='  ', width=70, subsequent_indent='    ')
+        devdetail += dev + ': \n'
+        devdetail += str(self.slices[hp4slice].leases[dev])
+        devdetail += '\n'      
+        message += devwrapper.fill(devdetail)
+
+    return '\n'.join(message.split('\n')[0:-1])
+
+  '''
+  >>> import textwrap
+  >>> user = "Username"
+  >>> prefix = user + ": "
+  >>> preferredWidth = 70
+  >>> wrapper = textwrap.TextWrapper(initial_indent=prefix, width=preferredWidth,
+      subsequent_indent=' '*len(prefix))
+  >>> message = "LEFTLEFTLEFTLEFTLEFTLEFTLEFT RIGHTRIGHTRIGHT " * 3
+  >>> print(wrapper.fill(message))
+  '''
 
   def grant_lease(self, parameters):
     # parameters:

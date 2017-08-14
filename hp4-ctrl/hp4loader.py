@@ -19,7 +19,11 @@ class HP4Loader():
           return "Compile Error: " + str(e)
       else:
         raise CompileError('filetype not supported')
-    # self.link
+    
+    vdev_ID, self.compiled_programs[program_path].object_code_path
+
+    if call(["./hp4l", "--input", hp4tf, "--output", finst_name+'.hp4',
+             "--progID", str(self.devices[device].next_PID)) != 0:
     
     #code = 
     #guide = 
