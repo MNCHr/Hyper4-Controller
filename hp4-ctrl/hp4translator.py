@@ -1,6 +1,7 @@
 import virtualdevice
-import p4command
+from p4command import P4Command
 
-class VDevCommand_to_HP4Command():
-  def translate(self, vdev, p4cmd):
+class Translator():
+  @staticmethod
+  def translate(self, vdev, p4command):
     pass

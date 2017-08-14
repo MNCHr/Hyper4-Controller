@@ -20,6 +20,9 @@ class ModRuleError(Exception):
 class DeleteRuleError(Exception):
   pass
 
+# TODO: eliminate, probably
+NO_HANDLE_YET = -1
+
 class Device():
   def __init__(self, rta, max_entries, phys_ports):
     self.rta = rta
@@ -31,6 +34,7 @@ class Device():
     self.phys_ports_remaining = list(phys_ports)
 
   def send_command(self, cmd_str_rep):
+    # return handle (regardless of command type)
     pass
 
   def do_table_delete(self, rule_identifier):
@@ -59,20 +63,39 @@ class Bmv2_SSwitch(Device):
   @staticmethod
   def command_to_string(cmd):
     command_str = cmd.command_type
-    command_str += ' ' + cmd.rule.table
-    command_str += ' ' + cmd.rule.action
-    command_str += ' ' + ' '.join(cmd.rule.mparams)
-    command_str += ' => ' + ' '.join(cmd.rule.aparams)
+    command_str += ' ' + cmd.attributes['table']
+    if command_type == 'table_add':
+      command_str += ' ' + cmd.attributes['action']
+      command_str += ' '.join(cmd.attributes['mparams'])
+      command_str += ' => ' + join(cmd.attributes['aparams'])
+    elif command_type == 'table_modify':
+      command_str += ' ' + cmd.attributes['action']
+      command_str += ' ' + str(cmd.attributes['handle'])
+      command_str += ' '.join(cmd.attributes['aparams'])
+    elif command_type == 'table_delete':
+      command_str += ' ' + str(cmd.attributes['handle'])
+    return command_str
 
   @staticmethod
   def string_to_command(string):
     command_str = re.split('\s*=>\s*', string)
     command_type = command_str[0].split()[0]
-    table = command_str[0].split()[1]
-    action = command_str[0].split()[2]
-    mparams = command_str[0].split()[3:]
-    aparams = command_str[1].split()
-    return P4Command(command_type, Rule(table, action, mparams, aparams))
+    attributes = {}
+    attributes['table'] = command_str[0].split()[1]
+    if command_type == 'table_add':
+      # table_add <table name> <action name> <match fields> => <action parameters> [priority]
+      attributes['action'] = command_str[0].split()[2]
+      attributes['mparams'] = command_str[0].split()[3:]
+      attributes['aparams'] = command_str[1].split()
+    elif command_type == 'table_modify':
+      # table_modify <table name> <action name> <entry handle> [action parameters]
+      attributes['action'] = command_str[0].split()[2]
+      attributes['handle'] = int(command_str[0].split()[3])
+      attributes['aparams'] = command_str[0].split()[4:]
+    elif command_type == 'table_delete':
+      # table_delete <table name> <entry handle>
+      attributes['handle'] = int(command_str[0].split()[3])
+    return P4Command(command_type, attributes)
 
 class Agilio(Device):
   @staticmethod

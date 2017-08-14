@@ -10,7 +10,7 @@ import device
 import virtualdevice
 from hp4loader import HP4Loader
 from composition import Chain
-from hp4translator import VDevCommand_to_HP4Command
+from hp4translator import Translator
 
 import code
 
@@ -36,20 +36,20 @@ class Lease():
 
   def withdraw_vdev(self, vdev_name):
     "Remove virtual device from Lease (does not destroy virtual device)"
-    num_entries = len(self.vdevs[vdev_name].table_rules_handles)
-    num_entries += len(self.vdevs[vdev_name].code_handles)
+    num_entries = len(self.vdevs[vdev_name].table_rules)
+    num_entries += len(self.vdevs[vdev_name].code)
     # pull data plane-related rules from device
-    for handle in self.vdevs[vdev_name].table_rules_handles.keys():
-      table = self.vdevs[vdev_name].table_rules_handles[handle].table
+    for handle in self.vdevs[vdev_name].table_rules.keys():
+      table = self.vdevs[vdev_name].table_rules[handle].table
       rule_identifier = table + ' ' + str(handle)
       self.device.do_table_delete(rule_identifier)
-      del self.vdevs[vdev_name].table_rules_handles[handle]
+      del self.vdevs[vdev_name].table_rules[handle]
     # pull code-related rules from device
-    for handle in self.vdevs[vdev_name].code_handles.keys():
-      table = self.vdevs[vdev_name].code_handles[handle].rule.table
+    for handle in self.vdevs[vdev_name].code.keys():
+      table = self.vdevs[vdev_name].code[handle].rule.table
       rule_identifier = table + ' ' + str(handle)
       self.device.do_table_delete(rule_identifier)
-      del self.vdevs[vdev_name].code_handles[handle]
+      del self.vdevs[vdev_name].code[handle]
     self.entry_usage -= num_entries
     # if applicable, remove vdev from composition
     if vdev_name in self.composition.vdevs:
@@ -243,6 +243,9 @@ class Controller(object):
     return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
 
   def translate(self, parameters):
+    # TODO: Fix the native -> hp4 rule handle confusion.  Need to track
+    #  virtual (native) rule handles to support table_delete and table_modify
+    #  commands.
     # parameters:
     # <slice name> <virtual device> <style: 'bmv2' | 'agilio'> <command>
     hp4slice = parameters[0]
@@ -255,9 +258,52 @@ class Controller(object):
       p4command = Agilio.string_to_command(vdev_command_str)
     else:
       return 'Error - ' + style + ' not one of (\'bmv2\', \'agilio\')'
-    
+    if hp4slice not in self.slices:
+      return 'Error - ' + hp4slice + ' not a valid slice'
+    if vdev_name not in self.slices[hp4slice].vdevs:
+      return 'Error - ' + vdev_name + ' not a virtual device in ' + hp4slice
+    vdev = self.slices[hp4slice].vdevs[vdev_name]
+    hp4commands = Translator.translate(vdev, p4command)
+
+    # accounting
+    entries_available = (self.slices[hp4slice].leases[vdev.dev_name].entry_limit
+                       - self.slices[hp4slice].leases[vdev.dev_name].entry_usage)
+    diff = 0
+    for hp4command in hp4commands:
+      if hp4command.command_type == 'table_add':
+        diff += 1
+      elif hp4command.command_type == 'table_delete':
+        diff -= 1
+    if diff > entries_available:
+      return 'Error - entries net increase(' + str(diff) \
+           + ') exceeds availability(' + str(entries_available) + ')'
+
+    # if p4command.command_type == 'table_add', we will have a new 
+    #  Origin_to_HP4Map, including new hp4_rule_handles list, to add to
+    #  vdev.origin_table_rules
+    # if p4command.command_type == 'table_modify', we need to replace
+    #  the existing hp4_rule_handles list with a new one
+    # if p4command.command_type == 'table_delete', we need to del
+    #  the vdev.origin_table_rules entry
+    origin_rule_handles = []
+
+    for hp4command in hp4commands:
+      # return value should be handle for all commands
+      handle = self.slices[hp4slice].leases[vdev.dev_name].send_command(hp4command)
+      if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
+        vdev.table_rule_handles[handle] = hp4command.rule
+      else: # command_type == 'table_delete'
+        del vdev.table_rule_handles[handle]
+      # accounting
+      if hp4command.command_type == 'table_add':
+        self.slices[hp4slice].leases[vdev.dev_name].entry_usage += 1
+        origin_rule_handles.append(handle)
+      elif hp4command.command_type == 'table_modify':
+        origin_rule_handles.append(handle)
+      elif hp4command.command_type == 'table_delete':
+        self.slices[hp4slice].leases[vdev.dev_name].entry_usage -= 1
   
-    return 'Not implemented yet'
+    return 'Translated: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + vev.dev_name
 
   def serverloop(self):
     serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
