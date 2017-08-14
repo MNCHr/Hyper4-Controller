@@ -9,6 +9,12 @@ class VirtualDevice():
     self.origin_table_rules = {} # {handle (int): map (Origin_to_HP4Map)}
     self.hp4_table_rules = {} # {handle (int): p4r (P4Rule)}
     self.dev_name = 'none'
+    self.next_handle = 0
+
+  def assign_handle(self):
+    handle = self.next_handle
+    self.next_handle += 1
+    return handle
 
 class Origin_to_HP4Map():
   def __init__(self, rule, handles):

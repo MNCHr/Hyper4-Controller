@@ -8,6 +8,7 @@ import hp4loader
 import os
 import device
 import virtualdevice
+import p4rule
 from hp4loader import HP4Loader
 from composition import Chain
 from hp4translator import Translator
@@ -278,31 +279,50 @@ class Controller(object):
       return 'Error - entries net increase(' + str(diff) \
            + ') exceeds availability(' + str(entries_available) + ')'
 
-    # if p4command.command_type == 'table_add', we will have a new 
-    #  Origin_to_HP4Map, including new hp4_rule_handles list, to add to
-    #  vdev.origin_table_rules
-    # if p4command.command_type == 'table_modify', we need to replace
-    #  the existing hp4_rule_handles list with a new one
-    # if p4command.command_type == 'table_delete', we need to del
-    #  the vdev.origin_table_rules entry
-    origin_rule_handles = []
-
+    # push hp4 rules, collect handles
+    hp4_rule_handles = []
     for hp4command in hp4commands:
       # return value should be handle for all commands
-      handle = self.slices[hp4slice].leases[vdev.dev_name].send_command(hp4command)
+      hp4handle = self.slices[hp4slice].leases[vdev.dev_name].send_command(hp4command)
+
       if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
-        vdev.table_rule_handles[handle] = hp4command.rule
+        vdev.table_rule_handles[hp4handle] = hp4command.rule
       else: # command_type == 'table_delete'
-        del vdev.table_rule_handles[handle]
+        del vdev.table_rule_handles[hp4handle]
       # accounting
       if hp4command.command_type == 'table_add':
         self.slices[hp4slice].leases[vdev.dev_name].entry_usage += 1
-        origin_rule_handles.append(handle)
+        hp4_rule_handles.append(hp4handle)
       elif hp4command.command_type == 'table_modify':
-        origin_rule_handles.append(handle)
+        hp4_rule_handles.append(hp4handle)
       elif hp4command.command_type == 'table_delete':
         self.slices[hp4slice].leases[vdev.dev_name].entry_usage -= 1
-  
+
+    # account for origin rule: handle, hp4 rules & hp4 handles
+    table = p4command.attributes['table']
+    if p4command.command_type == 'table_add':
+      # new Origin_to_HP4Map w/ new hp4_rule_handles list
+      rule = p4rule.P4Rule(table, p4command.attributes['action'],
+                           p4command.attributes['mparams'],
+                           p4command.attributes['aparams'])
+      vdev.origin_table_rules[vdev.assign_handle()] = \
+                         virtualdevice.Origin_to_HP4Map(rule, hp4_rule_handles)
+
+    elif p4command.command_type == 'table_modify':
+      # replace Origin_to_HP4Map w/ one with new rule, new hp4_rules_handles list
+      handle = p4command.attributes['handle']
+      oldrule = vdev.origin_table_rules[handle].origin_rule
+      action = p4command.attributes['action']
+      mparams = oldrule.mparams
+      aparams = p4command.attributes['aparams']
+      rule = p4rule.P4Rule(table, action, mparams, aparams)
+      vdev.origin_table_rules[handle] = \
+                         virtualdevice.Origin_to_HP4Map(rule, hp4_rule_handles)
+
+    elif p4command.command_type == 'table_delete':
+      handle = p4command.attributes['handle']
+      del vdev.origin_table_rules[handle]
+
     return 'Translated: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + vev.dev_name
 
   def serverloop(self):
