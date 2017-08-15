@@ -1,5 +1,6 @@
 from virtualdevice import VirtualDevice
 import hp4compiler
+from hp4translator import RuleTranslationGuide
 
 class CompileError(Exception):
   pass

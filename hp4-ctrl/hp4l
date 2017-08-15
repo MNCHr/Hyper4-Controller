@@ -3,19 +3,6 @@
 import argparse
 import re
 
-parser = argparse.ArgumentParser(description='HP4 Annotated Commands Converter')
-parser.add_argument('--input', help='Annotated hp4 commands file',
-                    type=str, action="store", required=True)
-parser.add_argument('--output', help='Where to write hp4-ready commands file',
-                    type=str, action="store", required=True)
-parser.add_argument('--progID', help='Program ID',
-                    type=str, action="store", default='1')
-parser.add_argument('--phys_ports', help='Physical ports for which program applies',
-                    type=str, nargs='*', action="store", default=['1'])
-parser.add_argument('--virt_ports', help='Numbers to assign to virtual ports 0-3',
-                    type=str, nargs='*', action="store", default=['65', '66', '67', '68'])
-
-args = parser.parse_args()
 print("FROM HP4L")
 print(args)
 
@@ -26,10 +13,6 @@ sr = {}
 
 # TODO: read defines.p4 directly
 sr['[program ID]'] = args.progID
-sr['[VIRT_PORT_0]'] = args.virt_ports[0]
-sr['[VIRT_PORT_1]'] = args.virt_ports[1]
-sr['[VIRT_PORT_2]'] = args.virt_ports[2]
-sr['[VIRT_PORT_3]'] = args.virt_ports[3]
 sr['[PROCEED]'] = '0'
 sr['[PARSE_SELECT_SEB]'] = '1'
 sr['[PARSE_SELECT_20_29]'] = '2'
@@ -116,3 +99,5 @@ for line in f_ac:
 
 f_c.close()
 f_ac.close()
+
+
