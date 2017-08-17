@@ -1,4 +1,4 @@
-import virtualdevice
+from ..virtualdevice.virtualdevice import VirtualDevice
 
 class Composition():
   def __init__(self):

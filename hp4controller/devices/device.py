@@ -1,4 +1,6 @@
-from p4command import P4Command
+from ..p4command import P4Command
+
+import code
 
 # http://stackoverflow.com/questions/16571150/how-to-capture-stdout-output-from-a-python-function-call
 class Capturing(list):
@@ -21,7 +23,7 @@ class DeleteRuleError(Exception):
   pass
 
 class Device():
-  def __init__(self, rta, max_entries, phys_ports):
+  def __init__(self, rta, max_entries, phys_ports, ip, port):
     self.rta = rta
     self.assignments = {} # {pport : vdev_ID}
     self.assignment_handles = {} # {pport : tset_context rule handle}
@@ -29,6 +31,8 @@ class Device():
     self.reserved_entries = 0
     self.phys_ports = phys_ports
     self.phys_ports_remaining = list(phys_ports)
+    self.ip = ip # management iface
+    self.port = port # management iface
 
   def send_command(self, cmd_str_rep):
     # return handle (regardless of command type)
@@ -55,6 +59,15 @@ class Device():
   @staticmethod
   def string_to_command(string):
     pass
+
+  def __str__(self):
+    ret = 'Type: ' + self.__class__.__name__ + '\n'
+    ret += 'Address: ' + self.ip + ':' + self.port + '\n'
+    ret += 'Entry max: ' + str(self.max_entries) + '\n'
+    ret += 'Entries reserved: ' + str(self.reserved_entries) + '\n'
+    ret += 'Physical ports: ' + str(self.phys_ports) + '\n'
+    ret += 'Physical ports remaining: ' + str(self.phys_ports_remaining)
+    return ret
 
 class Bmv2_SSwitch(Device):
   @staticmethod

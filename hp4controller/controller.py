@@ -4,15 +4,15 @@ import argparse
 import sys
 import runtime_CLI
 import socket
-import hp4loader
 import os
-import device
-import virtualdevice
-import p4rule
+import devices.device as device
+from virtualdevice.virtualdevice import VirtualDevice
+from virtualdevice.interpret import Interpretation
+from p4command import P4Command
+#import p4rule
 import textwrap
-from hp4loader import HP4Loader
-from composition import Chain
-from hp4translator import Translator
+from compositions.composition import Chain
+#from interpret import Interpreter
 
 import code
 
@@ -125,7 +125,7 @@ class Controller(object):
     max_entries = int(parameters[6])
     ports = parameters[7:]
     prelookup = {'None': 0, 'SimplePre': 1, 'SimplePreLAG': 2}
-    
+
     try:
       hp4_client, mc_client = runtime_CLI.thrift_connect(ip, port,
                   runtime_CLI.RuntimeAPI.get_thrift_services(prelookup[pre]))
@@ -137,12 +137,13 @@ class Controller(object):
     rta = runtime_CLI.RuntimeAPI(pre, hp4_client)
 
     if dev_type == 'bmv2_SSwitch':
-      self.devices[dev_name] = device.Bmv2_SSwitch(rta, max_entries, ports)
+      self.devices[dev_name] = device.Bmv2_SSwitch(rta, max_entries, ports, ip, port)
     elif dev_type == 'Agilio':
-      self.devices[dev_name] = device.Agilio(rta, max_entries, ports)
+      self.devices[dev_name] = device.Agilio(rta, max_entries, ports, ip, port)
     else:
       return 'Error - device type ' + dev_type + ' unknown'
 
+    self.dbugprint("Reached return statement")
     return "Added device: " + dev_name
 
   def create_slice(self, parameters):
@@ -178,6 +179,19 @@ class Controller(object):
   >>> message = "LEFTLEFTLEFTLEFTLEFTLEFTLEFT RIGHTRIGHTRIGHT " * 3
   >>> print(wrapper.fill(message))
   '''
+
+  def list_devices(self, parameters):
+    "List devices"
+    # parameters:
+    # <'admin'>
+    message = ''
+    for hp4devicename in self.devices:
+      hp4device = self.devices[hp4devicename]
+      message += hp4devicename
+      for line in str(hp4device).splitlines():
+        message += '\n  ' + line
+
+    return message
 
   def grant_lease(self, parameters):
     # parameters:
@@ -280,7 +294,7 @@ class Controller(object):
     self.slices[hp4slice].leases[dev_name].withdraw_vdev(vdev_name)
     return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
 
-  def translate(self, parameters):
+  def interpret(self, parameters):
     # TODO: Fix the native -> hp4 rule handle confusion.  Need to track
     #  virtual (native) rule handles to support table_delete and table_modify
     #  commands.
@@ -301,7 +315,7 @@ class Controller(object):
     if vdev_name not in self.slices[hp4slice].vdevs:
       return 'Error - ' + vdev_name + ' not a virtual device in ' + hp4slice
     vdev = self.slices[hp4slice].vdevs[vdev_name]
-    hp4commands = Translator.translate(vdev, p4command)
+    hp4commands = Interpreter.interpret(vdev, p4command)
 
     # accounting
     entries_available = (self.slices[hp4slice].leases[vdev.dev_name].entry_limit
@@ -343,7 +357,7 @@ class Controller(object):
                            p4command.attributes['mparams'],
                            p4command.attributes['aparams'])
       vdev.origin_table_rules[vdev.assign_handle()] = \
-                         virtualdevice.Origin_to_HP4Map(rule, hp4_rule_handles)
+                         virtualdevice.Interpretation(rule, hp4_rule_handles)
 
     elif p4command.command_type == 'table_modify':
       # replace Origin_to_HP4Map w/ one with new rule, new hp4_rules_handles list
@@ -354,7 +368,7 @@ class Controller(object):
       aparams = p4command.attributes['aparams']
       rule = p4rule.P4Rule(table, action, mparams, aparams)
       vdev.origin_table_rules[handle] = \
-                         virtualdevice.Origin_to_HP4Map(rule, hp4_rule_handles)
+                         virtualdevice.Interpretation(rule, hp4_rule_handles)
 
     elif p4command.command_type == 'table_delete':
       handle = p4command.attributes['handle']

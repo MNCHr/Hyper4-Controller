@@ -1,0 +1,3 @@
+create_device alpha localhost 22222 bmv2_SSwitch SimplePre 100 1 2 3 4
+create_slice bob
+grant_lease bob alpha 50 1 2

@@ -1,0 +1,9 @@
+create_virtual_device -> hp4loader.load -> what was previously done in controller2.py::Controller::link 
+
+Question: Should we, avoid specifying the physical ports at time of virtual device creation?
+
+We should.  If we can't, we should.  We need to look at hp4l to see how physical port mappings are handled.  We may need to defer some of the work that happens in hp4l until composition placement time.
+
+We should.  Examination of hp4l and p4c-hp4.py suggests that the --phys_ports option (and the code using it) is obsolete.  It does not appear that p4c-hp4.py ever produces [PPORT #] tokens.
+
+Therefore when looking at controller2.py::Controller::link code, don't call hp4l with the --phys_ports option.

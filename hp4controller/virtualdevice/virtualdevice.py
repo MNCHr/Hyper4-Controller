@@ -1,16 +1,41 @@
-from virtualdevice import VirtualDevice
-import hp4compiler
-from hp4translator import RuleTranslationGuide
+from ..p4command import P4Command
+from p4rule import P4Rule
+from interpret import Interpretation, InterpretationGuide
+from ..compilers import compiler as hp4compiler
+from ..compilers.compiler import CodeRepresentation
+
+class VirtualDevice():
+  def __init__(self, virtual_device_ID, code, guide):
+    self.virtual_device_ID = virtual_device_ID
+    self.guide = guide
+    self.code = {} # {handle (int): p4cmd (P4Command)}
+    self.origin_table_rules = {} # {handle (int): map (Origin_to_HP4Map)}
+    self.hp4_table_rules = {} # {handle (int): p4r (P4Rule)}
+    self.dev_name = 'none'
+    self.next_handle = 0
+
+  def interpret(self, p4command):
+    # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::translate
+    p4commands = []
+    # this may be problematic, reusing the origin rule handle as the match_ID
+    match_ID = vdev.assign_handle()
+    self.origin_table_rules[match_ID] # TODO...
+    return p4commands
+
+  def assign_handle(self):
+    handle = self.next_handle
+    self.next_handle += 1
+    return handle
 
 class CompileError(Exception):
   pass
 
-class HP4Loader():
+class VirtualDeviceFactory():
   def __init__(self):
     compiled_programs = {} # {program_path (str) : cr (hp4compiler.CodeRepresentation)}
     hp4c = hp4compiler.P4_to_HP4()
 
-  def finish(self, object_code_path, vdev_ID):
+  def link(self, object_code_path, vdev_ID):
     f_ac = open(object_code_path, 'r')
     code = []
 
@@ -104,7 +129,7 @@ class HP4Loader():
 
     return code
 
-  def load(self, vdev_name, vdev_ID, program_path):
+  def create_vdev(self, vdev_ID, program_path):
     if program_path not in compiled_programs:
       # compile
       if program_path.endswith('.p4'):
@@ -116,23 +141,23 @@ class HP4Loader():
         raise CompileError('filetype not supported')
     
     object_code_path = self.compiled_programs[program_path].object_code_path
-    rtg_path = self.compiled_programs[program_path].rule_translation_guide_path
+    ig_path = self.compiled_programs[program_path].rule_translation_guide_path
    
-    code = finish(object_code_path, vdev_ID)
-    guide = RuleTranslationGuide(rtg_path) # TODO: verify parameters
+    code = link(object_code_path, vdev_ID)
+    guide = InterpretationGuide(ig_path) # TODO: verify parameters
 
     return VirtualDevice(vdev_ID, code, guide)
 
   def writefile(self, program_path, outfile):
     pass
 
-def loader(args):
-  hp4loader = HP4Loader()
-  hp4loader.load(args.output, args.vdevID, args.input)
-  hp4loader.writefile(args.input, args.output)
+def produce_vdev(args):
+  vdf = VirtualDeviceFactory()
+  vdf.load(args.output, args.vdevID, args.input)
+  vdf.writefile(args.input, args.output)
 
 def parse_args(args):
-  parser = argparse.ArgumentParser(description='HP4 Annotated Commands Converter')
+  parser = argparse.ArgumentParser(description='HP4-targeting Compiler / Linker')
   parser.add_argument('--input', help='Annotated hp4 commands file',
                       type=str, action="store", required=True)
   parser.add_argument('--output', help='Where to write hp4-ready commands file',
@@ -140,7 +165,7 @@ def parse_args(args):
   parser.add_argument('--vdevID', help='Virtual Device ID',
                       type=str, action="store", default='1')
 
-  parser.set_defaults(func=loader)
+  parser.set_defaults(func=produce_vdev)
 
   return parser.parse_args()
 

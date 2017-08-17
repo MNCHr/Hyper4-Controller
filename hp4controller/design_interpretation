@@ -1,0 +1,68 @@
+We need to do a more careful design for rule translation.
+
+How does the information flow?
+
+RELATED CLASSES, METHODS, ATTRIBUTES
+
+Prior to translation request, create a VirtualDevice with rule translation guide:
+- Controller
+  -- handle_request(request)															   (1)
+       return create_vdev(request)
+  -- create_vdev(request)                                    (2)
+       vdev <- VDF.create_vdev(request.vdev_ID, request.program_path)
+       slices[request.slice].vdevs[request.vdev_name] <- vdev
+       return 'success'
+
+- VirtualDeviceFactory
+  -- create_vdev(vdev_ID, program_path)           	         (3)
+       code_rep <- Compiler.compile_to_hp4(program_path)
+       code <- link(code_rep.object_code_path, vdev_ID)
+       return VirtualDevice(vdev_ID, code, code_rep.rule_translation_guide_path)
+
+- Compiler
+  -- compile_to_hp4(program_path)                            (4)
+       output object code to object_code_path
+       output rule translation guide to rule_translation_guide_path
+       return CodeRepresentation(object_code_path, rule_translation_guide_path)
+
+- CodeRepresentation
+  -- __init__(object_code_path, rule_translation_guide_path) (5)
+       initialize
+
+- VirtualDevice
+  -- __init__(vdev_ID, code, guide)                          (6)
+       initialize
+
+Servicing the translation request:
+- Client
+  -- send_request(request)
+- Controller
+  -- handle_request(request)
+       call translate(request)
+       return response
+  -- slices checked for slice validity
+  -- translate(request) responds to client requests by invoking Translator.translate
+     -- return value depends on the command type
+        -- 'rule deleted'
+        -- 'rule with handle XX modified'
+        -- 'rule added with handle XX'
+- Translator
+  -- translate method
+
+- CodeRepresentation
+  -- rule_tranlsation_guide_path
+
+- VirtualDevice
+
+- Origin_to_HP4Map
+
+- P4Command
+
+- Rule
+
+- Lease
+  -- entry_usage / entry_limit
+  -- send_command method
+
+- Device
+  -- command_to_string

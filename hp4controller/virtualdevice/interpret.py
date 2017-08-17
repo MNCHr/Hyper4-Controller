@@ -1,14 +1,27 @@
 import virtualdevice
 import json
-from p4command import P4Command
+from ..p4command import P4Command
+from p4rule import P4Rule
 
-class Translator():
+class Interpreter():
   @staticmethod
-  def translate(self, vdev, p4command):
-    # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::translate
+  def table_add(self):
     pass
 
-class RuleTranslationGuide():
+  @staticmethod
+  def table_modify(self):
+    pass
+
+  @staticmethod
+  def table_delete(self):
+    pass
+
+class Interpretation():
+  def __init__(self, rule, handles):
+    self.origin_rule = rule
+    self.hp4_rule_handles = handles
+
+class InterpretationGuide():
   def __init__(self, rtg_path):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::parse_json
     self.templates_match = {}
@@ -35,7 +48,7 @@ class RuleTranslationGuide():
           attributes['src_aparam_id'] = hp4_command['src_aparam_id']
           if templates_prims.has_key(key) == False:
             templates_prims[key] = []
-          self.templates_prims[key].append(P4Command(command_type, attributes)
+          self.templates_prims[key].append(P4Command(command_type, attributes))
         else:
           print("ERROR: Unrecognized class: %s" % hp4_command['__class__'])
     self.templates = {}
