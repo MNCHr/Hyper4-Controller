@@ -22,11 +22,11 @@ class Interpretation():
     self.hp4_rule_handles = handles
 
 class InterpretationGuide():
-  def __init__(self, rtg_path):
+  def __init__(self, ig_path):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::parse_json
     self.templates_match = {}
     self.templates_prims = {}
-    with open(rtg_path) as json_data:
+    with open(ig_path) as json_data:
       d = json.load(json_data)
       for hp4_command in d:
         attributes = {}

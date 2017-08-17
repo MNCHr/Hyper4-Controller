@@ -6,7 +6,7 @@ import runtime_CLI
 import socket
 import os
 import devices.device as device
-from virtualdevice.virtualdevice import VirtualDevice
+from virtualdevice.virtualdevice import VirtualDevice, VirtualDeviceFactory
 from virtualdevice.interpret import Interpretation
 from p4command import P4Command
 #import p4rule
@@ -38,24 +38,21 @@ class Lease():
 
   def withdraw_vdev(self, vdev_name):
     "Remove virtual device from Lease (does not destroy virtual device)"
-    num_entries = len(self.vdevs[vdev_name].table_rules)
-    num_entries += len(self.vdevs[vdev_name].code)
-    # pull data plane-related rules from device
-    for handle in self.vdevs[vdev_name].table_rules.keys():
-      table = self.vdevs[vdev_name].table_rules[handle].table
+    num_entries = len(self.vdevs[vdev_name].hp4_table_rules)
+
+    # pull all virtual device related rules from device
+    for handle in self.vdevs[vdev_name].hp4_table_rules.keys():
+      table = self.vdevs[vdev_name].hp4_table_rules[handle].table
       rule_identifier = table + ' ' + str(handle)
       self.device.do_table_delete(rule_identifier)
-      del self.vdevs[vdev_name].table_rules[handle]
-    # pull code-related rules from device
-    for handle in self.vdevs[vdev_name].code.keys():
-      table = self.vdevs[vdev_name].code[handle].rule.table
-      rule_identifier = table + ' ' + str(handle)
-      self.device.do_table_delete(rule_identifier)
-      del self.vdevs[vdev_name].code[handle]
+    self.vdevs[vdev_name].hp4_table_rules = {}
+
     self.entry_usage -= num_entries
+
     # if applicable, remove vdev from composition
     if vdev_name in self.composition.vdevs:
       self.composition.remove(vdev_name)
+
     # update vdev.dev_name
     self.vdevs[vdev_name].dev_name = 'none'
     # make lease forget about it (Lease's owning Slice still has it)
@@ -86,6 +83,7 @@ class Controller(object):
                               'remove_virtual_device',
                               'destroy_virtual_device']
     self.next_vdev_ID = 1
+    self.vdev_factory = VirtualDeviceFactory()
 
   def assign_vdev_ID(self):
     vdev_ID = self.next_vdev_ID
@@ -159,9 +157,13 @@ class Controller(object):
     # parameters:
     # <'admin'> [-d for detail]
     message = ''
+    first = True
     for hp4slice in self.slices:
+      if first == False:
+        message += '\n'
+      else:
+        first = False
       message += hp4slice
-      #devdetail = ''
       first = True
       for dev in self.slices[hp4slice].leases:
         if first == True:
@@ -174,28 +176,7 @@ class Controller(object):
         for line in leaseinfo:
           message += '\n    ' + line
 
-        '''
-        devwrapper = textwrap.TextWrapper(initial_indent='  ', width=70,
-                                          subsequent_indent='  '*(len(dev)+1))
-        devdetail += dev + ': \n'
-        devdetail += str(self.slices[hp4slice].leases[dev])
-        devdetail += '\n'      
-        message += devwrapper.fill(devdetail)
-        '''
-
-    #return '\n'.join(message.split('\n')[0:-1])
     return message
-
-  '''
-  >>> import textwrap
-  >>> user = "Username"
-  >>> prefix = user + ": "
-  >>> preferredWidth = 70
-  >>> wrapper = textwrap.TextWrapper(initial_indent=prefix, width=preferredWidth,
-      subsequent_indent=' '*len(prefix))
-  >>> message = "LEFTLEFTLEFTLEFTLEFTLEFTLEFT RIGHTRIGHTRIGHT " * 3
-  >>> print(wrapper.fill(message))
-  '''
 
   def list_devices(self, parameters):
     "List devices"
@@ -253,10 +234,37 @@ class Controller(object):
     hp4slice = parameters[1]
     dev_name = parameters[2]
     lease = self.slices[hp4slice].leases[dev_name]
+
     for vdev in lease.vdevs.keys():
       lease.withdraw_vdev(vdev)
+
+    for port in lease.ports:
+      self.devices[dev_name].phys_ports_remaining.append(port)
+
+    self.devices[dev_name].reserved_entries -= lease.entry_limit
+
     del self.slices[hp4slice].leases[dev_name]
+
     return 'Lease revoked: ' + hp4slice + ' lost access to ' + dev_name
+
+  def reset_device(self, parameters):
+    # parameters:
+    # <'admin'> <device>
+    dev_name = parameters[1]
+    for hp4slice in self.slices:
+      if dev_name in self.slices[hp4slice].leases:
+        self.revoke_lease(['admin', hp4slice, dev_name])
+    hp4device = self.devices[dev_name]
+    # delete rules for tset_context
+    for port in hp4device.assignments.keys():
+      table = 'tset_context'
+      handle = hp4device.assignments_handles[port]
+      rule_identifier = table + ' ' + str(handle)
+      hp4device.do_table_delete(rule_identifier)
+    hp4device.assignments = {}
+    hp4device.assignments_handles = {}
+    
+    return 'Device reset: ' + dev_name
 
   def create_virtual_device(self, parameters):
     # invoke loader
@@ -267,8 +275,8 @@ class Controller(object):
     vdev_name = parameters[2]
     vdev_ID = self.assign_vdev_ID()
 
-    self.slices[hp4slice].vdevs[vdev_name] = self.hp4l.load(vdev_name, vdev_ID,
-                                                            program_path)
+    self.slices[hp4slice].vdevs[vdev_name] = \
+                           self.vdev_factory.create_vdev(vdev_ID, program_path)
     
     return 'Virtual device ' + vdev_name + ' created'
 

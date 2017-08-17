@@ -1,16 +1,28 @@
 from ..p4command import P4Command
 from p4rule import P4Rule
 from interpret import Interpretation, InterpretationGuide
-from ..compilers import compiler as hp4compiler
+from ..compilers import p4_hp4
 from ..compilers.compiler import CodeRepresentation
 
 class VirtualDevice():
   def __init__(self, virtual_device_ID, code, guide):
     self.virtual_device_ID = virtual_device_ID
     self.guide = guide
-    self.code = {} # {handle (int): p4cmd (P4Command)}
-    self.origin_table_rules = {} # {handle (int): map (Origin_to_HP4Map)}
-    self.hp4_table_rules = {} # {handle (int): p4r (P4Rule)}
+
+    # from the elements in this list, generate table_add commands when loading
+    # onto a device
+    self.code = []
+    # object_code format:
+    #  <table> <action> :<mparams>:<aparams
+    for line in code:
+      table = line.split()[0]
+      action = line.split()[1]
+      mparams = line.split(':')[1].split()
+      aparams = line.split(':')[2].split()
+      self.code.append(P4Rule(table, action, mparams, aparams))
+
+    self.origin_table_rules = {} # {user-facing handle (int): map (Interpretation)}
+    self.hp4_table_rules = {} # {hp4-facing handle (int): p4r (P4Rule)}
     self.dev_name = 'none'
     self.next_handle = 0
 
@@ -33,7 +45,7 @@ class CompileError(Exception):
 class VirtualDeviceFactory():
   def __init__(self):
     compiled_programs = {} # {program_path (str) : cr (hp4compiler.CodeRepresentation)}
-    hp4c = hp4compiler.P4_to_HP4()
+    hp4c = p4_hp4.P4_to_HP4()
 
   def link(self, object_code_path, vdev_ID):
     f_ac = open(object_code_path, 'r')
