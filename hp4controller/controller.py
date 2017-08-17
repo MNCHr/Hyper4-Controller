@@ -65,11 +65,13 @@ class Lease():
     return dev.send_command(dev.command_to_string(p4cmd))
 
   def __str__(self):
-    ret = 'entry limit/usage: ' + str(self.entry_limit) + '/' + str(self.entry_usage)
-    ret += '; ports:' + str(self.ports) + '; virtual devices:'
+    ret = 'entry usage/limit: ' + str(self.entry_usage) + '/' \
+                                + str(self.entry_limit) + '\n'
+    ret += 'ports:' + str(self.ports) + '\n'
+    ret += 'virtual devices:\n'
     for vdev in self.vdevs:
-      ret += ' ' + vdev
-    ret += '; composition: ' + str(self.composition)
+      ret += ' ' + vdev + '\n'
+    ret += 'composition: ' + str(self.composition)
     return ret
 
 class Controller(object):
@@ -158,16 +160,31 @@ class Controller(object):
     # <'admin'> [-d for detail]
     message = ''
     for hp4slice in self.slices:
-      message += hp4slice + '\n'
-      devdetail = ''
+      message += hp4slice
+      #devdetail = ''
+      first = True
       for dev in self.slices[hp4slice].leases:
-        devwrapper = textwrap.TextWrapper(initial_indent='  ', width=70, subsequent_indent='    ')
+        if first == True:
+          message += '\n'
+        else:
+          first = False
+
+        message += '  ' + dev + ':'
+        leaseinfo = str(self.slices[hp4slice].leases[dev]).splitlines()
+        for line in leaseinfo:
+          message += '\n    ' + line
+
+        '''
+        devwrapper = textwrap.TextWrapper(initial_indent='  ', width=70,
+                                          subsequent_indent='  '*(len(dev)+1))
         devdetail += dev + ': \n'
         devdetail += str(self.slices[hp4slice].leases[dev])
         devdetail += '\n'      
         message += devwrapper.fill(devdetail)
+        '''
 
-    return '\n'.join(message.split('\n')[0:-1])
+    #return '\n'.join(message.split('\n')[0:-1])
+    return message
 
   '''
   >>> import textwrap
@@ -185,7 +202,12 @@ class Controller(object):
     # parameters:
     # <'admin'>
     message = ''
+    first = True
     for hp4devicename in self.devices:
+      if first == False:
+        message += '\n'
+      else:
+        first = False
       hp4device = self.devices[hp4devicename]
       message += hp4devicename
       for line in str(hp4device).splitlines():
@@ -213,11 +235,12 @@ class Controller(object):
       return 'Error: memory request exceeds memory available'
 
     for port in ports:
-      if port not in self.devices[dev_name].phys_ports:
+      if port not in self.devices[dev_name].phys_ports_remaining:
         return 'Error: port ' + port + ' not available'
     # all ports available; reserve
     for port in ports:
-      self.devices[dev_name].phys_ports.remove(port)
+      self.devices[dev_name].phys_ports_remaining.remove(port)
+    self.devices[dev_name].reserved_entries += entry_limit
 
     self.slices[hp4slice].leases[dev_name] = Lease(self.devices[dev_name],
                                                    entry_limit, ports, 'chain')
