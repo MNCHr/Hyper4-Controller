@@ -117,6 +117,45 @@ def convert_to_builtin_type(obj):
   d.update(obj.__dict__)
   return d
 
+class HP4_Command:
+  def __init__(self, command, table, action, mparams, aparams):
+    self.command = command
+    self.table = table
+    self.action = action
+    self.match_params = mparams
+    self.action_params = aparams
+  def __str__(self):
+    """ assumes command is \'table_add\' """
+    if self.command != 'table_add':
+      print("ERROR: incorrect table command %s, table %s" % (self.command, self.table))
+      exit()
+    ret = self.table + ' ' + self.action + ' :'
+    ret += ' '.join(self.match_params)
+    ret += ':'
+    ret += ' '.join(self.action_params)
+    return ret
+
+class TICS(HP4_Command):
+  def __init__(self):
+    HP4_Command.__init__(self, '', '', '', [], [])
+    self.curr_pc_state = 0
+    self.next_pc_state = 0
+    self.next_parse_state = ''
+    self.priority = 0
+
+class HP4_Match_Command(HP4_Command):
+  def __init__(self, source_table, source_action, command, table, action, mparams, aparams):
+    HP4_Command.__init__(self, command, table, action, mparams, aparams)
+    self.source_table = source_table
+    self.source_action = source_action
+
+class HP4_Primitive_Command(HP4_Command):
+  def __init__(self, source_table, source_action, command, table, action, mparams, aparams, src_aparam_id):
+    HP4_Command.__init__(self, command, table, action, mparams, aparams)
+    self.source_table = source_table
+    self.source_action = source_action
+    self.src_aparam_id = src_aparam_id
+
 class MatchParam():
   def __init__(self):
     self.value = 0
@@ -1107,7 +1146,85 @@ class P4_to_HP4(HP4Compiler):
 
     return aparams
 
-  # TODO: Resume at line 1167 / def gen_t_checksum_entries, p4c-hp4.py
+  def gen_t_checksum_entries(self):
+    """ detect and handle ipv4 checksum """
+    cf_none_types = 0
+    cf_valid_types = 0
+    for cf in self.h.calculated_fields:
+      for statement in cf[1]:
+        if statement[0] == 'update':
+          flc = self.h.p4_field_list_calculations[statement[1]]
+          for fl in flc.input:
+            count = 0
+            min_field_offset = 1000
+            min_field = None
+            for field in fl.fields:
+              count += field.width
+              if field.offset < min_field_offset:
+                min_field_offset = field.offset
+                min_field = field
+            if count == 144:
+              if flc.algorithm == 'csum16' and flc.output_width == 16:
+                # Calculate rshift_base parameter
+                #  This is the amount to R-shift extracted.data such
+                #  that the first two bytes of the ipv4 header are
+                #  right aligned
+                key = min_field.instance.name + '.' + min_field.name
+                # TODO: remove assumption that extracted.data is 800 bits
+                aparam = str(784 - self.field_offsets[key])
+                if statement[2] == None:
+                  cf_none_types += 1
+                  if (cf_none_types + cf_valid_types) > 1:
+                    print("ERROR: Unsupported: multiple checksums")
+                    exit()
+                  else:                    
+                    self.commands.append(HP4_Command("table_add",
+                                                      "t_checksum",
+                                                      "a_ipv4_csum16",
+                                                      ['[vdev ID]', '0&&&0'],
+                                                      [aparam]))
+                else:
+                  if statement[2].op == 'valid':
+                    cf_valid_types += 1
+                    if (cf_none_types + cf_valid_types) > 1:
+                      print("ERROR: Unsupported: multiple checksums")
+                      exit()
+                    else:
+                      # TODO: reduce entries by isolating relevant bit
+                      for key in self.vbits.keys():
+                        if statement[2].right == key[1]:
+                          mparams = ['[vdev ID]']
+                          val = format(self.vbits[key], '#x')
+                          mparams.append(val + '&&&' + val)
+                          self.commands.append(HP4_Command("table_add",
+                                                            "t_checksum",
+                                                            "a_ipv4_csum16",
+                                                            mparams,
+                                                            [aparam]))
+                  else:
+                    print("ERROR: Unsupported if_cond op in calculated field: \
+                           %s" % statement[2].op)
+                    exit()
+              else:
+                print("ERROR: Unsupported checksum (%s, %i)" \
+                      % (flc.algorithm, flc.output_width))
+                exit()
+            else:
+              print("ERROR: Unsupported checksum - field list of %i bits" \
+                     % count)
+              exit()
+        else:
+          print("WARNING: Unsupported update_verify_spec for calculated field: \
+                 %s" % statement[0])
+
+  def gen_t_resize_pr_entries(self):
+    # TODO: full implementation as the following primitives get support:
+    # - add_header | remove_header | truncate | push | pop | copy_header*
+    # * maybe (due to possibility of making previously invalid header
+    #   valid)
+
+    # default entry handled by dpmu
+    pass
 
   def build(self):
     self.collect_headers()
@@ -1147,17 +1264,19 @@ class P4_to_HP4(HP4Compiler):
     self.action_to_arep = {}
     self.commands = []
     self.command_templates = []
-
     self.build()
+    self.write_output()
 
-    # TODO implement all necessary steps above
-    return CodeRepresentation(object_code_path, interpretation_guide_path)
-
-  def build(self):
-    pass
+    return CodeRepresentation(args.output, args.mt_output)
 
   def write_output(self):
-    pass
+    out = open(self.args.output, 'w')
+    for command in self.commands:
+      out.write(str(command) + '\n')
+    out.close()
+    out = open(self.args.mt_output, 'w')
+    json.dump(self.command_templates, out, default=convert_to_builtin_type, indent=2)
+    out.close()
 
 def parse_args(args):
   parser = argparse.ArgumentParser(description='P4->HP4 Compiler')
@@ -1175,7 +1294,6 @@ def main():
   args = parse_args(sys.argv[1:])
   hp4c = P4_to_HP4(args.input, args)
   hp4c.build()
-  hp4c.write_output()
 
 if __name__ == '__main__':
   main()
