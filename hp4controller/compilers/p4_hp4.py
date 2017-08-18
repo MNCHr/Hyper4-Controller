@@ -369,7 +369,6 @@ class P4_to_HP4(HP4Compiler):
             endbytes = fieldend
           
       self.pc_bits_extracted[pc_state] += maxcurr
-      self.pc_bits_extracted_curr[pc_state] = maxcurr
   
       # pc_action[pc_state] = 'parse_select_XX_YY'
       if startbytes >= endbytes:
@@ -380,14 +379,14 @@ class P4_to_HP4(HP4Compiler):
         print("ERROR: Not yet supported: startbytes(%i) and endbytes(%i) cross \
                boundaries"  % (sbytes, ebytes))
         exit()
-      if startbytes < self.args.seb:
-        if endbytes >= self.args.seb:
+      if startbytes < self.seb:
+        if endbytes >= self.seb:
           unsupported(startbytes, endbytes)
         else:
           self.pc_action[pc_state] = '[PARSE_SELECT_SEB]'
           self.tics_table_names[tics_pc_state] = 'tset_parse_select_SEB'
       else:
-        bound = self.args.seb + 10
+        bound = self.seb + 10
         while bound <= 100:
           if startbytes < bound:
             if endbytes >= bound:
@@ -413,7 +412,7 @@ class P4_to_HP4(HP4Compiler):
     #  parameters string (20 bytes for SEB, 10 bytes for everything else)
     mparams = []
     mparams_count = 10
-    if self.field_offsets[criteria_fields[0]] / 8 < self.args.seb:
+    if self.field_offsets[criteria_fields[0]] / 8 < self.seb:
       mparams_count = 20
     for i in range(mparams_count):
       mparams.append(MatchParam())
@@ -500,7 +499,7 @@ class P4_to_HP4(HP4Compiler):
       self.stage += 1
 
   def walk_parse_tree(self, parse_state, pc_state):
-  """ parse_state: the HLIR object representing a parse node
+    """ parse_state: the HLIR object representing a parse node
         pc_state: A parse_control state representing a (possibly partial) path
                   through the parse tree
         - Collect parse control states, each uniquely numbered and associated
@@ -528,7 +527,6 @@ class P4_to_HP4(HP4Compiler):
       else:
         return
     elif parse_state.return_statement[RETURN_TYPE] == 'select':
-      self.next_pc_states[curr_pc_state] = []
       # return_statement[CASE_ENTRIES]: list of tuples (see case_entry below)
       for case_entry in parse_state.return_statement[CASE_ENTRIES]:
         t = TICS()
@@ -553,7 +551,6 @@ class P4_to_HP4(HP4Compiler):
               self.pc_to_preceding_pcs[curr_pc_state] = []
             self.pc_to_preceding_pcs[pc_state] = self.pc_to_preceding_pcs[curr_pc_state] + [curr_pc_state]
 
-            self.next_pc_states[curr_pc_state].append(pc_state)
             # TODO: verify this line is correct; does it account for 'current'?
             self.pc_bits_extracted[pc_state] = self.offset
             next_states.append(next_state)
@@ -582,7 +579,7 @@ class P4_to_HP4(HP4Compiler):
     for key in self.pc_action.keys():
       # special handling for pc_state 0
       if key == 0:
-        if self.pc_bits_extracted[0] > (self.args.seb * 8):
+        if self.pc_bits_extracted[0] > (self.seb * 8):
           self.commands.append(HP4_Command("table_add",
                                            "tset_parse_control",
                                            "extract_more",
@@ -599,10 +596,10 @@ class P4_to_HP4(HP4Compiler):
                                            "set_next_action",
                                            ["[vdev ID]", "0"],
                                            [self.pc_action[0], "1"]))
-          self.pc_bits_extracted[0] = self.args.seb * 8
+          self.pc_bits_extracted[0] = self.seb * 8
 
         self.pc_bits_extracted[1] = self.pc_bits_extracted[0]
-        self.pc_bits_extracted[0] = self.args.seb * 8
+        self.pc_bits_extracted[0] = self.seb * 8
         self.pc_action[1] = self.pc_action[0]
 
       else:
@@ -1237,7 +1234,11 @@ class P4_to_HP4(HP4Compiler):
     self.gen_t_checksum_entries()
     self.gen_t_resize_pr_entries()
 
-  def compile_to_hp4(self, program_path, args):
+  def compile_to_hp4(self, program_path, out_path, mt_out_path, seb):
+    self.program_path = program_path
+    self.out_path = out_path
+    self.mt_out_path = mt_out_path
+    self.seb = seb
     self.h = HLIR(program_path)
     self.h.build()
     if len(self.h.p4_ingress_ptr) > 1:
@@ -1267,14 +1268,14 @@ class P4_to_HP4(HP4Compiler):
     self.build()
     self.write_output()
 
-    return CodeRepresentation(args.output, args.mt_output)
+    return CodeRepresentation(out_path, mt_out_path)
 
   def write_output(self):
-    out = open(self.args.output, 'w')
+    out = open(self.out_path, 'w')
     for command in self.commands:
       out.write(str(command) + '\n')
     out.close()
-    out = open(self.args.mt_output, 'w')
+    out = open(self.mt_out_path, 'w')
     json.dump(self.command_templates, out, default=convert_to_builtin_type, indent=2)
     out.close()
 
@@ -1292,8 +1293,8 @@ def parse_args(args):
 
 def main():
   args = parse_args(sys.argv[1:])
-  hp4c = P4_to_HP4(args.input, args)
-  hp4c.build()
+  hp4c = P4_to_HP4()
+  hp4c.compile_to_hp4(args.input, args.output, args.mt_output, args.seb)
 
 if __name__ == '__main__':
   main()

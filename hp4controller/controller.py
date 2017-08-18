@@ -106,10 +106,10 @@ class Controller(object):
     resp = ""
     try:
       resp = getattr(self, command)(parameters)
-    except AttributeError:
-      return "Command not found: " + command
-    except:
-      return "Unexpected error: " + str(sys.exc_info()[0])
+    except AttributeError as e:
+      return "AttributeError(handle_request - " + command + "): " + str(e)
+    except Exception as e:
+      return "Unexpected error: " + str(e)
 
     return resp
 
@@ -157,12 +157,12 @@ class Controller(object):
     # parameters:
     # <'admin'> [-d for detail]
     message = ''
-    first = True
+    ##first = True
     for hp4slice in self.slices:
-      if first == False:
-        message += '\n'
-      else:
-        first = False
+      #if first == False:
+      message += '\n'
+      #else:
+      #  first = False
       message += hp4slice
       first = True
       for dev in self.slices[hp4slice].leases:

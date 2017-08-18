@@ -31,9 +31,11 @@ class InterpretationGuide():
       for hp4_command in d:
         attributes = {}
         attributes['src_table'] = hp4_command['source_table']
-        #src_action = hp4_command['source_action']
+        src_table = hp4_command['source_table']
+        src_action = hp4_command['source_action']
         key = (src_table, src_action)
         command_type = hp4_command['command']
+        attributes['src_table'] = src_table
         attributes['table'] = hp4_command['table']
         attributes['action'] = hp4_command['action']
         attributes['mparams'] = hp4_command['match_params']
@@ -46,8 +48,8 @@ class InterpretationGuide():
           self.templates_match[key] = P4Command(command_type, attributes)
         elif hp4_command['__class__'] == 'HP4_Primitive_Command':
           attributes['src_aparam_id'] = hp4_command['src_aparam_id']
-          if templates_prims.has_key(key) == False:
-            templates_prims[key] = []
+          if self.templates_prims.has_key(key) == False:
+            self.templates_prims[key] = []
           self.templates_prims[key].append(P4Command(command_type, attributes))
         else:
           print("ERROR: Unrecognized class: %s" % hp4_command['__class__'])

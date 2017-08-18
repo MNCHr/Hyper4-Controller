@@ -3,23 +3,26 @@ from p4rule import P4Rule
 from interpret import Interpretation, InterpretationGuide
 from ..compilers import p4_hp4
 from ..compilers.compiler import CodeRepresentation
+import re
+
+import code
 
 class VirtualDevice():
-  def __init__(self, virtual_device_ID, code, guide):
+  def __init__(self, virtual_device_ID, hp4code, guide):
     self.virtual_device_ID = virtual_device_ID
     self.guide = guide
 
     # from the elements in this list, generate table_add commands when loading
     # onto a device
-    self.code = []
+    self.hp4code = []
     # object_code format:
     #  <table> <action> :<mparams>:<aparams
-    for line in code:
+    for line in hp4code:
       table = line.split()[0]
       action = line.split()[1]
       mparams = line.split(':')[1].split()
       aparams = line.split(':')[2].split()
-      self.code.append(P4Rule(table, action, mparams, aparams))
+      self.hp4code.append(P4Rule(table, action, mparams, aparams))
 
     self.origin_table_rules = {} # {user-facing handle (int): map (Interpretation)}
     self.hp4_table_rules = {} # {hp4-facing handle (int): p4r (P4Rule)}
@@ -44,15 +47,15 @@ class CompileError(Exception):
 
 class VirtualDeviceFactory():
   def __init__(self):
-    compiled_programs = {} # {program_path (str) : cr (hp4compiler.CodeRepresentation)}
-    hp4c = p4_hp4.P4_to_HP4()
+    self.compiled_programs = {} # {program_path (str) : cr (hp4compiler.CodeRepresentation)}
+    self.hp4c = p4_hp4.P4_to_HP4()
 
   def link(self, object_code_path, vdev_ID):
     f_ac = open(object_code_path, 'r')
-    code = []
+    hp4code = []
 
     sr = {}
-    sr['[vdev ID]'] = vdev_ID
+    sr['[vdev ID]'] = str(vdev_ID)
     sr['[PROCEED]'] = '0'
     sr['[PARSE_SELECT_SEB]'] = '1'
     sr['[PARSE_SELECT_20_29]'] = '2'
@@ -135,30 +138,34 @@ class VirtualDeviceFactory():
             replace += "00"   
           line = line.replace(token, replace)
 
-      code.append(line)
+      hp4code.append(line)
 
     f_ac.close()
 
-    return code
+    return hp4code
 
   def create_vdev(self, vdev_ID, program_path):
-    if program_path not in compiled_programs:
+    if program_path not in self.compiled_programs:
       # compile
       if program_path.endswith('.p4'):
         try:
-          self.compiled_programs[program_path] = self.hp4c.compile_to_hp4(program_path)
+          out_path = program_path.split('.p4')[0] + '.hp4t'
+          mt_out_path = program_path.split('.p4')[0] + '.hp4mt'
+          seb = 20
+          self.compiled_programs[program_path] = \
+             self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, seb)
         except CompileError as e:
           return "Compile Error: " + str(e)
       else:
         raise CompileError('filetype not supported')
-    
+
     object_code_path = self.compiled_programs[program_path].object_code_path
-    ig_path = self.compiled_programs[program_path].rule_translation_guide_path
+    ig_path = self.compiled_programs[program_path].interpretation_guide_path
    
-    code = link(object_code_path, vdev_ID)
+    hp4code = self.link(object_code_path, vdev_ID)
     guide = InterpretationGuide(ig_path) # TODO: verify parameters
 
-    return VirtualDevice(vdev_ID, code, guide)
+    return VirtualDevice(vdev_ID, hp4code, guide)
 
   def writefile(self, program_path, outfile):
     pass
