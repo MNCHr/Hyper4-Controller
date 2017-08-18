@@ -12,7 +12,7 @@ from p4command import P4Command
 #import p4rule
 import textwrap
 from compositions.composition import Chain
-#from interpret import Interpreter
+from errors import AddRuleError, ModRuleError, DeleteRuleError
 
 import code
 
@@ -32,17 +32,31 @@ class Lease():
     else:
       raise CompTypeException("invalid comp type: " + comp_type)
 
-  def load_vdev(self, vdev):
+  def load_vdev(self, vdev_name, vdev):
     "Load virtual device onto physical device"
-    pass
+    for rule in vdev.hp4code:
+      try:
+        table = rule.table
+        handle = self.device.do_table_add(rule)
+        vdev.hp4_table_rules[(table, handle)] = rule
+      except AddRuleError as e:
+        # remove all entries already added
+        code.interact(local=locals())
+        for table, h in vdev.hp4_table_rules.keys():
+          rule_identifier = table + ' ' + str(h)
+          self.device.do_table_delete(rule_identifier)
+          del vdev.hp4_table_rules[(table, h)]
+        raise AddRuleError('Lease::load_vdev failed for ' + vdev_name)
+
+    self.entry_usage += len(vdev.hp4code)
+    self.vdevs[vdev_name] = vdev
 
   def withdraw_vdev(self, vdev_name):
     "Remove virtual device from Lease (does not destroy virtual device)"
     num_entries = len(self.vdevs[vdev_name].hp4_table_rules)
 
     # pull all virtual device related rules from device
-    for handle in self.vdevs[vdev_name].hp4_table_rules.keys():
-      table = self.vdevs[vdev_name].hp4_table_rules[handle].table
+    for table, handle in self.vdevs[vdev_name].hp4_table_rules.keys():
       rule_identifier = table + ' ' + str(handle)
       self.device.do_table_delete(rule_identifier)
     self.vdevs[vdev_name].hp4_table_rules = {}
@@ -302,7 +316,7 @@ class Controller(object):
       return 'Error - ' + dest_dev_name + ' not among leases owned by ' + hp4slice
     # - validate lease has sufficient entries
     vdev = self.slices[hp4slice].vdevs[vdev_name]
-    vdev_entries = len(vdev.code) + len(vdev.table_rules)
+    vdev_entries = len(vdev.hp4code) + len(vdev.hp4_table_rules)
     entries_available = (self.slices[hp4slice].leases[dest_dev_name].entry_limit
                        - self.slices[hp4slice].leases[dest_dev_name].entry_usage)
     if (vdev_entries > entries_available):
@@ -312,7 +326,7 @@ class Controller(object):
     src_dev_name = self.slices[hp4slice].vdevs[vdev_name].dev_name
     if src_dev_name in self.devices:
       self.slices[hp4slice].leases[src_dev_name].withdraw_vdev(vdev_name)
-    self.slices[hp4slice].leases[dest_dev_name].load_vdev(vdev)
+    self.slices[hp4slice].leases[dest_dev_name].load_vdev(vdev_name, vdev)
 
     return 'Virtual device ' + vdev_name + ' migrated to ' + dest_dev_name
 
@@ -366,11 +380,11 @@ class Controller(object):
     for hp4command in hp4commands:
       # return value should be handle for all commands
       hp4handle = self.slices[hp4slice].leases[vdev.dev_name].send_command(hp4command)
-
+      table = hp4command.attribs['table']
       if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
-        vdev.table_rule_handles[hp4handle] = hp4command.rule
+        vdev.hp4_table_rules[(table, hp4handle)] = hp4command.rule
       else: # command_type == 'table_delete'
-        del vdev.table_rule_handles[hp4handle]
+        del vdev.hp4_table_rules[(table, hp4handle)]
       # accounting
       if hp4command.command_type == 'table_add':
         self.slices[hp4slice].leases[vdev.dev_name].entry_usage += 1
@@ -387,23 +401,23 @@ class Controller(object):
       rule = p4rule.P4Rule(table, p4command.attributes['action'],
                            p4command.attributes['mparams'],
                            p4command.attributes['aparams'])
-      vdev.origin_table_rules[vdev.assign_handle()] = \
+      vdev.origin_table_rules[(table, vdev.assign_handle())] = \
                          virtualdevice.Interpretation(rule, hp4_rule_handles)
 
     elif p4command.command_type == 'table_modify':
       # replace Origin_to_HP4Map w/ one with new rule, new hp4_rules_handles list
       handle = p4command.attributes['handle']
-      oldrule = vdev.origin_table_rules[handle].origin_rule
+      oldrule = vdev.origin_table_rules[(table, handle)].origin_rule
       action = p4command.attributes['action']
       mparams = oldrule.mparams
       aparams = p4command.attributes['aparams']
       rule = p4rule.P4Rule(table, action, mparams, aparams)
-      vdev.origin_table_rules[handle] = \
+      vdev.origin_table_rules[(table, handle)] = \
                          virtualdevice.Interpretation(rule, hp4_rule_handles)
 
     elif p4command.command_type == 'table_delete':
       handle = p4command.attributes['handle']
-      del vdev.origin_table_rules[handle]
+      del vdev.origin_table_rules[(table, handle)]
 
     return 'Translated: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + vev.dev_name
 

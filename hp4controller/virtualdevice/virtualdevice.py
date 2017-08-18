@@ -24,17 +24,20 @@ class VirtualDevice():
       aparams = line.split(':')[2].split()
       self.hp4code.append(P4Rule(table, action, mparams, aparams))
 
-    self.origin_table_rules = {} # {user-facing handle (int): map (Interpretation)}
-    self.hp4_table_rules = {} # {hp4-facing handle (int): p4r (P4Rule)}
+    self.origin_table_rules = {} # KEY: (table (str), user-facing handle (int))
+                                 # VALUE: Interpretation
+    self.hp4_table_rules = {} # KEY: (table (str), hp4-facing handle (int))
+                              # VALUE: P4Rule}
     self.dev_name = 'none'
     self.next_handle = 0
 
   def interpret(self, p4command):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::translate
     p4commands = []
+    table = p4command.attribs['table']
     # this may be problematic, reusing the origin rule handle as the match_ID
     match_ID = vdev.assign_handle()
-    self.origin_table_rules[match_ID] # TODO...
+    self.origin_table_rules[(table, match_ID)] # TODO...
     return p4commands
 
   def assign_handle(self):

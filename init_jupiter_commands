@@ -1,1 +1,2 @@
 create_virtual_device tests/arp_proxy.p4 arp
+migrate_virtual_device arp alpha

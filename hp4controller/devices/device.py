@@ -1,5 +1,9 @@
 from ..p4command import P4Command
+from ..virtualdevice.p4rule import P4Rule
+from ..errors import AddRuleError, ModRuleError, DeleteRuleError
 
+import sys
+from cStringIO import StringIO
 import code
 
 # http://stackoverflow.com/questions/16571150/how-to-capture-stdout-output-from-a-python-function-call
@@ -12,15 +16,6 @@ class Capturing(list):
     self.extend(self._stringio.getvalue().splitlines())
     del self._stringio
     sys.stdout = self._stdout
-
-class AddRuleError(Exception):
-  pass
-
-class ModRuleError(Exception):
-  pass
-
-class DeleteRuleError(Exception):
-  pass
 
 class Device():
   def __init__(self, rta, max_entries, phys_ports, ip, port):
@@ -39,18 +34,12 @@ class Device():
     pass
 
   def do_table_delete(self, rule_identifier):
-    "rule_identifier: \'<table name> <entry handle>\'"
-    with Capturing() as output:
-      try:
-        self.rta.do_table_delete(rule_identifier)
-      except:
-        raise DeleteRuleError("table_delete raised an exception (rule: " + rule_identifier + ")")
-      else:
-        self.total_entries += 1
-    for out in output:
-      dbugprint(out)
-      if ('Invalid' in out) or ('Error' in out):
-        raise DeleteRuleError(out)
+    """ Implement w/ device-specific mechanism/syntax for deleting rules """
+    pass
+
+  def do_table_add(self, rule):
+    """ Implement w/ device-specific mechanism/syntax for adding rules """
+    pass
 
   @staticmethod
   def command_to_string(cmd):
@@ -70,6 +59,38 @@ class Device():
     return ret
 
 class Bmv2_SSwitch(Device):
+
+  def do_table_delete(self, rule_identifier):
+    "rule_identifier: \'<table name> <entry handle>\'"
+    with Capturing() as output:
+      try:
+        self.rta.do_table_delete(rule_identifier)
+      except:
+        raise DeleteRuleError("table_delete raised an exception (rule: " + rule_identifier + ")")
+    for out in output:
+      print(out)
+      if ('Invalid' in out) or ('Error' in out):
+        raise DeleteRuleError(out)
+
+  def do_table_add(self, rule):
+    """ rule: P4Rule
+        output: handle or error
+    """
+    # rta.do_table_add expects '<table> <action> <[mparams]> => <[aparams]>'
+    bmv2_rule = rule.table + ' ' + rule.action + ' ' + ' '.join(rule.mparams) \
+                           + ' => ' + ' '.join(rule.aparams)
+    with Capturing() as output:
+      try:
+        self.rta.do_table_add(bmv2_rule)
+      except:
+        raise AddRuleError("table_add raised an exception (rule: " + rule + ")")
+    for out in output:
+      print(out)
+      if ('Invalid' in out) or ('Error' in out):
+        raise AddRuleError(out)
+      if 'Entry has been added' in out:
+        return int(out.split('handle ')[1])
+
   @staticmethod
   def command_to_string(cmd):
     command_str = cmd.command_type
