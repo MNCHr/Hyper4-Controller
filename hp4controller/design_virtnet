@@ -1,0 +1,83 @@
+action do_phys_fwd_only(spec) {
+  modify_field(standard_metadata.egress_spec, spec);
+}
+
+action do_phys_mcast(mcast_grp) {
+  modify_field(intrinsic_metadata.mcast_grp, mcast_grp);
+}
+
+action do_virt_fwd() {
+  modify_field(standard_metadata.egress_spec, standard_metadata.ingress_port);
+  modify_field(meta_ctrl.virt_fwd_flag, 1);
+}
+
+table t_virtnet {
+  reads {
+    meta_ctrl.vdev_ID : exact;
+    meta_ctrl.virt_egress_spec : exact;
+  }
+  actions {
+    a_drop;
+    do_phys_fwd_only;
+    do_phys_mcast;
+    do_virt_fwd;
+  }
+}
+
+The egress_handling_mode (etrue | efalse | econd) determines whether vdev code rules should be filtered at the time of insertion.  The rules to filter are those that write to standard_metadata.egress_spec (in truth, meta.virtual_egress_spec).
+
+The chain position 0 | 1...n-1 | n affects how we calculate the entries for tset_context, t_virtnet, and t_egr_virtnet.
+
+The Lease class includes a map: {[VEGRESS_SPEC]: [EGRESS_SPEC]}.
+
+This map is set up at time of lease creation/grant: for every physical port
+granted in the lease, map a vegress_spec value to it, starting with
+vegress_spec 1.  For example:
+
+  vegress_spec	egress_spec
+      1             4
+      2             5
+
+This info shoud not be divulged to slice admins.
+
+The Lease class also needs a multicast_specs set for bmv2-ss, to differentiate between the need for a do_phys_fwd_only action and a do_phys_mcast action.  For devices other than bmv2-ss, do_phys_fwd_only should suffice.
+
+Entry calculation guidance for each chain position class:
+
+- 0 + NULL
+
+for each PPORT in set(map.values()):
+tset_context a_set_context PPORT => VDEV
+
+for VEGRESS_SPEC in map:
+t_virtnet do_phys_fwd_only VDEV VEGRESS_SPEC => map[VEGRESS_SPEC]
+OR (if device is bmv2-ss and map[VEGRESS_SPEC] in multicast_specs)
+t_virtnet do_phys_mcast VDEV VEGRESS_SPEC => map[VEGRESS_SPEC]
+
+t_egr_virtnet: N/A (virt_fwd_flag not set)
+
+- 0 + VDEVNEXT
+
+for each PPORT in set(map.values()):
+tset_context a_set_context PPORT => VDEV
+
+for VEGRESS_SPEC in map:
+t_virtnet do_virt_fwd VDEV VEGRESS_SPEC =>
+
+t_egr_virtnet vfwd VDEV VEGRESS_SPEC => VDEVNEXT [VDEVNEXT + N]
+where N = number of physical ports
+
+- 1 ... n-1
+
+for VEGRESS_SPEC in map:
+t_virtnet do_virt_fwd VDEV VEGRESS_SPEC =>
+
+t_egr_virtnet vfwd VDEV VEGRESS_SPEC => VDEVNEXT [VDEVNEXT + N]
+where N = number of physical ports
+
+- n
+
+for VEGRESS_SPEC in map:
+t_virtnet do_phys_fwd_only VDEV VEGRESS_SPEC => map[VEGRESS_SPEC]
+
+t_egr_virtnet: N/A

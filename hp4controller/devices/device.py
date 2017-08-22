@@ -41,6 +41,10 @@ class Device():
     """ Implement w/ device-specific mechanism/syntax for adding rules """
     pass
 
+  def do_table_modify(self, rule):
+    """ Implement w/ device-specific mechanism/syntax for modifying rules """
+    pass
+
   @staticmethod
   def command_to_string(cmd):
     pass
@@ -90,6 +94,18 @@ class Bmv2_SSwitch(Device):
         raise AddRuleError(out)
       if 'Entry has been added' in out:
         return int(out.split('handle ')[1])
+
+  def do_table_modify(self, rule_mod):
+    "rule_mod: \'<table name> <action> <handle> <[aparams]>\'"
+    with Capturing() as output:
+      try:
+        self.rta.do_table_modify(rule_mod)
+      except:
+        raise ModifyRuleError("table_modify raised an exception (rule_mod: " + rule_mod + ")")
+    for out in output:
+      print(out)
+      if ('Invalid' in out) or ('Error' in out):
+        raise ModifyRuleError(out)
 
   @staticmethod
   def command_to_string(cmd):

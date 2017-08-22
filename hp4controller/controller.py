@@ -462,6 +462,35 @@ class ChainController(Controller):
     return super(ChainController, self).handle_request(request)
     
   def insert(self, parameters):
+    # parameters:
+    # <slice name> <virtual device name> <position> <egress handling mode>
+    hp4slice = parameters[0]
+    vdev_name = parameters[1]
+    position = parameters[2]
+    egress_mode = parameters[3]
+
+    # Modify: <table name> <action> <handle> <[aparams]>
+
+    # validate request
+    # - validate slice
+    if hp4slice not in self.slices:
+      return 'Error - ' + hp4slice + ' not a valid slice'
+    # - validate vdev_name
+    if vdev_name not in self.slices[hp4slice].vdevs:
+      return 'Error - ' + vdev_name + ' not a valid virtual device'
+    vdev = self.slices[hp4slice].vdevs[vdev_name]
+    vdev_ID = vdev.virtual_device_ID
+    dev_name = vdev.dev_name
+    # - validate lease
+    if dev_name not in self.slices[hp4slice].leases:
+      return 'Error - ' + dev_name + ' not among leases owned by ' + hp4slice
+
+    commands = []    
+    lease = self.slices[hp4slice].leases[dev_name]
+    
+    if position == 0:
+
+
     return 'Not implemented yet'
 
   def append(self, parameters):
