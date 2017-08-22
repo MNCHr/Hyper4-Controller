@@ -1,6 +1,6 @@
 from ..virtualdevice.virtualdevice import VirtualDevice
 
-class Composition():
+class Composition(object):
   def __init__(self):
     self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
 
@@ -9,6 +9,7 @@ class Composition():
 
 class Chain(Composition):
   def __init__(self):
+    super(Chain, self).__init__()
     self.vdev_chain = []
   def insert(self, vdev_name, pos):
     pass

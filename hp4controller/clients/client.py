@@ -45,6 +45,7 @@ class SliceManager(Client):
   def do_withdraw_virtual_device(self, line):
     "Remove virtual device from current location: withdraw_virtual_device <virtual device>"
     resp = self.send_request(self.user + ' withdraw_virtual_device ' + line)
+    print(resp)
 
   def do_destroy_virtual_device(self, line):
     "Destroy virtual device (remove AND delete): destroy_virtual_device <virtual device>"

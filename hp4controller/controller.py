@@ -41,7 +41,6 @@ class Lease():
         vdev.hp4_table_rules[(table, handle)] = rule
       except AddRuleError as e:
         # remove all entries already added
-        code.interact(local=locals())
         for table, h in vdev.hp4_table_rules.keys():
           rule_identifier = table + ' ' + str(h)
           self.device.do_table_delete(rule_identifier)
@@ -54,7 +53,6 @@ class Lease():
   def withdraw_vdev(self, vdev_name):
     "Remove virtual device from Lease (does not destroy virtual device)"
     num_entries = len(self.vdevs[vdev_name].hp4_table_rules)
-
     # pull all virtual device related rules from device
     for table, handle in self.vdevs[vdev_name].hp4_table_rules.keys():
       rule_identifier = table + ' ' + str(handle)
@@ -62,7 +60,6 @@ class Lease():
     self.vdevs[vdev_name].hp4_table_rules = {}
 
     self.entry_usage -= num_entries
-
     # if applicable, remove vdev from composition
     if vdev_name in self.composition.vdevs:
       self.composition.remove(vdev_name)
@@ -95,7 +92,8 @@ class Controller(object):
     self.slicemgr_commands = ['create_virtual_device',
                               'migrate_virtual_device',
                               'remove_virtual_device',
-                              'destroy_virtual_device']
+                              'destroy_virtual_device',
+                              'withdraw_virtual_device']
     self.next_vdev_ID = 1
     self.vdev_factory = VirtualDeviceFactory()
 
@@ -110,11 +108,13 @@ class Controller(object):
       return "Request format: <slice name | admin> <command> [parameter list]"
     requester = request.split()[0]
     command = request.split()[1]
+    self.dbugprint("Request: " + request)
+    self.dbugprint("Command: " + command)
     parameters = [requester] + request.split()[2:]
-    if requester not in self.slices and requester != 'admin':
+    if ((requester not in self.slices) and (requester != 'admin')):
       return "Denied; no slice " + requester
-    if (requester != 'admin'
-          and command not in self.slicemgr_commands):
+    if ((requester != 'admin')
+          and (command not in self.slicemgr_commands)):
       return "Denied; command not available to " + requester
 
     resp = ""
@@ -327,6 +327,7 @@ class Controller(object):
     if src_dev_name in self.devices:
       self.slices[hp4slice].leases[src_dev_name].withdraw_vdev(vdev_name)
     self.slices[hp4slice].leases[dest_dev_name].load_vdev(vdev_name, vdev)
+    vdev.dev_name = dest_dev_name
 
     return 'Virtual device ' + vdev_name + ' migrated to ' + dest_dev_name
 
@@ -337,6 +338,8 @@ class Controller(object):
     if dev_name not in self.devices:
       return 'Error - ' + vdev_name + ' not at a known device'
     self.slices[hp4slice].leases[dev_name].withdraw_vdev(vdev_name)
+    self.slices[hp4slice].vdevs[vdev_name].dev_name = 'none'
+
     return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
 
   def interpret(self, parameters):
