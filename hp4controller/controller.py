@@ -23,6 +23,15 @@ class Lease():
     self.entry_usage = 0
     self.ports = ports
     self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
+    self.assignments = {} # {pport : vdev_ID}
+    self.assignment_handles = {} # {pport : tset_context rule handle}
+    vegress_val = 1
+    self.egress_map = {} # {vegress_spec (int): egress_spec (int)}
+    # note, following assumes port id == egress_spec
+    for port in ports:
+      self.egress_map[vegress_val] = port
+      vegress_val += 1
+
     if comp_type == 'chain':
       self.composition = Chain()
     elif comp_type == 'dag':
@@ -252,6 +261,15 @@ class Controller(object):
     for vdev in lease.vdevs.keys():
       lease.withdraw_vdev(vdev)
 
+    # delete rules for tset_context
+    for port in lease.assignments.keys():
+      table = 'tset_context'
+      handle = lease.assignment_handles[port]
+      rule_identifier = table + ' ' + str(handle)
+      lease.device.do_table_delete(rule_identifier)
+    lease.assignments = {}
+    lease.assignment_handles = {}
+
     for port in lease.ports:
       self.devices[dev_name].phys_ports_remaining.append(port)
 
@@ -268,15 +286,6 @@ class Controller(object):
     for hp4slice in self.slices:
       if dev_name in self.slices[hp4slice].leases:
         self.revoke_lease(['admin', hp4slice, dev_name])
-    hp4device = self.devices[dev_name]
-    # delete rules for tset_context
-    for port in hp4device.assignments.keys():
-      table = 'tset_context'
-      handle = hp4device.assignments_handles[port]
-      rule_identifier = table + ' ' + str(handle)
-      hp4device.do_table_delete(rule_identifier)
-    hp4device.assignments = {}
-    hp4device.assignments_handles = {}
     
     return 'Device reset: ' + dev_name
 
@@ -485,11 +494,77 @@ class ChainController(Controller):
     if dev_name not in self.slices[hp4slice].leases:
       return 'Error - ' + dev_name + ' not among leases owned by ' + hp4slice
 
+    dev = self.devices[dev_name]
+
     commands = []    
     lease = self.slices[hp4slice].leases[dev_name]
+    chain = lease.composition.vdev_chain
     
     if position == 0:
+      if len(chain) > 0:
+        # entry point: table_modify
+        for port in lease.assignments:
+          handle = lease.assignment_handles[port]
+          command_type = 'table_modify'
+          attribs = {'table': 'tset_context',
+                     'action': 'a_set_context',
+                     'handle': str(handle),
+                     'aparams': [str(vdev_ID)]}
+          commands.append(P4Command(command_type, attribs))
+      else:
+        # entry point: table_add
+        for port in lease.assignments:
+          command_type = 'table_add'
+          attribs = {'table': 'tset_context',
+                     'action': 'a_set_context',
+                     'mparams': [str(port)],
+                     'aparams': [str(vdev_ID)]}
+          commands.append(P4Command(command_type, attribs))
 
+    elif len(chain) > 0:
+      # link left vdev to new vdev
+      # this involves modifying all t_virtnet and t_egr_virtnet rules for the leftvdev
+      leftvdev_name = chain[position - 1]
+      leftvdev = lease.composition.vdevs[leftvdev_name]
+      # modify rules referenced by leftvdev.t_virtnet_handles,
+      # leftvdev.t_egr_virtnet_handles
+      for handle in leftvdev.t_virtnet_handles:
+        command_type = 'table_modify'
+        attribs = {'table': 't_virtnet',
+                   'action': 'do_virt_fwd',
+                   'handle': str(handle),
+                   'aparams': []}
+        commands.append(P4Command(command_type, attribs))
+      for handle in leftvdev.t_egr_virtnet_handles:
+        command_type = 'table_modify'
+        attribs = {'table': 't_egr_virtnet',
+                   'action': 'vfwd',
+                   'handle': str(handle),
+                   'aparams': [str(vdev_ID), str(len(lease.ports) + vdev_ID)]}
+        commands.append(P4Command(command_type, attribs))
+
+      if position < len(chain):
+        # link new vdev to next vdev
+        rightvdev_name = chain[position]
+        rightvdev = lease.composition.vdevs[rightvdev_name]
+        rightvdev_vingress = str(len(lease.ports) + rightvdev.virtual_device_ID))
+        for vegress in lease.egress_map:
+          command_type = 'table_add'
+          attribs = {'table': 't_virtnet',
+                     'action': 'do_virt_fwd',
+                     'mparams': [str(vdev_ID), str(vegress)],
+                     'aparams': []}
+          commands.append(P4Command(command_type, attribs))
+          attribs = {'table': 't_egr_virtnet',
+                     'action': 'vfwd',
+                     'mparams': [str(vdev_ID), str(vegress)],
+                     'aparams': [str(rightvdev.virtual_device_ID),
+                                 rightvdev_vingress]}
+          commands.append(P4Command(command_type, attribs))
+
+    if position == len(chain):
+      # TODO
+      pass
 
     return 'Not implemented yet'
 

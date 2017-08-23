@@ -10,10 +10,12 @@ class Composition(object):
 class Chain(Composition):
   def __init__(self):
     super(Chain, self).__init__()
-    self.vdev_chain = []
+    self.vdev_chain = [] # vdev_names (strings)
   def insert(self, vdev_name, pos):
     pass
   def append(self, vdev_name):
+    pass
+  def remove(self, vdev_name):
     pass
 
   def __str__(self):

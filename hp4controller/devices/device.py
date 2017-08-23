@@ -20,8 +20,8 @@ class Capturing(list):
 class Device():
   def __init__(self, rta, max_entries, phys_ports, ip, port):
     self.rta = rta
-    self.assignments = {} # {pport : vdev_ID}
-    self.assignment_handles = {} # {pport : tset_context rule handle}
+    #self.assignments = {} # {pport : vdev_ID}
+    #self.assignment_handles = {} # {pport : tset_context rule handle}
     self.max_entries = max_entries
     self.reserved_entries = 0
     self.phys_ports = phys_ports

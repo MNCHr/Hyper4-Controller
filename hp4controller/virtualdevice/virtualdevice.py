@@ -28,6 +28,10 @@ class VirtualDevice():
                                  # VALUE: Interpretation
     self.hp4_table_rules = {} # KEY: (table (str), hp4-facing handle (int))
                               # VALUE: P4Rule}
+    self.t_virtnet_handles = {} # KEY: vegress_spec (int)
+                                # VALUE: hp4-facing handle (int)
+    self.t_egr_virtnet_handles = {} # KEY: vegress_spec (int)
+                                    # VALUE: hp4-facing handle (int)
     self.dev_name = 'none'
     self.next_handle = 0
 
