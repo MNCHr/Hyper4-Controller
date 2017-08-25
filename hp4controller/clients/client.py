@@ -103,7 +103,7 @@ class Administrator(Client):
     print(resp)
 
   def do_grant_lease(self, line):
-    "Grant lease (slice access to a device): grant_lease <slice> <device> <entry limit> <ports>"
+    "Grant lease (slice access to a device): grant_lease <slice> <device> <entry limit> <comp subclass> <ports>"
     resp = self.send_request(self.user + ' grant_lease ' + line)
     print(resp)
 

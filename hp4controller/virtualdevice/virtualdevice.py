@@ -32,7 +32,7 @@ class VirtualDevice():
                                 # VALUE: hp4-facing handle (int)
     self.t_egr_virtnet_handles = {} # KEY: vegress_spec (int)
                                     # VALUE: hp4-facing handle (int)
-    self.dev_name = 'none'
+    #self.dev_name = 'none'
     self.next_handle = 0
 
   def interpret(self, p4command):

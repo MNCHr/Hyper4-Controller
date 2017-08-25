@@ -11,13 +11,17 @@ from virtualdevice.interpret import Interpretation
 from p4command import P4Command
 #import p4rule
 import textwrap
-from compositions.composition import Chain
+#from compositions.composition import Chain
+import compositions.composition
 from errors import AddRuleError, ModRuleError, DeleteRuleError
 
 import code
 
+# TODO (Global): refactor to reduce degree of coupling
+#  methods reach too deep into other class dependency trees to accomplish tasks
+
 class Lease():
-  def __init__(self, dev, entry_limit, ports, comp_type):
+  def __init__(self, dev, entry_limit, ports, comp):
     self.device = dev
     self.entry_limit = entry_limit
     self.entry_usage = 0
@@ -32,14 +36,7 @@ class Lease():
       self.egress_map[vegress_val] = port
       vegress_val += 1
 
-    if comp_type == 'chain':
-      self.composition = Chain()
-    elif comp_type == 'dag':
-      pass
-    elif comp_type == 'virtualnetwork':
-      pass
-    else:
-      raise CompTypeException("invalid comp type: " + comp_type)
+    self.composition = comp
 
   def load_vdev(self, vdev_name, vdev):
     "Load virtual device onto physical device"
@@ -73,10 +70,12 @@ class Lease():
     if vdev_name in self.composition.vdevs:
       self.composition.remove(vdev_name)
 
-    # update vdev.dev_name
-    self.vdevs[vdev_name].dev_name = 'none'
     # make lease forget about it (Lease's owning Slice still has it)
     del self.vdevs[vdev_name]
+
+  def handle_request(self, request):
+    # insert, append, remove, others
+    pass
 
   def send_command(self, p4cmd):
     return dev.send_command(dev.command_to_string(p4cmd))
@@ -221,11 +220,12 @@ class Controller(object):
 
   def grant_lease(self, parameters):
     # parameters:
-    # <'admin'> <slice> <device> <memory limit> <ports>
+    # <'admin'> <slice> <device> <memory limit> <compclassname> <ports>
     hp4slice = parameters[1]
     dev_name = parameters[2]
     entry_limit = int(parameters[3])
-    ports = parameters[4:]
+    compclassname = parameters[4]
+    ports = parameters[5:]
 
     # verify request:
     if hp4slice not in self.slices:
@@ -246,8 +246,11 @@ class Controller(object):
       self.devices[dev_name].phys_ports_remaining.remove(port)
     self.devices[dev_name].reserved_entries += entry_limit
 
+    compclass = getattr(compositions.composition, compclassname)
+    comp = compclass()
+
     self.slices[hp4slice].leases[dev_name] = Lease(self.devices[dev_name],
-                                                   entry_limit, ports, 'chain')
+                                                   entry_limit, ports, comp)
 
     return 'Lease granted; ' + hp4slice + ' given access to ' + dev_name
 
@@ -259,6 +262,7 @@ class Controller(object):
     lease = self.slices[hp4slice].leases[dev_name]
 
     for vdev in lease.vdevs.keys():
+      self.slices[hp4slice].vdev_locations[vdev] = 'none'
       lease.withdraw_vdev(vdev)
 
     # delete rules for tset_context
@@ -332,22 +336,22 @@ class Controller(object):
       return 'Error - request(' + str(vdev_entries) + ') exceeds entries \
               available(' + entries_available + ') for lease on ' + dest_dev_name
 
-    src_dev_name = self.slices[hp4slice].vdevs[vdev_name].dev_name
+    src_dev_name = self.slices[hp4slice].vdev_locations[vdev_name]
     if src_dev_name in self.devices:
       self.slices[hp4slice].leases[src_dev_name].withdraw_vdev(vdev_name)
     self.slices[hp4slice].leases[dest_dev_name].load_vdev(vdev_name, vdev)
-    vdev.dev_name = dest_dev_name
+    self.slices[hp4slice].vdev_locations[vdev_name] = dest_dev_name
 
     return 'Virtual device ' + vdev_name + ' migrated to ' + dest_dev_name
 
   def withdraw_virtual_device(self, parameters):
     hp4slice = parameters[0]
     vdev_name = parameters[1]
-    dev_name = self.slices[hp4slice].vdevs[vdev_name].dev_name
+    dev_name = self.slices[hp4slice].vdev_locations[vdev_name]
     if dev_name not in self.devices:
       return 'Error - ' + vdev_name + ' not at a known device'
     self.slices[hp4slice].leases[dev_name].withdraw_vdev(vdev_name)
-    self.slices[hp4slice].vdevs[vdev_name].dev_name = 'none'
+    self.slices[hp4slice].vdev_locations[vdev_name] = 'none'
 
     return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
 
@@ -374,9 +378,11 @@ class Controller(object):
     vdev = self.slices[hp4slice].vdevs[vdev_name]
     hp4commands = Interpreter.interpret(vdev, p4command)
 
+    dev_name = self.slices[hp4slice].vdev_locations[vdev_name]
+
     # accounting
-    entries_available = (self.slices[hp4slice].leases[vdev.dev_name].entry_limit
-                       - self.slices[hp4slice].leases[vdev.dev_name].entry_usage)
+    entries_available = (self.slices[hp4slice].leases[dev_name].entry_limit
+                       - self.slices[hp4slice].leases[dev_name].entry_usage)
     diff = 0
     for hp4command in hp4commands:
       if hp4command.command_type == 'table_add':
@@ -391,7 +397,7 @@ class Controller(object):
     hp4_rule_handles = []
     for hp4command in hp4commands:
       # return value should be handle for all commands
-      hp4handle = self.slices[hp4slice].leases[vdev.dev_name].send_command(hp4command)
+      hp4handle = self.slices[hp4slice].leases[dev_name].send_command(hp4command)
       table = hp4command.attribs['table']
       if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
         vdev.hp4_table_rules[(table, hp4handle)] = hp4command.rule
@@ -399,12 +405,12 @@ class Controller(object):
         del vdev.hp4_table_rules[(table, hp4handle)]
       # accounting
       if hp4command.command_type == 'table_add':
-        self.slices[hp4slice].leases[vdev.dev_name].entry_usage += 1
+        self.slices[hp4slice].leases[dev_name].entry_usage += 1
         hp4_rule_handles.append(hp4handle)
       elif hp4command.command_type == 'table_modify':
         hp4_rule_handles.append(hp4handle)
       elif hp4command.command_type == 'table_delete':
-        self.slices[hp4slice].leases[vdev.dev_name].entry_usage -= 1
+        self.slices[hp4slice].leases[dev_name].entry_usage -= 1
 
     # account for origin rule: handle, hp4 rules & hp4 handles
     table = p4command.attributes['table']
@@ -431,7 +437,7 @@ class Controller(object):
       handle = p4command.attributes['handle']
       del vdev.origin_table_rules[(table, handle)]
 
-    return 'Translated: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + vev.dev_name
+    return 'Translated: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
 
   def serverloop(self):
     serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -470,6 +476,7 @@ class ChainController(Controller):
   def handle_request(self, request):
     return super(ChainController, self).handle_request(request)
     
+  # TODO: refactor to put this functionality where it belongs
   def insert(self, parameters):
     # parameters:
     # <slice name> <virtual device name> <position> <egress handling mode>
@@ -487,9 +494,10 @@ class ChainController(Controller):
     # - validate vdev_name
     if vdev_name not in self.slices[hp4slice].vdevs:
       return 'Error - ' + vdev_name + ' not a valid virtual device'
+    # problematic: Controller shouldn't know about virtual devices
     vdev = self.slices[hp4slice].vdevs[vdev_name]
     vdev_ID = vdev.virtual_device_ID
-    dev_name = vdev.dev_name
+    dev_name = self.slices.vdev_locations[vdev_name]
     # - validate lease
     if dev_name not in self.slices[hp4slice].leases:
       return 'Error - ' + dev_name + ' not among leases owned by ' + hp4slice
@@ -547,7 +555,7 @@ class ChainController(Controller):
         # link new vdev to next vdev
         rightvdev_name = chain[position]
         rightvdev = lease.composition.vdevs[rightvdev_name]
-        rightvdev_vingress = str(len(lease.ports) + rightvdev.virtual_device_ID))
+        rightvdev_vingress = str(len(lease.ports) + rightvdev.virtual_device_ID)
         for vegress in lease.egress_map:
           command_type = 'table_add'
           attribs = {'table': 't_virtnet',
@@ -579,6 +587,7 @@ class Slice():
     self.name = name
     self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
     self.leases = {} # {dev_name (string): lease (Lease)}
+    self.vdev_locations = {} # {vdev_name (string): dev_name (string)}
 
 class CompTypeException(Exception):
   pass
