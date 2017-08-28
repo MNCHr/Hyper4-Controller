@@ -20,8 +20,6 @@ class Capturing(list):
 class Device():
   def __init__(self, rta, max_entries, phys_ports, ip, port):
     self.rta = rta
-    #self.assignments = {} # {pport : vdev_ID}
-    #self.assignment_handles = {} # {pport : tset_context rule handle}
     self.max_entries = max_entries
     self.reserved_entries = 0
     self.phys_ports = phys_ports
@@ -63,6 +61,40 @@ class Device():
     return ret
 
 class Bmv2_SSwitch(Device):
+
+  def send_command(self, cmd_str_rep):
+    "send bmv2-formatted command to P4 device"
+    if cmd_str_rep.split()[0] == 'table_add':
+      try:
+        table = cmd_str_rep.split()[1]
+        action = cmd_str_rep.split()[2]
+        mparams = cmd_str_rep.split('=>')[0].split()[3:]
+        aparams = cmd_str_rep.split('=>')[1].split()
+        rule = P4Rule(table, action, mparams, aparams)
+        handle = self.do_table_add(rule)
+      except AddRuleError as e:
+        print('AddRuleError exception: ' + e.value)
+      return handle
+
+    elif cmd_str_rep.split()[0] == 'table_modify':
+      try:
+        self.do_table_modify(cmd_str_rep.split('table_modify ')[1])
+        handle = cmd_str_rep.split()[2]
+      except ModRuleError as e:
+        print('ModRuleError exception: ' + e.value)
+      return handle
+
+    elif cmd_str_rep.split()[0] == 'table_delete':
+      try:
+        self.do_table_delete(cmd_str_rep.split('table_delete ' )[1])
+        handle = cmd_str_rep.split()[1]
+      except DeleteRuleError as e:
+        print('DeleteRuleError exception: ' + e.value)
+      return handle
+
+    else:
+      print("ERROR: Bmv2_SSwitch::send_command: " + cmd_str_rep + ")")
+      exit()
 
   def do_table_delete(self, rule_identifier):
     "rule_identifier: \'<table name> <entry handle>\'"
@@ -111,15 +143,15 @@ class Bmv2_SSwitch(Device):
   def command_to_string(cmd):
     command_str = cmd.command_type
     command_str += ' ' + cmd.attributes['table']
-    if command_type == 'table_add':
+    if cmd.command_type == 'table_add':
       command_str += ' ' + cmd.attributes['action']
-      command_str += ' '.join(cmd.attributes['mparams'])
-      command_str += ' => ' + join(cmd.attributes['aparams'])
-    elif command_type == 'table_modify':
+      command_str += ' ' + ' '.join(cmd.attributes['mparams'])
+      command_str += ' => ' + ' '.join(cmd.attributes['aparams'])
+    elif cmd.command_type == 'table_modify':
       command_str += ' ' + cmd.attributes['action']
       command_str += ' ' + str(cmd.attributes['handle'])
-      command_str += ' '.join(cmd.attributes['aparams'])
-    elif command_type == 'table_delete':
+      command_str += ' ' + ' '.join(cmd.attributes['aparams'])
+    elif cmd.command_type == 'table_delete':
       command_str += ' ' + str(cmd.attributes['handle'])
     return command_str
 

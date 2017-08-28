@@ -9,86 +9,14 @@ import devices.device as device
 from virtualdevice.virtualdevice import VirtualDevice, VirtualDeviceFactory
 from virtualdevice.interpret import Interpretation
 from p4command import P4Command
-#import p4rule
 import textwrap
-#from compositions.composition import Chain
-import compositions.composition
+import leases.lease
 from errors import AddRuleError, ModRuleError, DeleteRuleError
 
 import code
 
 # TODO (Global): refactor to reduce degree of coupling
 #  methods reach too deep into other class dependency trees to accomplish tasks
-
-class Lease():
-  def __init__(self, dev, entry_limit, ports, comp):
-    self.device = dev
-    self.entry_limit = entry_limit
-    self.entry_usage = 0
-    self.ports = ports
-    self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
-    self.assignments = {} # {pport : vdev_ID}
-    self.assignment_handles = {} # {pport : tset_context rule handle}
-    vegress_val = 1
-    self.egress_map = {} # {vegress_spec (int): egress_spec (int)}
-    # note, following assumes port id == egress_spec
-    for port in ports:
-      self.egress_map[vegress_val] = port
-      vegress_val += 1
-
-    self.composition = comp
-
-  def load_vdev(self, vdev_name, vdev):
-    "Load virtual device onto physical device"
-    for rule in vdev.hp4code:
-      try:
-        table = rule.table
-        handle = self.device.do_table_add(rule)
-        vdev.hp4_table_rules[(table, handle)] = rule
-      except AddRuleError as e:
-        # remove all entries already added
-        for table, h in vdev.hp4_table_rules.keys():
-          rule_identifier = table + ' ' + str(h)
-          self.device.do_table_delete(rule_identifier)
-          del vdev.hp4_table_rules[(table, h)]
-        raise AddRuleError('Lease::load_vdev failed for ' + vdev_name)
-
-    self.entry_usage += len(vdev.hp4code)
-    self.vdevs[vdev_name] = vdev
-
-  def withdraw_vdev(self, vdev_name):
-    "Remove virtual device from Lease (does not destroy virtual device)"
-    num_entries = len(self.vdevs[vdev_name].hp4_table_rules)
-    # pull all virtual device related rules from device
-    for table, handle in self.vdevs[vdev_name].hp4_table_rules.keys():
-      rule_identifier = table + ' ' + str(handle)
-      self.device.do_table_delete(rule_identifier)
-    self.vdevs[vdev_name].hp4_table_rules = {}
-
-    self.entry_usage -= num_entries
-    # if applicable, remove vdev from composition
-    if vdev_name in self.composition.vdevs:
-      self.composition.remove(vdev_name)
-
-    # make lease forget about it (Lease's owning Slice still has it)
-    del self.vdevs[vdev_name]
-
-  def handle_request(self, request):
-    # insert, append, remove, others
-    pass
-
-  def send_command(self, p4cmd):
-    return dev.send_command(dev.command_to_string(p4cmd))
-
-  def __str__(self):
-    ret = 'entry usage/limit: ' + str(self.entry_usage) + '/' \
-                                + str(self.entry_limit) + '\n'
-    ret += 'ports:' + str(self.ports) + '\n'
-    ret += 'virtual devices:\n'
-    for vdev in self.vdevs:
-      ret += ' ' + vdev + '\n'
-    ret += 'composition: ' + str(self.composition)
-    return ret
 
 class Controller(object):
   def __init__(self, args):
@@ -97,11 +25,14 @@ class Controller(object):
     self.host = args.host
     self.port = args.port
     self.debug = args.debug
-    self.slicemgr_commands = ['create_virtual_device',
-                              'migrate_virtual_device',
-                              'remove_virtual_device',
-                              'destroy_virtual_device',
-                              'withdraw_virtual_device']
+    self.admin_commands = ['create_device',
+                           'list_devices',
+                           'create_slice',
+                           'list_slices',
+                           'grant_lease',
+                           'revoke_lease',
+                           'reset_device',
+                           'set_defaults']
     self.next_vdev_ID = 1
     self.vdev_factory = VirtualDeviceFactory()
 
@@ -122,16 +53,22 @@ class Controller(object):
     if ((requester not in self.slices) and (requester != 'admin')):
       return "Denied; no slice " + requester
     if ((requester != 'admin')
-          and (command not in self.slicemgr_commands)):
+          and (command in self.admin_commands)):
       return "Denied; command not available to " + requester
 
     resp = ""
-    try:
-      resp = getattr(self, command)(parameters)
-    except AttributeError as e:
-      return "AttributeError(handle_request - " + command + "): " + str(e)
-    except Exception as e:
-      return "Unexpected error: " + str(e)
+
+    if requester == 'admin':
+      try:
+        resp = getattr(self, command)(parameters)
+      except AttributeError as e:
+        return "AttributeError(handle_request - " + command + "): " + str(e)
+      except Exception as e:
+        return "Unexpected error: " + str(e)
+    elif command == 'create_virtual_device':
+      resp = self.create_virtual_device(parameters)
+    else:
+      resp = self.slices[requester].handle_request(request.split()[1:])
 
     return resp
 
@@ -154,10 +91,12 @@ class Controller(object):
     except:
         return "Error - create_device(" + dev_name + "): " + str(sys.exc_info()[0])
 
+    # TODO: fix this
     json = '/home/ubuntu/hp4-src/hp4/hp4.json'
     runtime_CLI.load_json_config(hp4_client, json)
     rta = runtime_CLI.RuntimeAPI(pre, hp4_client)
 
+    # TODO: fix this; Controller must not be required to know every Device subclass
     if dev_type == 'bmv2_SSwitch':
       self.devices[dev_name] = device.Bmv2_SSwitch(rta, max_entries, ports, ip, port)
     elif dev_type == 'Agilio':
@@ -224,7 +163,7 @@ class Controller(object):
     hp4slice = parameters[1]
     dev_name = parameters[2]
     entry_limit = int(parameters[3])
-    compclassname = parameters[4]
+    leaseclassname = parameters[4]
     ports = parameters[5:]
 
     # verify request:
@@ -246,11 +185,10 @@ class Controller(object):
       self.devices[dev_name].phys_ports_remaining.remove(port)
     self.devices[dev_name].reserved_entries += entry_limit
 
-    compclass = getattr(compositions.composition, compclassname)
-    comp = compclass()
+    leaseclass = getattr(leases.lease, leaseclassname)
 
-    self.slices[hp4slice].leases[dev_name] = Lease(self.devices[dev_name],
-                                                   entry_limit, ports, comp)
+    self.slices[hp4slice].leases[dev_name] = leaseclass(self.devices[dev_name],
+                                                   entry_limit, ports)
 
     return 'Lease granted; ' + hp4slice + ' given access to ' + dev_name
 
@@ -265,19 +203,7 @@ class Controller(object):
       self.slices[hp4slice].vdev_locations[vdev] = 'none'
       lease.withdraw_vdev(vdev)
 
-    # delete rules for tset_context
-    for port in lease.assignments.keys():
-      table = 'tset_context'
-      handle = lease.assignment_handles[port]
-      rule_identifier = table + ' ' + str(handle)
-      lease.device.do_table_delete(rule_identifier)
-    lease.assignments = {}
-    lease.assignment_handles = {}
-
-    for port in lease.ports:
-      self.devices[dev_name].phys_ports_remaining.append(port)
-
-    self.devices[dev_name].reserved_entries -= lease.entry_limit
+    lease.revoke()
 
     del self.slices[hp4slice].leases[dev_name]
 
@@ -304,140 +230,9 @@ class Controller(object):
 
     self.slices[hp4slice].vdevs[vdev_name] = \
                            self.vdev_factory.create_vdev(vdev_ID, program_path)
+    self.slices[hp4slice].vdev_locations[vdev_name] = 'none'
     
     return 'Virtual device ' + vdev_name + ' created'
-
-  def migrate_virtual_device(self, parameters):
-    # parameters:
-    # <slice_name> <vdev_name> <dest device>
-    hp4slice = parameters[0]
-    vdev_name = parameters[1]
-    dest_dev_name = parameters[2]
-
-    # validate request
-    # - validate slice
-    if hp4slice not in self.slices:
-      return 'Error - ' + hp4slice + ' not a valid slice'
-    # - validate vdev_name
-    if vdev_name not in self.slices[hp4slice].vdevs:
-      return 'Error - ' + vdev_name + ' not a valid virtual device'
-    # - validate dest_dev_name
-    if dest_dev_name not in self.devices:
-      return 'Error - ' + dest_dev_name + ' not a valid device'
-    # - validate lease
-    if dest_dev_name not in self.slices[hp4slice].leases:
-      return 'Error - ' + dest_dev_name + ' not among leases owned by ' + hp4slice
-    # - validate lease has sufficient entries
-    vdev = self.slices[hp4slice].vdevs[vdev_name]
-    vdev_entries = len(vdev.hp4code) + len(vdev.hp4_table_rules)
-    entries_available = (self.slices[hp4slice].leases[dest_dev_name].entry_limit
-                       - self.slices[hp4slice].leases[dest_dev_name].entry_usage)
-    if (vdev_entries > entries_available):
-      return 'Error - request(' + str(vdev_entries) + ') exceeds entries \
-              available(' + entries_available + ') for lease on ' + dest_dev_name
-
-    src_dev_name = self.slices[hp4slice].vdev_locations[vdev_name]
-    if src_dev_name in self.devices:
-      self.slices[hp4slice].leases[src_dev_name].withdraw_vdev(vdev_name)
-    self.slices[hp4slice].leases[dest_dev_name].load_vdev(vdev_name, vdev)
-    self.slices[hp4slice].vdev_locations[vdev_name] = dest_dev_name
-
-    return 'Virtual device ' + vdev_name + ' migrated to ' + dest_dev_name
-
-  def withdraw_virtual_device(self, parameters):
-    hp4slice = parameters[0]
-    vdev_name = parameters[1]
-    dev_name = self.slices[hp4slice].vdev_locations[vdev_name]
-    if dev_name not in self.devices:
-      return 'Error - ' + vdev_name + ' not at a known device'
-    self.slices[hp4slice].leases[dev_name].withdraw_vdev(vdev_name)
-    self.slices[hp4slice].vdev_locations[vdev_name] = 'none'
-
-    return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
-
-  def interpret(self, parameters):
-    # TODO: Fix the native -> hp4 rule handle confusion.  Need to track
-    #  virtual (native) rule handles to support table_delete and table_modify
-    #  commands.
-    # parameters:
-    # <slice name> <virtual device> <style: 'bmv2' | 'agilio'> <command>
-    hp4slice = parameters[0]
-    vdev_name = parameters[1]
-    style = parameters[2]
-    vdev_command_str = ' '.join(parameters[3:])
-    if style == 'bmv2':
-      p4command = Bmv2_SSwitch.string_to_command(vdev_command_str)
-    elif style == 'agilio':
-      p4command = Agilio.string_to_command(vdev_command_str)
-    else:
-      return 'Error - ' + style + ' not one of (\'bmv2\', \'agilio\')'
-    if hp4slice not in self.slices:
-      return 'Error - ' + hp4slice + ' not a valid slice'
-    if vdev_name not in self.slices[hp4slice].vdevs:
-      return 'Error - ' + vdev_name + ' not a virtual device in ' + hp4slice
-    vdev = self.slices[hp4slice].vdevs[vdev_name]
-    hp4commands = Interpreter.interpret(vdev, p4command)
-
-    dev_name = self.slices[hp4slice].vdev_locations[vdev_name]
-
-    # accounting
-    entries_available = (self.slices[hp4slice].leases[dev_name].entry_limit
-                       - self.slices[hp4slice].leases[dev_name].entry_usage)
-    diff = 0
-    for hp4command in hp4commands:
-      if hp4command.command_type == 'table_add':
-        diff += 1
-      elif hp4command.command_type == 'table_delete':
-        diff -= 1
-    if diff > entries_available:
-      return 'Error - entries net increase(' + str(diff) \
-           + ') exceeds availability(' + str(entries_available) + ')'
-
-    # push hp4 rules, collect handles
-    hp4_rule_handles = []
-    for hp4command in hp4commands:
-      # return value should be handle for all commands
-      hp4handle = self.slices[hp4slice].leases[dev_name].send_command(hp4command)
-      table = hp4command.attribs['table']
-      if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
-        vdev.hp4_table_rules[(table, hp4handle)] = hp4command.rule
-      else: # command_type == 'table_delete'
-        del vdev.hp4_table_rules[(table, hp4handle)]
-      # accounting
-      if hp4command.command_type == 'table_add':
-        self.slices[hp4slice].leases[dev_name].entry_usage += 1
-        hp4_rule_handles.append(hp4handle)
-      elif hp4command.command_type == 'table_modify':
-        hp4_rule_handles.append(hp4handle)
-      elif hp4command.command_type == 'table_delete':
-        self.slices[hp4slice].leases[dev_name].entry_usage -= 1
-
-    # account for origin rule: handle, hp4 rules & hp4 handles
-    table = p4command.attributes['table']
-    if p4command.command_type == 'table_add':
-      # new Origin_to_HP4Map w/ new hp4_rule_handles list
-      rule = p4rule.P4Rule(table, p4command.attributes['action'],
-                           p4command.attributes['mparams'],
-                           p4command.attributes['aparams'])
-      vdev.origin_table_rules[(table, vdev.assign_handle())] = \
-                         virtualdevice.Interpretation(rule, hp4_rule_handles)
-
-    elif p4command.command_type == 'table_modify':
-      # replace Origin_to_HP4Map w/ one with new rule, new hp4_rules_handles list
-      handle = p4command.attributes['handle']
-      oldrule = vdev.origin_table_rules[(table, handle)].origin_rule
-      action = p4command.attributes['action']
-      mparams = oldrule.mparams
-      aparams = p4command.attributes['aparams']
-      rule = p4rule.P4Rule(table, action, mparams, aparams)
-      vdev.origin_table_rules[(table, handle)] = \
-                         virtualdevice.Interpretation(rule, hp4_rule_handles)
-
-    elif p4command.command_type == 'table_delete':
-      handle = p4command.attributes['handle']
-      del vdev.origin_table_rules[(table, handle)]
-
-    return 'Translated: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
 
   def serverloop(self):
     serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -466,122 +261,6 @@ class Controller(object):
     if self.debug:
       print(msg)
 
-class ChainController(Controller):
-  def __init__(self, args):
-    super(ChainController, self).__init__(args)
-    self.slicemgr_commands.append('insert')
-    self.slicemgr_commands.append('append')
-    self.slicemgr_commands.append('remove')
-
-  def handle_request(self, request):
-    return super(ChainController, self).handle_request(request)
-    
-  # TODO: refactor to put this functionality where it belongs
-  def insert(self, parameters):
-    # parameters:
-    # <slice name> <virtual device name> <position> <egress handling mode>
-    hp4slice = parameters[0]
-    vdev_name = parameters[1]
-    position = parameters[2]
-    egress_mode = parameters[3]
-
-    # Modify: <table name> <action> <handle> <[aparams]>
-
-    # validate request
-    # - validate slice
-    if hp4slice not in self.slices:
-      return 'Error - ' + hp4slice + ' not a valid slice'
-    # - validate vdev_name
-    if vdev_name not in self.slices[hp4slice].vdevs:
-      return 'Error - ' + vdev_name + ' not a valid virtual device'
-    # problematic: Controller shouldn't know about virtual devices
-    vdev = self.slices[hp4slice].vdevs[vdev_name]
-    vdev_ID = vdev.virtual_device_ID
-    dev_name = self.slices.vdev_locations[vdev_name]
-    # - validate lease
-    if dev_name not in self.slices[hp4slice].leases:
-      return 'Error - ' + dev_name + ' not among leases owned by ' + hp4slice
-
-    dev = self.devices[dev_name]
-
-    commands = []    
-    lease = self.slices[hp4slice].leases[dev_name]
-    chain = lease.composition.vdev_chain
-    
-    if position == 0:
-      if len(chain) > 0:
-        # entry point: table_modify
-        for port in lease.assignments:
-          handle = lease.assignment_handles[port]
-          command_type = 'table_modify'
-          attribs = {'table': 'tset_context',
-                     'action': 'a_set_context',
-                     'handle': str(handle),
-                     'aparams': [str(vdev_ID)]}
-          commands.append(P4Command(command_type, attribs))
-      else:
-        # entry point: table_add
-        for port in lease.assignments:
-          command_type = 'table_add'
-          attribs = {'table': 'tset_context',
-                     'action': 'a_set_context',
-                     'mparams': [str(port)],
-                     'aparams': [str(vdev_ID)]}
-          commands.append(P4Command(command_type, attribs))
-
-    elif len(chain) > 0:
-      # link left vdev to new vdev
-      # this involves modifying all t_virtnet and t_egr_virtnet rules for the leftvdev
-      leftvdev_name = chain[position - 1]
-      leftvdev = lease.composition.vdevs[leftvdev_name]
-      # modify rules referenced by leftvdev.t_virtnet_handles,
-      # leftvdev.t_egr_virtnet_handles
-      for handle in leftvdev.t_virtnet_handles:
-        command_type = 'table_modify'
-        attribs = {'table': 't_virtnet',
-                   'action': 'do_virt_fwd',
-                   'handle': str(handle),
-                   'aparams': []}
-        commands.append(P4Command(command_type, attribs))
-      for handle in leftvdev.t_egr_virtnet_handles:
-        command_type = 'table_modify'
-        attribs = {'table': 't_egr_virtnet',
-                   'action': 'vfwd',
-                   'handle': str(handle),
-                   'aparams': [str(vdev_ID), str(len(lease.ports) + vdev_ID)]}
-        commands.append(P4Command(command_type, attribs))
-
-      if position < len(chain):
-        # link new vdev to next vdev
-        rightvdev_name = chain[position]
-        rightvdev = lease.composition.vdevs[rightvdev_name]
-        rightvdev_vingress = str(len(lease.ports) + rightvdev.virtual_device_ID)
-        for vegress in lease.egress_map:
-          command_type = 'table_add'
-          attribs = {'table': 't_virtnet',
-                     'action': 'do_virt_fwd',
-                     'mparams': [str(vdev_ID), str(vegress)],
-                     'aparams': []}
-          commands.append(P4Command(command_type, attribs))
-          attribs = {'table': 't_egr_virtnet',
-                     'action': 'vfwd',
-                     'mparams': [str(vdev_ID), str(vegress)],
-                     'aparams': [str(rightvdev.virtual_device_ID),
-                                 rightvdev_vingress]}
-          commands.append(P4Command(command_type, attribs))
-
-    if position == len(chain):
-      # TODO
-      pass
-
-    return 'Not implemented yet'
-
-  def append(self, parameters):
-    return 'Not implemented yet'
-
-  def remove(self, parameters):
-    return 'Not implemented yet'
-
 class Slice():
   def __init__(self, name):
     self.name = name
@@ -589,11 +268,151 @@ class Slice():
     self.leases = {} # {dev_name (string): lease (Lease)}
     self.vdev_locations = {} # {vdev_name (string): dev_name (string)}
 
+  def handle_request(self, parameters):
+    # parameters:
+    # <command> <command parameters>
+    command = parameters[0]
+    if command == 'lease':
+      dev_name = parameters[1]
+      lease = self.leases[dev_name]
+      return lease.handle_request(parameters[2:])
+    else:
+      try:
+        resp = getattr(self, command)(parameters[1:])
+      except AttributeError as e:
+        return "AttributeError(handle_request - " + command + "): " + str(e)
+      except Exception as e:
+        return "Unexpected error: " + str(e)
+      return resp
+
+  def migrate_virtual_device(self, parameters):
+    # parameters:
+    # <vdev_name> <dest device>
+    vdev_name = parameters[0]
+    dest_dev_name = parameters[1]
+
+    # validate request
+    # - validate vdev_name
+    if vdev_name not in self.vdevs:
+      return 'Error - ' + vdev_name + ' not a valid virtual device'
+    # - validate dest_dev_name
+    if dest_dev_name not in self.leases:
+      return 'Error - no lease for ' + dest_dev_name
+
+    # - validate lease has sufficient entries
+    vdev = self.vdevs[vdev_name]
+    vdev_entries = len(vdev.hp4code) + len(vdev.hp4_table_rules)
+    entries_available = (self.leases[dest_dev_name].entry_limit
+                       - self.leases[dest_dev_name].entry_usage)
+    if (vdev_entries > entries_available):
+      return 'Error - request(' + str(vdev_entries) + ') exceeds entries \
+              available(' + entries_available + ') for lease on ' + dest_dev_name
+
+    src_dev_name = self.vdev_locations[vdev_name]
+    if src_dev_name in self.leases:
+      self.leases[src_dev_name].withdraw_vdev(vdev_name)
+    self.leases[dest_dev_name].load_vdev(vdev_name, vdev)
+    self.vdev_locations[vdev_name] = dest_dev_name
+
+    return 'Virtual device ' + vdev_name + ' migrated to ' + dest_dev_name
+
+  def withdraw_virtual_device(self, parameters):
+    vdev_name = parameters[0]
+    dev_name = self.vdev_locations[vdev_name]
+    self.leases[dev_name].withdraw_vdev(vdev_name)
+    self.vdev_locations[vdev_name] = 'none'
+
+    return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
+
+  def destroy_virtual_device(self, parameters):
+    pass
+
+  def translate(self, parameters):
+    # TODO: Fix the native -> hp4 rule handle confusion.  Need to track
+    #  virtual (native) rule handles to support table_delete and table_modify
+    #  commands.
+    # parameters:
+    # <slice name> <virtual device> <style: 'bmv2' | 'agilio'> <command>
+    vdev_name = parameters[0]
+    style = parameters[1]
+    vdev_command_str = ' '.join(parameters[2:])
+    if style == 'bmv2':
+      p4command = Bmv2_SSwitch.string_to_command(vdev_command_str)
+    elif style == 'agilio':
+      p4command = Agilio.string_to_command(vdev_command_str)
+    else:
+      return 'Error - ' + style + ' not one of (\'bmv2\', \'agilio\')'
+    if vdev_name not in self.vdevs:
+      return 'Error - ' + vdev_name + ' not a recognized virtual device'
+    vdev = self.vdevs[vdev_name]
+    hp4commands = Interpreter.interpret(vdev, p4command)
+
+    dev_name = self.vdev_locations[vdev_name]
+
+    # accounting
+    entries_available = (self.leases[dev_name].entry_limit
+                       - self.leases[dev_name].entry_usage)
+    diff = 0
+    for hp4command in hp4commands:
+      if hp4command.command_type == 'table_add':
+        diff += 1
+      elif hp4command.command_type == 'table_delete':
+        diff -= 1
+    if diff > entries_available:
+      return 'Error - entries net increase(' + str(diff) \
+           + ') exceeds availability(' + str(entries_available) + ')'
+
+    # push hp4 rules, collect handles
+    hp4_rule_handles = []
+    for hp4command in hp4commands:
+      # return value should be handle for all commands
+      hp4handle = self.leases[dev_name].send_command(hp4command)
+      table = hp4command.attribs['table']
+      if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
+        vdev.hp4_table_rules[(table, hp4handle)] = hp4command.rule
+      else: # command_type == 'table_delete'
+        del vdev.hp4_table_rules[(table, hp4handle)]
+      # accounting
+      if hp4command.command_type == 'table_add':
+        self.leases[dev_name].entry_usage += 1
+        hp4_rule_handles.append(hp4handle)
+      elif hp4command.command_type == 'table_modify':
+        hp4_rule_handles.append(hp4handle)
+      elif hp4command.command_type == 'table_delete':
+        self.leases[dev_name].entry_usage -= 1
+
+    # account for origin rule: handle, hp4 rules & hp4 handles
+    table = p4command.attributes['table']
+    if p4command.command_type == 'table_add':
+      # new Origin_to_HP4Map w/ new hp4_rule_handles list
+      rule = p4rule.P4Rule(table, p4command.attributes['action'],
+                           p4command.attributes['mparams'],
+                           p4command.attributes['aparams'])
+      vdev.origin_table_rules[(table, vdev.assign_handle())] = \
+                         virtualdevice.Interpretation(rule, hp4_rule_handles)
+
+    elif p4command.command_type == 'table_modify':
+      # replace Origin_to_HP4Map w/ one with new rule, new hp4_rules_handles list
+      handle = p4command.attributes['handle']
+      oldrule = vdev.origin_table_rules[(table, handle)].origin_rule
+      action = p4command.attributes['action']
+      mparams = oldrule.mparams
+      aparams = p4command.attributes['aparams']
+      rule = p4rule.P4Rule(table, action, mparams, aparams)
+      vdev.origin_table_rules[(table, handle)] = \
+                         virtualdevice.Interpretation(rule, hp4_rule_handles)
+
+    elif p4command.command_type == 'table_delete':
+      handle = p4command.attributes['handle']
+      del vdev.origin_table_rules[(table, handle)]
+
+    return 'Translated: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
+
 class CompTypeException(Exception):
   pass
 
 def server(args):
-  ctrl = ChainController(args)
+  ctrl = Controller(args)
   ctrl.dbugprint('Starting server at %s:%d' % (args.host, args.port))
   ctrl.serverloop()
 

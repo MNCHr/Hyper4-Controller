@@ -59,9 +59,20 @@ class SliceManager(Client):
 
 class ChainSliceManager(SliceManager):
 
-  def do_insert(self, line):
+  def do_lease(self, line):
+    """insert|append|remove: lease <device> <insert|append|remove> <virtual device> [args]
+     \rinsert args: <position> <egress handling mode>
+     \rappend args: <egress handling mode>
+     \rremove args: N/A
+    """
+    resp = self.send_request(self.user + ' lease ' + line)
+    print(resp)
+
+  """
+  def do_lease_insert(self, line):
     "Insert virtual device: insert <virtual device> <position> <egress handling mode>"
-    resp = self.send_request(self.user + ' insert ' + line)
+    # <slice name> lease <device name> insert
+    resp = self.send_request(self.user + ' lease insert ' + line)
     print(resp)
 
   def do_append(self, line):
@@ -73,6 +84,7 @@ class ChainSliceManager(SliceManager):
     "Remove virtual device: remove <virtual device>"
     resp = self.send_request(self.user + ' remove ' + line)
     print(resp)
+  """
 
 class Administrator(Client):
   prompt = 'HP4# '
