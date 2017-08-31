@@ -1,6 +1,6 @@
 from ..virtualdevice.virtualdevice import VirtualDevice
 from ..p4command import P4Command
-from ..errors import AddRuleError
+from ..errors import AddRuleError, LoadError
 
 import code
 
@@ -35,6 +35,62 @@ class Lease(object):
       self.device.phys_ports_remaining.append(port)
 
     self.device.reserved_entries -= self.entry_limit
+
+  def load_virtual_device(self, vdev_name, vdev, egress_mode):
+    # validate request
+    # - validate vdev_name
+    if vdev_name in self.vdevs:
+      raise LoadError(vdev_name + ' already present')
+
+    vdev_ID = vdev.virtual_device_ID
+
+    # - validate lease has sufficient entries
+    entries_available = self.entry_limit - self.entry_usage
+    if (len(vdev.hp4_code_and_rules) > entries_available):
+      raise LoadError('request('+ str(len(vdev.hp4_code_and_rules)) + ') \
+              exceeds entries available(' + str(entries_available) + ')')
+
+    # - validate virtual device not already somewhere else
+    if vdev.dev_name != 'none':
+      raise LoadError('first remove ' + vdev_name + ' from ' + vdev.dev_name)
+
+    vdev.hp4_code_and_rules = {}
+
+    for ruleset in [vdev.hp4code, vdev.hp4rules]:
+      for rule in ruleset:
+        try:
+          table = rule.table
+          command_type = 'table_add'
+          action = rule.action
+          aparams = list(rule.aparams)
+
+          if egress_mode == 'efalse':
+            if ('t_mod_' in table) and (rule.action == 'mod_stdmeta_egressspec'):
+              action = '_no_op'
+
+          elif egress_mode == 'econd':
+            if (table == 'tset_pipeline_config'):
+              aparams[2] = '1'
+
+          elif egress_mode != 'etrue':
+            raise LoadError('Invalid egress handling mode: ' + egress_mode)
+
+          attribs = {'table': table,
+                     'action': action,
+                     'mparams': rule.mparams,
+                     'aparams': aparams}
+          handle = self.send_command(P4Command(command_type, attribs))
+          vdev.hp4_code_and_rules[(table, handle)] = rule
+          
+        except AddRuleError as e:
+          # remove all entries already added
+          for table, handle in vdev.hp4_code_and_rules.keys():
+            rule_identifier = table + ' ' + str(handle)
+            self.device.do_table_delete(rule_identifier)
+            del vdev.hp4_code_and_rules[(table, handle)]
+          raise LoadError('Lease::insert: ' + str(e))
+
+    self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
 
   def withdraw_vdev(self, vdev_name):
     "Remove virtual device from Lease (does not destroy virtual device)"
@@ -98,45 +154,10 @@ class Chain(Lease):
     position = int(parameters[1])
     egress_mode = parameters[2]
 
-    # validate request
-    # - validate vdev_name
-    if vdev_name in self.vdevs:
-      return 'Error - ' + vdev_name + ' already present'
-
-    vdev_ID = vdev.virtual_device_ID
-
-    # - validate lease has sufficient entries
-    entries_available = self.entry_limit - self.entry_usage
-    if (len(vdev.hp4_code_and_rules) > entries_available):
-      return 'Error - request(' + str(len(vdev.hp4_code_and_rules)) + ') \
-              exceeds entries available(' + str(entries_available) + ')'
-
-    # - validate virtual device not already somewhere else
-    if vdev.dev_name != 'none':
-      return 'Error - first remove ' + vdev_name + ' from ' + vdev.dev_name
-
-    vdev.hp4_code_and_rules = {}
-
-    for ruleset in [vdev.hp4code, vdev.hp4rules]:
-      for rule in ruleset:
-        try:
-          table = rule.table
-          command_type = 'table_add'
-          attribs = {'table': table,
-                     'action': rule.action,
-                     'mparams': rule.mparams,
-                     'aparams': rule.aparams}
-          handle = self.send_command(P4Command(command_type, attribs))
-          vdev.hp4_code_and_rules[(table, handle)] = rule
-        except AddRuleError as e:
-          # remove all entries already added
-          for table, handle in vdev.hp4_code_and_rules.keys():
-            rule_identifier = table + ' ' + str(handle)
-            self.device.do_table_delete(rule_identifier)
-            del vdev.hp4_code_and_rules[(table, handle)]
-          return 'Error - Chain::insert:' + str(e)
-
-    self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
+    try:
+      self.load_virtual_device(vdev_name, vdev, egress_mode)
+    except LoadError as e:
+      return 'Error - could not load ' + vdev_name + '; ' + str(e)
 
     commands = []    
     chain = self.vdev_chain

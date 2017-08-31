@@ -6,3 +6,6 @@ class ModRuleError(Exception):
 
 class DeleteRuleError(Exception):
   pass
+
+class LoadError(Exception):
+  pass

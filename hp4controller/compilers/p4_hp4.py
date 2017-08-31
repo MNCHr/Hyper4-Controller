@@ -717,7 +717,7 @@ class P4_to_HP4(HP4Compiler):
                                          "tset_pipeline_config",
                                          "a_set_pipeline",
                                          ['[vdev ID]', str(pc_state)],
-                                         [aparam_table_ID, valstr, '[ECOND]']))
+                                         [aparam_table_ID, valstr, '0']))
 
   def gen_bitmask(self, fieldwidth, offset, maskwidth):
     """fieldwidth: bits; offset: bits; maskwidth: bytes"""

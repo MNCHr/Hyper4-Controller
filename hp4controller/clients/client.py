@@ -69,7 +69,7 @@ class ChainSliceManager(SliceManager):
   def do_lease(self, line):
     """insert|append|remove: lease <device> <insert|append|remove> <virtual device> [args]
      \rinsert args: <position> <egress handling mode>
-     \rappend args: <egress handling mode>
+     \rappend args: <egress handling mode: \'etrue\'|\'efalse\'|\'econd\'>
      \rremove args: N/A
     """
     resp = self.send_request(self.user + ' lease ' + line)
