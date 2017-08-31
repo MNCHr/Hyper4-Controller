@@ -135,13 +135,14 @@ class Chain(Lease):
           commands.append(P4Command(command_type, attribs))
       else:
         # entry point: table_add
-        for port in self.assignments:
+        for port in self.ports:
           command_type = 'table_add'
           attribs = {'table': 'tset_context',
                      'action': 'a_set_context',
                      'mparams': [str(port)],
                      'aparams': [str(vdev_ID)]}
           commands.append(P4Command(command_type, attribs))
+          # TODO: ensure self.assignments is updated
 
     elif len(chain) > 0:
       # link left vdev to new vdev
