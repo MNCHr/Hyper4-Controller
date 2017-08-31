@@ -32,11 +32,17 @@ class Client(cmd.Cmd):
 
 class SliceManager(Client):
 
+  def do_lease(self, line):
+    "Call a lease method: lease <device> <method name> <virtual device> [args]"
+    resp = self.send_request(self.user + ' lease ' + line)
+    print(resp)
+
   def do_create_virtual_device(self, line):
     "Create virtual device: create_virtual_device <p4_path> <vdev_name>"
     resp = self.send_request(self.user + ' create_virtual_device ' + line)
     print(resp)
 
+  """
   def do_migrate_virtual_device(self, line):
     "Migrate virtual device: migrate_virtual_device <virtual device> <destination device>"
     resp = self.send_request(self.user + ' migrate_virtual_device ' + line)
@@ -46,6 +52,7 @@ class SliceManager(Client):
     "Remove virtual device from current location: withdraw_virtual_device <virtual device>"
     resp = self.send_request(self.user + ' withdraw_virtual_device ' + line)
     print(resp)
+  """
 
   def do_destroy_virtual_device(self, line):
     "Destroy virtual device (remove AND delete): destroy_virtual_device <virtual device>"

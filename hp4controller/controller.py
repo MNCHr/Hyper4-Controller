@@ -187,7 +187,7 @@ class Controller(object):
 
     leaseclass = getattr(leases.lease, leaseclassname)
 
-    self.slices[hp4slice].leases[dev_name] = leaseclass(self.devices[dev_name],
+    self.slices[hp4slice].leases[dev_name] = leaseclass(dev_name, self.devices[dev_name],
                                                    entry_limit, ports)
 
     return 'Lease granted; ' + hp4slice + ' given access to ' + dev_name
@@ -199,9 +199,9 @@ class Controller(object):
     dev_name = parameters[2]
     lease = self.slices[hp4slice].leases[dev_name]
 
-    for vdev in lease.vdevs.keys():
-      self.slices[hp4slice].vdev_locations[vdev] = 'none'
-      lease.withdraw_vdev(vdev)
+    for vdev_name in lease.vdevs.keys():
+      lease.vdevs[vdev_name].dev_name = 'none'
+      lease.withdraw_vdev(vdev_name)
 
     lease.revoke()
 
@@ -228,9 +228,8 @@ class Controller(object):
     vdev_name = parameters[2]
     vdev_ID = self.assign_vdev_ID()
 
-    self.slices[hp4slice].vdevs[vdev_name] = \
-                           self.vdev_factory.create_vdev(vdev_ID, program_path)
-    self.slices[hp4slice].vdev_locations[vdev_name] = 'none'
+    vdev = self.vdev_factory.create_vdev(vdev_ID, program_path)
+    self.slices[hp4slice].vdevs[vdev_name] = vdev
     
     return 'Virtual device ' + vdev_name + ' created'
 
@@ -266,7 +265,6 @@ class Slice():
     self.name = name
     self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
     self.leases = {} # {dev_name (string): lease (Lease)}
-    self.vdev_locations = {} # {vdev_name (string): dev_name (string)}
 
   def handle_request(self, parameters):
     # parameters:
@@ -274,8 +272,9 @@ class Slice():
     command = parameters[0]
     if command == 'lease':
       dev_name = parameters[1]
+      vdev_name = parameters[3]
       lease = self.leases[dev_name]
-      return lease.handle_request(parameters[2:])
+      return lease.handle_request(parameters[2:], self.vdevs[vdev_name])
     else:
       try:
         resp = getattr(self, command)(parameters[1:])
@@ -285,6 +284,7 @@ class Slice():
         return "Unexpected error: " + str(e)
       return resp
 
+  """
   def migrate_virtual_device(self, parameters):
     # parameters:
     # <vdev_name> <dest device>
@@ -301,7 +301,7 @@ class Slice():
 
     # - validate lease has sufficient entries
     vdev = self.vdevs[vdev_name]
-    vdev_entries = len(vdev.hp4code) + len(vdev.hp4_table_rules)
+    vdev_entries = len(vdev.hp4code) + len(vdev.hp4_code_and_rules)
     entries_available = (self.leases[dest_dev_name].entry_limit
                        - self.leases[dest_dev_name].entry_usage)
     if (vdev_entries > entries_available):
@@ -311,18 +311,20 @@ class Slice():
     src_dev_name = self.vdev_locations[vdev_name]
     if src_dev_name in self.leases:
       self.leases[src_dev_name].withdraw_vdev(vdev_name)
-    self.leases[dest_dev_name].load_vdev(vdev_name, vdev)
+    # self.leases[dest_dev_name].load_vdev(vdev_name, vdev)
     self.vdev_locations[vdev_name] = dest_dev_name
 
     return 'Virtual device ' + vdev_name + ' migrated to ' + dest_dev_name
+  """
 
+  """
   def withdraw_virtual_device(self, parameters):
     vdev_name = parameters[0]
-    dev_name = self.vdev_locations[vdev_name]
+    dev_name = self.vdev[vdev_name].dev_name
     self.leases[dev_name].withdraw_vdev(vdev_name)
-    self.vdev_locations[vdev_name] = 'none'
 
     return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
+  """
 
   def destroy_virtual_device(self, parameters):
     pass
@@ -347,7 +349,7 @@ class Slice():
     vdev = self.vdevs[vdev_name]
     hp4commands = Interpreter.interpret(vdev, p4command)
 
-    dev_name = self.vdev_locations[vdev_name]
+    dev_name = vdev.dev_name
 
     # accounting
     entries_available = (self.leases[dev_name].entry_limit
@@ -369,9 +371,9 @@ class Slice():
       hp4handle = self.leases[dev_name].send_command(hp4command)
       table = hp4command.attribs['table']
       if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
-        vdev.hp4_table_rules[(table, hp4handle)] = hp4command.rule
+        vdev.hp4_code_and_rules[(table, hp4handle)] = hp4command.rule
       else: # command_type == 'table_delete'
-        del vdev.hp4_table_rules[(table, hp4handle)]
+        del vdev.hp4_code_and_rules[(table, hp4handle)]
       # accounting
       if hp4command.command_type == 'table_add':
         self.leases[dev_name].entry_usage += 1

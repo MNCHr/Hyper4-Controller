@@ -1,10 +1,12 @@
 from ..virtualdevice.virtualdevice import VirtualDevice
 from ..p4command import P4Command
+from ..errors import AddRuleError
 
 import code
 
 class Lease(object):
-  def __init__(self, dev, entry_limit, ports):
+  def __init__(self, dev_name, dev, entry_limit, ports):
+    self.dev_name = dev_name
     self.device = dev
     self.entry_limit = entry_limit
     self.entry_usage = 0
@@ -34,46 +36,30 @@ class Lease(object):
 
     self.device.reserved_entries -= self.entry_limit
 
-  def load_vdev(self, vdev_name, vdev):
-    "Load virtual device onto physical device"
-    for rule in vdev.hp4code:
-      try:
-        table = rule.table
-        handle = self.device.do_table_add(rule)
-        vdev.hp4_table_rules[(table, handle)] = rule
-      except AddRuleError as e:
-        # remove all entries already added
-        for table, h in vdev.hp4_table_rules.keys():
-          rule_identifier = table + ' ' + str(h)
-          self.device.do_table_delete(rule_identifier)
-          del vdev.hp4_table_rules[(table, h)]
-        raise AddRuleError('Lease::load_vdev failed for ' + vdev_name)
-
-    self.entry_usage += len(vdev.hp4code)
-    self.vdevs[vdev_name] = vdev
-
   def withdraw_vdev(self, vdev_name):
     "Remove virtual device from Lease (does not destroy virtual device)"
-    num_entries = len(self.vdevs[vdev_name].hp4_table_rules)
+    num_entries = len(self.vdevs[vdev_name].hp4_code_and_rules)
     # pull all virtual device related rules from device
-    for table, handle in self.vdevs[vdev_name].hp4_table_rules.keys():
+    for table, handle in self.vdevs[vdev_name].hp4_code_and_rules.keys():
       rule_identifier = table + ' ' + str(handle)
       self.device.do_table_delete(rule_identifier)
-    self.vdevs[vdev_name].hp4_table_rules = {}
+    self.vdevs[vdev_name].hp4_code_and_rules = {}
 
     self.entry_usage -= num_entries
     # if applicable, remove vdev from composition
     if vdev_name in self.vdevs:
       self.remove(vdev_name)
 
+    self.vdevs[vdev_name].dev_name = 'none'
+
     # make lease forget about it (Lease's owning Slice still has it)
     del self.vdevs[vdev_name]
 
-  def handle_request(self, parameters):
+  def handle_request(self, parameters, vdev):
     command = parameters[0]
     resp = ""
     try:
-      resp = getattr(self, command)(parameters[1:])
+      resp = getattr(self, command)(parameters[1:], vdev)
     except AttributeError as e:
       return "AttributeError(handle_request - " + command + "): " + str(e)
     except Exception as e:
@@ -81,9 +67,10 @@ class Lease(object):
     return resp
 
   def send_command(self, p4cmd):
+    "Send command to associated device, return handle"
     return self.device.send_command(self.device.command_to_string(p4cmd))
 
-  def remove(self, vdev_name):
+  def remove(self, parameters, vdev):
     pass
 
   def __str__(self):
@@ -97,14 +84,14 @@ class Lease(object):
     return ret
 
 class Chain(Lease):
-  def __init__(self, dev, entry_limit, ports):
-    super(Chain, self).__init__(dev, entry_limit, ports)
+  def __init__(self, dev_name, dev, entry_limit, ports):
+    super(Chain, self).__init__(dev_name, dev, entry_limit, ports)
     self.vdev_chain = [] # vdev_names (strings)
 
   def handle_request(self, parameters):
     return super(Chain, self).handle_request(parameters)
 
-  def insert(self, parameters):
+  def insert(self, parameters, vdev):
     # parameters:
     # <virtual device name> <position> <egress handling mode>
     vdev_name = parameters[0]
@@ -113,11 +100,43 @@ class Chain(Lease):
 
     # validate request
     # - validate vdev_name
-    if vdev_name not in self.vdevs:
-      return 'Error - ' + vdev_name + ' not found'
+    if vdev_name in self.vdevs:
+      return 'Error - ' + vdev_name + ' already present'
 
-    vdev = self.vdevs[vdev_name]
     vdev_ID = vdev.virtual_device_ID
+
+    # - validate lease has sufficient entries
+    entries_available = self.entry_limit - self.entry_usage
+    if (len(vdev.hp4_code_and_rules) > entries_available):
+      return 'Error - request(' + str(len(vdev.hp4_code_and_rules)) + ') \
+              exceeds entries available(' + str(entries_available) + ')'
+
+    # - validate virtual device not already somewhere else
+    if vdev.dev_name != 'none':
+      return 'Error - first remove ' + vdev_name + ' from ' + vdev.dev_name
+
+    vdev.hp4_code_and_rules = {}
+
+    for ruleset in [vdev.hp4code, vdev.hp4rules]:
+      for rule in ruleset:
+        try:
+          table = rule.table
+          command_type = 'table_add'
+          attribs = {'table': table,
+                     'action': rule.action,
+                     'mparams': rule.mparams,
+                     'aparams': rule.aparams}
+          handle = self.send_command(P4Command(command_type, attribs))
+          vdev.hp4_code_and_rules[(table, handle)] = rule
+        except AddRuleError as e:
+          # remove all entries already added
+          for table, handle in vdev.hp4_code_and_rules.keys():
+            rule_identifier = table + ' ' + str(handle)
+            self.device.do_table_delete(rule_identifier)
+            del vdev.hp4_code_and_rules[(table, handle)]
+          return 'Error - Chain::insert:' + str(e)
+
+    self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
 
     commands = []    
     chain = self.vdev_chain
@@ -201,15 +220,18 @@ class Chain(Lease):
 
     chain.insert(position, vdev_name)
 
+    vdev.dev_name = self.dev_name
+    self.vdevs[vdev_name] = vdev
+
     for command in commands:
       # TODO: update assignments / assignment_handles
       self.send_command(command)
     
     return 'Virtual Device ' + vdev_name + ' inserted at position ' + str(position)
 
-  def append(self, vdev_name):
+  def append(self, parameters, vdev):
     pass
-  def remove(self, vdev_name):
+  def remove(self, parameters, vdev):
     pass
 
   def __str__(self):

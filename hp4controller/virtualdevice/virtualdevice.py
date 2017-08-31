@@ -12,9 +12,10 @@ class VirtualDevice():
     self.virtual_device_ID = virtual_device_ID
     self.guide = guide
 
-    # from the elements in this list, generate table_add commands when loading
+    # from the elements in these lists, generate table_add commands when loading
     # onto a device
-    self.hp4code = []
+    self.hp4code = []  # representation of .p4
+    self.hp4rules = [] # representation of table entries added (e.g., via CLI)
     # object_code format:
     #  <table> <action> :<mparams>:<aparams
     for line in hp4code:
@@ -26,13 +27,13 @@ class VirtualDevice():
 
     self.origin_table_rules = {} # KEY: (table (str), user-facing handle (int))
                                  # VALUE: Interpretation
-    self.hp4_table_rules = {} # KEY: (table (str), hp4-facing handle (int))
-                              # VALUE: P4Rule}
+    self.hp4_code_and_rules = {} # KEY: (table (str), hp4-facing handle (int))
+                                 # VALUE: P4Rule}
     self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                 # VALUE: hp4-facing handle (int)
     self.t_egr_virtnet_handles = {} # KEY: vegress_spec (int)
                                     # VALUE: hp4-facing handle (int)
-    #self.dev_name = 'none'
+    self.dev_name = 'none'
     self.next_handle = 0
 
   def interpret(self, p4command):
