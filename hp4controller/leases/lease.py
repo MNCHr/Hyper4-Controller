@@ -162,7 +162,7 @@ class Chain(Lease):
     commands = []    
     chain = self.vdev_chain
     
-    if position == 0:
+    if ( (position == 0) or (len(chain) == 0) ):
       if len(chain) > 0:
         # entry point: table_modify
         for port in self.assignments:

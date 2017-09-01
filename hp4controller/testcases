@@ -1,0 +1,115 @@
+HP4 Controller Test Cases
+
+Insert/Remove/Append
+
+lease <device> <insert|append|remove> <virtual device> [args]
+
+insert args: <position> <egress handling mode>
+append args: <egress handling mode>
+remove args: N/A
+
+TC1
+- start:
+  -- devices: alpha (port 22222), beta (port 22223)
+  -- slices: jupiter, saturn
+  -- jupiter leases: alpha, beta
+  -- jupiter virtual devices: arp, firewall, switch
+  -- alpha vdev_chain: []
+- command: lease alpha insert arp 0 etrue
+- expected result:
+  -- alpha vdev_chain:
+  -- alpha table entries
+     --- tset_context:
+     --- tset_pipeline_config:
+     --- t_mod_XY:
+     --- t_virtnet:
+     --- t_egr_virtnet:
+
+= Other Test Cases =
+
+start w/ empty vdev_chain
+- 'insert' arp
+  -- at 0
+     --- etrue
+     --- efalse
+     --- econd
+  -- at 1+
+     --- etrue
+     --- efalse
+     --- econd
+- 'append' arp
+  -- etrue
+  -- efalse
+  -- econd
+9 test cases
+start w/ one virtual device
+- 'insert' arp
+  -- at 0
+     --- etrue
+     --- efalse
+     --- econd
+  -- at 1+
+     --- etrue
+     --- efalse
+     --- econd
+- 'append' arp
+  -- etrue
+  -- efalse
+  -- econd
+- 'remove' existing virtual device
+10 test cases
+start w/ two virtual devices
+- 'insert' arp
+  -- at 0
+     --- etrue
+     --- efalse
+     --- econd
+  -- at 1
+     --- etrue
+     --- efalse
+     --- econd
+  -- at 2+
+     --- etrue
+     --- efalse
+     --- econd
+- 'append' arp
+  -- etrue
+  -- efalse
+  -- econd
+- 'remove' first virtual device
+- 'remove' second virtual device
+14 test cases
+-----
+33 test cases
+
+Action Items:
+- [DONE] Implement egress mode handling
+  -- [DONE] We do not load a virtual device onto a physical device until we insert/append it to the physical device's composition/vdev_chain, at which point:
+     if egress_mode == etrue:
+       no filtering of modify_field(standard_metadata.egress_spec, <SRC>) primitive-representing
+       table rules
+     elif egress_mode == efalse:
+       filter all modify_field(standard_metadata.egress_spec, <SRC>) primitive-representing
+       table rules of the form:
+        t_mod_XY mod_stdmeta_egressspec [mparams] => [aparams]
+         change to
+        t_mod_XY _no_op [mparams] =>
+     else egress_mode == econd:
+       Modify hp4.p4 to support:
+       - add a table/rule in setup that sets meta.econd to 1
+         change action a_set_pipeline(tableID, val) to
+                action a_set_pipeline(tableID, val, econd)
+         and add [ECOND] aparam to all tset_pipeline_config::a_set_pipeline rules
+       - Something like this:
+         do_modify_field_XY {
+             if ( (meta.econd == 0) or
+                  (meta_ctrl.virt_egress_spec == 0) or
+                 ((meta_primitive_state.subtype != 7) and
+                  (meta_primitive_state.subtype != 9) and
+                  (meta_primitive_state.subtype != 11)) ) {
+             apply(t_mod_XY);
+           }
+         }
+   -- [DONE] Subtask: modify Slice::migrate_virtual_device and other methods as necessary
+      such that the virtual device's hp4code is not pushed until 'insert' or other appropriate
+      composition-related method of the Lease class/subclass
