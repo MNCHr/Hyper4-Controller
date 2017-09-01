@@ -73,7 +73,7 @@ class Bmv2_SSwitch(Device):
         rule = P4Rule(table, action, mparams, aparams)
         handle = self.do_table_add(rule)
       except AddRuleError as e:
-        print('AddRuleError exception: ' + e.value)
+        print('AddRuleError exception: ' + str(e))
       return handle
 
     elif cmd_str_rep.split()[0] == 'table_modify':

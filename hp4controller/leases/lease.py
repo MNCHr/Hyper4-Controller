@@ -16,9 +16,11 @@ class Lease(object):
     self.assignment_handles = {} # {pport : tset_context rule handle}
     vegress_val = 1
     self.egress_map = {} # {vegress_spec (int): egress_spec (int)}
+    self.ingress_map = {} # {pport (int): virt_ingress_port (int)}
     # note, following assumes port id == egress_spec
     for port in ports:
       self.egress_map[vegress_val] = port
+      self.ingress_map[port] = vegress_val
       vegress_val += 1
 
   def revoke(self):
@@ -42,8 +44,6 @@ class Lease(object):
     if vdev_name in self.vdevs:
       raise LoadError(vdev_name + ' already present')
 
-    vdev_ID = vdev.virtual_device_ID
-
     # - validate lease has sufficient entries
     entries_available = self.entry_limit - self.entry_usage
     if (len(vdev.hp4_code_and_rules) > entries_available):
@@ -65,7 +65,7 @@ class Lease(object):
           aparams = list(rule.aparams)
 
           if egress_mode == 'efalse':
-            if ('t_mod_' in table) and (rule.action == 'mod_stdmeta_egressspec'):
+            if ('t_mod_' in table) and ('mod_stdmeta_egressspec' in rule.action):
               action = '_no_op'
 
           elif egress_mode == 'econd':
@@ -92,25 +92,6 @@ class Lease(object):
 
     self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
 
-  def withdraw_vdev(self, vdev_name):
-    "Remove virtual device from Lease (does not destroy virtual device)"
-    num_entries = len(self.vdevs[vdev_name].hp4_code_and_rules)
-    # pull all virtual device related rules from device
-    for table, handle in self.vdevs[vdev_name].hp4_code_and_rules.keys():
-      rule_identifier = table + ' ' + str(handle)
-      self.device.do_table_delete(rule_identifier)
-    self.vdevs[vdev_name].hp4_code_and_rules = {}
-
-    self.entry_usage -= num_entries
-    # if applicable, remove vdev from composition
-    if vdev_name in self.vdevs:
-      self.remove(vdev_name)
-
-    self.vdevs[vdev_name].dev_name = 'none'
-
-    # make lease forget about it (Lease's owning Slice still has it)
-    del self.vdevs[vdev_name]
-
   def handle_request(self, parameters, vdev):
     command = parameters[0]
     resp = ""
@@ -127,7 +108,21 @@ class Lease(object):
     return self.device.send_command(self.device.command_to_string(p4cmd))
 
   def remove(self, parameters, vdev):
-    pass
+    "Remove virtual device from Lease (does not destroy virtual device)"
+    vdev_name = parameters[0]
+    num_entries = len(vdev.hp4_code_and_rules)
+    # pull all virtual device related rules from device
+    for table, handle in vdev.hp4_code_and_rules.keys():
+      rule_identifier = table + ' ' + str(handle)
+      self.device.do_table_delete(rule_identifier)
+    vdev.hp4_code_and_rules = {}
+
+    self.entry_usage -= num_entries
+
+    vdev.dev_name = 'none'
+
+    # make lease forget about it (Lease's owning Slice still has it)
+    del self.vdevs[vdev_name]
 
   def __str__(self):
     ret = 'entry usage/limit: ' + str(self.entry_usage) + '/' \
@@ -144,8 +139,8 @@ class Chain(Lease):
     super(Chain, self).__init__(dev_name, dev, entry_limit, ports)
     self.vdev_chain = [] # vdev_names (strings)
 
-  def handle_request(self, parameters):
-    return super(Chain, self).handle_request(parameters)
+  def handle_request(self, parameters, vdev):
+    return super(Chain, self).handle_request(parameters, vdev)
 
   def insert(self, parameters, vdev):
     # parameters:
@@ -153,6 +148,8 @@ class Chain(Lease):
     vdev_name = parameters[0]
     position = int(parameters[1])
     egress_mode = parameters[2]
+
+    vdev_ID = vdev.virtual_device_ID
 
     try:
       self.load_virtual_device(vdev_name, vdev, egress_mode)
@@ -171,7 +168,7 @@ class Chain(Lease):
           attribs = {'table': 'tset_context',
                      'action': 'a_set_context',
                      'handle': str(handle),
-                     'aparams': [str(vdev_ID)]}
+                     'aparams': [str(vdev_ID), str(self.ingress_map[port])]}
           commands.append(P4Command(command_type, attribs))
       else:
         # entry point: table_add
@@ -180,7 +177,7 @@ class Chain(Lease):
           attribs = {'table': 'tset_context',
                      'action': 'a_set_context',
                      'mparams': [str(port)],
-                     'aparams': [str(vdev_ID)]}
+                     'aparams': [str(vdev_ID), str(self.ingress_map[port])]}
           commands.append(P4Command(command_type, attribs))
           # TODO: ensure self.assignments is updated
 
@@ -252,8 +249,11 @@ class Chain(Lease):
 
   def append(self, parameters, vdev):
     pass
+
   def remove(self, parameters, vdev):
-    pass
+    vdev_name = parameters[0]
+    self.vdev_chain.remove(vdev_name)
+    super(Chain, self).remove(parameters, vdev)
 
   def __str__(self):
     ret = ''

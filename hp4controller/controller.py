@@ -201,7 +201,7 @@ class Controller(object):
 
     for vdev_name in lease.vdevs.keys():
       lease.vdevs[vdev_name].dev_name = 'none'
-      lease.withdraw_vdev(vdev_name)
+      lease.remove(vdev_name)
 
     lease.revoke()
 
@@ -274,7 +274,9 @@ class Slice():
       dev_name = parameters[1]
       vdev_name = parameters[3]
       lease = self.leases[dev_name]
-      return lease.handle_request(parameters[2:], self.vdevs[vdev_name])
+      ret = lease.handle_request(parameters[2:], self.vdevs[vdev_name])
+      code.interact(local=dict(globals(), **locals()))
+      return ret
     else:
       try:
         resp = getattr(self, command)(parameters[1:])
