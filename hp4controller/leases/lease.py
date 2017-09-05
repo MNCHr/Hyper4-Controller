@@ -197,7 +197,7 @@ class Chain(Lease):
         
     else:
       if len(vdev.t_egr_virtnet_handles) > 0:
-        raise VirtnetError('t_egr_virtnet has entries when t_virtnet doesn\'t')
+        raise VirtnetError('vdev2p: t_egr_virtnet has entries when t_virtnet doesn\'t')
       # table_add
       for vegress in self.egress_map:
         command_type = 'table_add'
@@ -212,6 +212,7 @@ class Chain(Lease):
     "Connect source virtual device to destination virtual device"
     src_vdev_ID = src_vdev.virtual_device_ID
     dest_vdev_ID = dest_vdev.virtual_device_ID
+    vingress = str(len(self.ports) + dest_vdev_ID)
     # t_virtnet src -> dest
     # t_egr_virtnet src -> dest
     if len(src_vdev.t_virtnet_handles) > 0:
@@ -230,12 +231,37 @@ class Chain(Lease):
           attribs = {'table': 't_egr_virtnet',
                      'action': 'vfwd',
                      'handle': str(src_vdev.t_egr_virtnet_handles[vegress]),
-                     'aparams': [str(dest_vdev_ID), self.ingress_map[str(len(...))]]
-
+                     'aparams': [str(dest_vdev_ID), vingress]}
+          self.send_command(P4Command(command_type, attribs))
       else:
         # table_add
+        for vegress in src_vdev.t_virtnet_handles:
+          command_type = 'table_add'
+          attribs = {'table': 't_egr_virtnet',
+                     'action': 'vfwd',
+                     'mparams': [str(src_vdev_ID), str(vegress)],
+                     'aparams': [str(dest_vdev_ID), vingress]}
+          handle = self.send_command(P4Command(command_type, attribs))
+          src_vdev.t_egr_virtnet_handles[vegress] = handle
+        
     else:
       # table_add
+      if len(src_vdev.t_egr_virtnet_handles) > 0:
+        raise VirtnetError('vdev2vdev: t_egr_virtnet has entries when t_virtnet doesn\'t')
+      for vegress in self.egress_map:
+        command_type = 'table_add'
+        attribs = {'table': 't_virtnet',
+                   'action': 'do_virt_fwd',
+                   'mparams': [str(src_vdev_ID), str(vegress)],
+                   'aparams': []}
+        handle = self.send_command(P4Command(command_type, attribs))
+        src_vdev.t_virtnet_handles[vegress] = handle
+        attribs = {'table': 't_egr_virtnet',
+                   'action': 'vfwd',
+                   'mparams': [str(src_vdev_ID), str(vegress)],
+                   'aparams': [str(dest_vdev_ID), vingress]}
+        handle = self.send_command(P4Command(command_type, attribs))
+        src_vdev.t_egr_virtnet_handles[vegress] = handle
 
   def insert(self, parameters, vdev):
     # parameters:
@@ -252,94 +278,19 @@ class Chain(Lease):
       return 'Error - could not load ' + vdev_name + '; ' + str(e)
 
     chain = self.vdev_chain
-    
-    if ( (position == 0) or (len(chain) == 0) ):
-      if len(chain) > 0:
-        # entry point: table_modify
-        for port in self.assignments:
-          handle = self.assignment_handles[port]
-          command_type = 'table_modify'
-          attribs = {'table': 'tset_context',
-                     'action': 'a_set_context',
-                     'handle': str(handle),
-                     'aparams': [str(vdev_ID), str(self.ingress_map[port])]}
-          command = P4Command(command_type, attribs)
-          self.assignments[port] = vdev_ID
-          self.send_command(command)
 
-      else:
-        # entry point: table_add
-        for port in self.ports:
-          command_type = 'table_add'
-          attribs = {'table': 'tset_context',
-                     'action': 'a_set_context',
-                     'mparams': [str(port)],
-                     'aparams': [str(vdev_ID), str(self.ingress_map[port])]}
-          command = P4Command(command_type, attribs)
-          self.assignments[port] = vdev_ID
-          self.assignment_handles[port] = self.send_command(command)
-
-    elif len(chain) > 0:
-      # link left vdev to new vdev
-      # this involves modifying all t_virtnet and t_egr_virtnet rules for the leftvdev
+    if position == 0:
+      self.p2vdev(vdev)
+    if position >= len(chain):
+      self.vdev2p(vdev)
+    if len(chain) > 0 and position < len(chain):
+      rightvdev_name = chain[position]
+      rightvdev = self.vdevs[rightvdev_name]
+      self.vdev2vdev(vdev, rightvdev)
+    if len(chain) > 0 and position > 0:
       leftvdev_name = chain[position - 1]
       leftvdev = self.vdevs[leftvdev_name]
-      # modify rules referenced by leftvdev.t_virtnet_handles,
-      # leftvdev.t_egr_virtnet_handles
-      # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
-                                    # VALUE: hp4-facing handle (int)
-      # self.t_egr_virtnet_handles = {} # KEY: vegress_spec (int)
-                                        # VALUE: hp4-facing handle (int)
-      for handle in leftvdev.t_virtnet_handles.values():
-        command_type = 'table_modify'
-        attribs = {'table': 't_virtnet',
-                   'action': 'do_virt_fwd',
-                   'handle': str(handle),
-                   'aparams': []}
-        self.send_command(P4Command(command_type, attribs))
-      for handle in leftvdev.t_egr_virtnet_handles.values():
-        command_type = 'table_modify'
-        attribs = {'table': 't_egr_virtnet',
-                   'action': 'vfwd',
-                   'handle': str(handle),
-                   'aparams': [str(vdev_ID), str(len(self.ports) + vdev_ID)]}
-        self.send_command(P4Command(command_type, attribs))
-
-      if position < len(chain):
-        # link new vdev to next vdev
-        rightvdev_name = chain[position]
-        rightvdev = self.vdevs[rightvdev_name]
-        rightvdev_vingress = str(len(self.ports) + rightvdev.virtual_device_ID)
-        for vegress in self.egress_map:
-          command_type = 'table_add'
-          attribs = {'table': 't_virtnet',
-                     'action': 'do_virt_fwd',
-                     'mparams': [str(vdev_ID), str(vegress)],
-                     'aparams': []}
-          handle = self.send_command(P4Command(command_type, attribs))
-          vdev.t_virtnet_handles[vegress] = handle
-          attribs = {'table': 't_egr_virtnet',
-                     'action': 'vfwd',
-                     'mparams': [str(vdev_ID), str(vegress)],
-                     'aparams': [str(rightvdev.virtual_device_ID),
-                                 rightvdev_vingress]}
-          handle = self.send_command(P4Command(command_type, attribs))
-          vdev.t_egr_virtnet_handles[vegress] = handle
-
-    if position == len(chain):
-      # link new instance to physical ports
-      for vegress in self.egress_map:
-        # TODO: add support for multicast groups.
-        #  Involves inserting an 'if' clause:
-        #   if type(self.device) == Bmv2_SSwitch and vegress in self.multicast_specs
-        #      t_virtnet do_phys_mcast VDEV VEGRESS_SPEC => map[VEGRESS_SPEC]
-        command_type = 'table_add'
-        attribs = {'table': 't_virtnet',
-                   'action': 'do_phys_fwd_only',
-                   'mparams': [str(vdev_ID), str(vegress)],
-                   'aparams': [self.egress_map[vegress]]}
-        handle = self.send_command(P4Command(command_type, attribs))
-        vdev.t_virtnet_handles[vegress] = handle
+      self.vdev2vdev(vdev, leftvdev)
 
     chain.insert(position, vdev_name)
 
