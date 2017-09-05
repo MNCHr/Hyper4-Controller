@@ -9,3 +9,6 @@ class DeleteRuleError(Exception):
 
 class LoadError(Exception):
   pass
+
+class VirtnetError(Exception):
+  pass

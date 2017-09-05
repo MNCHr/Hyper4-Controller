@@ -28,6 +28,8 @@ The egress_handling_mode (etrue | efalse | econd) determines whether vdev code r
 
 The chain position 0 | 1...n-1 | n affects how we calculate the entries for tset_context, t_virtnet, and t_egr_virtnet.
 
+The egress_handling_mode affects entries for tset_pipeline, which writes 0 (unconditional) or 1 (conditional) to meta.econd, which in turn is used to determine whether to apply a t_mod_XY::mod_stdmeta_egressspec_*.
+
 The Lease class includes a map: {[VEGRESS_SPEC]: [EGRESS_SPEC]}.
 
 This map is set up at time of lease creation/grant: for every physical port
