@@ -74,6 +74,8 @@ class Bmv2_SSwitch(Device):
         handle = self.do_table_add(rule)
       except AddRuleError as e:
         print('AddRuleError exception: ' + str(e))
+      except:
+        raise
       return handle
 
     elif cmd_str_rep.split()[0] == 'table_modify':
@@ -81,7 +83,9 @@ class Bmv2_SSwitch(Device):
         self.do_table_modify(cmd_str_rep.split('table_modify ')[1])
         handle = cmd_str_rep.split()[2]
       except ModRuleError as e:
-        print('ModRuleError exception: ' + e.value)
+        print('ModRuleError exception: ' + str(e))
+      except:
+        raise
       return handle
 
     elif cmd_str_rep.split()[0] == 'table_delete':
@@ -89,7 +93,9 @@ class Bmv2_SSwitch(Device):
         self.do_table_delete(cmd_str_rep.split('table_delete ' )[1])
         handle = cmd_str_rep.split()[1]
       except DeleteRuleError as e:
-        print('DeleteRuleError exception: ' + e.value)
+        print('DeleteRuleError exception: ' + str(e))
+      except:
+          raise
       return handle
 
     else:
@@ -133,11 +139,11 @@ class Bmv2_SSwitch(Device):
       try:
         self.rta.do_table_modify(rule_mod)
       except:
-        raise ModifyRuleError("table_modify raised an exception (rule_mod: " + rule_mod + ")")
+        raise ModRuleError("table_modify raised an exception (rule_mod: " + rule_mod + ")")
     for out in output:
       print(out)
       if ('Invalid' in out) or ('Error' in out):
-        raise ModifyRuleError(out)
+        raise ModRuleError(out)
 
   @staticmethod
   def command_to_string(cmd):
@@ -150,7 +156,7 @@ class Bmv2_SSwitch(Device):
     elif cmd.command_type == 'table_modify':
       command_str += ' ' + cmd.attributes['action']
       command_str += ' ' + str(cmd.attributes['handle'])
-      command_str += ' ' + ' '.join(cmd.attributes['aparams'])
+      command_str += ' => ' + ' '.join(cmd.attributes['aparams'])
     elif cmd.command_type == 'table_delete':
       command_str += ' ' + str(cmd.attributes['handle'])
     return command_str

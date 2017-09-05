@@ -148,7 +148,7 @@ class Chain(Lease):
     if len(self.assignments) > 0:
       # table_modify
       for port in self.assignments:
-        handle = self.assignments_handles[port]
+        handle = self.assignment_handles[port]
         command_type = 'table_modify'
         attribs = {'table': 'tset_context',
                    'action': 'a_set_context',
@@ -204,7 +204,7 @@ class Chain(Lease):
         attribs = {'table': 't_virtnet',
                    'action': 'do_phys_fwd_only',
                    'mparams': [str(vdev_ID), str(vegress)],
-                   'aparams': []}
+                   'aparams': [self.egress_map[vegress]]}
         handle = self.send_command(P4Command(command_type, attribs))
         vdev.t_virtnet_handles[vegress] = handle
 
@@ -218,6 +218,8 @@ class Chain(Lease):
     if len(src_vdev.t_virtnet_handles) > 0:
       # table_modify
       for vegress in src_vdev.t_virtnet_handles:
+        # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
+                                      # VALUE: hp4-facing handle (int)
         command_type = 'table_modify'
         attribs = {'table': 't_virtnet',
                    'action': 'do_virt_fwd',
@@ -290,7 +292,7 @@ class Chain(Lease):
     if len(chain) > 0 and position > 0:
       leftvdev_name = chain[position - 1]
       leftvdev = self.vdevs[leftvdev_name]
-      self.vdev2vdev(vdev, leftvdev)
+      self.vdev2vdev(leftvdev, vdev)
 
     chain.insert(position, vdev_name)
 

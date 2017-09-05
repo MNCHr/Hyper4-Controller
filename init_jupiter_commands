@@ -1,2 +1,3 @@
 create_virtual_device tests/arp_proxy.p4 arp
-migrate_virtual_device arp alpha
+create_virtual_device tests/firewall.p4 firewall
+lease alpha insert arp 0 etrue

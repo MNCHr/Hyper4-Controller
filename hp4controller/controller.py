@@ -275,7 +275,7 @@ class Slice():
       vdev_name = parameters[3]
       lease = self.leases[dev_name]
       ret = lease.handle_request(parameters[2:], self.vdevs[vdev_name])
-      code.interact(local=dict(globals(), **locals()))
+      # code.interact(local=dict(globals(), **locals()))
       return ret
     else:
       try:
