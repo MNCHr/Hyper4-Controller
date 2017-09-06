@@ -83,9 +83,9 @@ start w/ two virtual devices
 33 test cases
 
 Action Items:
-- Implement append
-- Fix remove: need to change tset_context, tset_pipeline, t_virtnet, t_egr_virtnet entries
 - Test egress handling modes
+- [DONE] Fix remove: need to change tset_context, tset_pipeline, t_virtnet, t_egr_virtnet entries
+- [DONE] Implement append
 - [DONE] Fix insert: can't assume we can just step through the handles in t_egr_virtnet, because there is not a 1-to-1 correspondence with entries in t_virtnet when the entries in t_virtnet are doing physical forwarding.
 - [DONE] Implement egress mode handling
   -- [DONE] We do not load a virtual device onto a physical device until we insert/append it to the physical device's composition/vdev_chain, at which point:

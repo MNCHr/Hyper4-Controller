@@ -179,11 +179,11 @@ class Chain(Lease):
       # table_modify
       # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                     # VALUE: hp4-facing handle (int)
-      for vegress in self.t_virtnet_handles:
+      for vegress in vdev.t_virtnet_handles:
         command_type = 'table_modify'
         attribs = {'table': 't_virtnet',
                    'action': 'do_phys_fwd_only',
-                   'handle': str(self.t_virtnet_handles[vegress]),
+                   'handle': str(vdev.t_virtnet_handles[vegress]),
                    'aparams': [self.egress_map[vegress]]}
         self.send_command(P4Command(command_type, attribs))
 
@@ -191,7 +191,8 @@ class Chain(Lease):
         # eliminate
         command_type = 'table_delete'
         for vegress in vdev.t_egr_virtnet_handles.keys():
-          attribs = {'handle': str(self.t_egr_virtnet_handles[vegress])}
+          attribs = {'table': 't_egr_virtnet',
+                     'handle': str(vdev.t_egr_virtnet_handles[vegress])}
           self.send_command(P4Command(command_type, attribs))
           del vdev.t_egr_virtnet_handles[vegress]
         
@@ -311,8 +312,57 @@ class Chain(Lease):
 
   def remove(self, parameters, vdev):
     vdev_name = parameters[0]
-    self.vdev_chain.remove(vdev_name)
+
+    # delete vdev's t_virtnet/t_egr_virtnet entries
+    for vegress in vdev.t_virtnet_handles.keys():
+      handle = vdev.t_virtnet_handles[vegress]
+      attribs = {'table': 't_virtnet',
+                 'handle': str(handle)}
+      self.send_command(P4Command('table_delete', attribs))
+      del vdev.t_virtnet_handles[vegress]
+    for vegress in vdev.t_egr_virtnet_handles.keys():
+      handle = vdev.t_egr_virtnet_handles[vegress]
+      attribs = {'table': 't_egr_virtnet',
+                 'handle': str(handle)}
+      self.send_command(P4Command('table_delete', attribs))
+      del vdev.t_egr_virtnet_handles[vegress]
+
+    chain = self.vdev_chain
+
+    position = chain.index(vdev_name)
+
+    # code.interact(local=dict(globals(), **locals()))
+
+    if position == 0:
+      if len(chain) > 1:
+        # rightvdev exists; modify tset_context rules
+        rightvdev_name = chain[1]
+        rightvdev = self.vdevs[rightvdev_name]
+        self.p2vdev(rightvdev)
+
+      else:
+        # no rightvdev; delete tset_context rules
+        command_type = 'table_delete'
+        for port in self.assignments.keys():
+          attribs = {'table': 'tset_context',
+                     'handle': str(self.assignment_handles[port])}
+          self.send_command(P4Command(command_type, attribs))
+          del self.assignments[port]
+          del self.assignment_handles[port]
+    else:
+      leftvdev_name = chain[position - 1]
+      leftvdev = self.vdevs[leftvdev_name]
+      if position < (len(chain) - 1):
+        rightvdev_name = chain[position + 1]
+        rightvdev = self.vdevs[rightvdev_name]
+        self.vdev2vdev(leftvdev, rightvdev)
+      else:
+        self.vdev2p(leftvdev)
+          
     super(Chain, self).remove(parameters, vdev)
+    chain.remove(vdev_name)
+
+    return 'Virtual device ' + vdev_name + ' removed'
 
   def __str__(self):
     ret = ''
