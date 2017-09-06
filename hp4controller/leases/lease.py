@@ -303,31 +303,11 @@ class Chain(Lease):
 
   def append(self, parameters, vdev):
     # parameters:
-    # <virtual device name> <position> <egress handling mode>
-    vdev_name = parameters[0]
-    egress_mode = parameters[2]
+    # <virtual device name> <egress handling mode>
 
-    vdev_ID = vdev.virtual_device_ID
+    parameters.insert(1, len(self.vdev_chain))
 
-    try:
-      self.load_virtual_device(vdev_name, vdev, egress_mode)
-    except LoadError as e:
-      return 'Error - could not load ' + vdev_name + '; ' + str(e)
-
-    commands = []    
-    chain = self.vdev_chain
-
-    if len(chain) == 0:
-      # entry point: table_add
-      for port in self.ports:
-        command_type = 'table_add'
-        attribs = {'table': 'tset_context',
-                   'action': 'a_set_context',
-                   'mparams': [str(port)],
-                   'aparams': [str(vdev_ID), str(self.ingress_map[port])]}
-        commands.append(P4Command(command_type, attribs))
-        # TODO: ensure self.assignments is updated
-
+    return self.insert(parameters, vdev)
 
   def remove(self, parameters, vdev):
     vdev_name = parameters[0]
