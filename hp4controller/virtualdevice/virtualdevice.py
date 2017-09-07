@@ -44,7 +44,8 @@ class VirtualDevice():
 
     if p4command.command_type == 'table_add':
       match_ID = self.assign_handle(table)
-      p4commands = Interpreter.table_add(self.guide, p4command, match_ID)
+      p4commands = Interpreter.table_add(self.guide, p4command, match_ID,
+                                         self.virtual_device_ID)
       
     elif p4command.command_type == 'table_modify':
       p4commands = Interpeter.table_modify(self.guide, p4command)

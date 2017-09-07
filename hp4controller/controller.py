@@ -275,9 +275,7 @@ class Slice():
       dev_name = parameters[1]
       vdev_name = parameters[3]
       lease = self.leases[dev_name]
-      ret = lease.handle_request(parameters[2:], self.vdevs[vdev_name])
-      # code.interact(local=dict(globals(), **locals()))
-      return ret
+      return lease.handle_request(parameters[2:], self.vdevs[vdev_name])
     else:
       try:
         resp = getattr(self, command)(parameters[1:])
@@ -352,7 +350,8 @@ class Slice():
     vdev = self.vdevs[vdev_name]
     hp4commands = vdev.interpret(p4command)
 
-    code.interact(local=dict(globals(), **locals()))
+    # TODO: redo this properly
+    match_ID = hp4commands[0].attributes['aparams'][1]
 
     dev_name = vdev.dev_name
 
@@ -374,9 +373,18 @@ class Slice():
     for hp4command in hp4commands:
       # return value should be handle for all commands
       hp4handle = self.leases[dev_name].send_command(hp4command)
-      table = hp4command.attribs['table']
+      table = hp4command.attributes['table']
       if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
-        vdev.hp4_code_and_rules[(table, hp4handle)] = hp4command.rule
+        if hp4command.command_type == 'table_add':
+          rule = p4rule.P4Rule(table, hp4command.attributes['action'],
+                               hp4command.attributes['mparams'],
+                               hp4command.attributes['aparams'])
+        else: # 'table_modify'
+          mparams = vdev.hp4_code_and_rules[(table, hp4handle)].mparams
+          rule = p4rule.P4Rule(table, hp4command.attributes['action'],
+                               mparams,
+                               hp4command.attributes['aparams'])
+        vdev.hp4_code_and_rules[(table, hp4handle)] = rule
       else: # command_type == 'table_delete'
         del vdev.hp4_code_and_rules[(table, hp4handle)]
       # accounting
@@ -395,8 +403,8 @@ class Slice():
       rule = p4rule.P4Rule(table, p4command.attributes['action'],
                            p4command.attributes['mparams'],
                            p4command.attributes['aparams'])
-      vdev.origin_table_rules[(table, vdev.assign_handle())] = \
-                         virtualdevice.Interpretation(rule, hp4_rule_handles)
+      vdev.origin_table_rules[(table, match_ID)] = \
+                                         Interpretation(rule, hp4_rule_handles)
 
     elif p4command.command_type == 'table_modify':
       # replace Origin_to_HP4Map w/ one with new rule, new hp4_rules_handles list
@@ -407,7 +415,7 @@ class Slice():
       aparams = p4command.attributes['aparams']
       rule = p4rule.P4Rule(table, action, mparams, aparams)
       vdev.origin_table_rules[(table, handle)] = \
-                         virtualdevice.Interpretation(rule, hp4_rule_handles)
+                                         Interpretation(rule, hp4_rule_handles)
 
     elif p4command.command_type == 'table_delete':
       handle = p4command.attributes['handle']
