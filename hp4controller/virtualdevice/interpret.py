@@ -6,6 +6,7 @@ import json
 import copy
 import re
 import code
+# code.interact(local=dict(globals(), **locals()))
 
 match_types = {'[DONE]':'0',
                '[EXTRACTED_EXACT]':'1',
@@ -51,7 +52,7 @@ class Interpreter(object):
     key = (rule.table, rule.action)
 
     # handle the match rule
-    mrule = copy.copy(guide.templates[key]['match'])
+    mrule = copy.deepcopy(guide.templates[key]['match'])
     ## match parameters
     mrule_match_params = mrule.attributes['mparams']
     for i in range(len(mrule_match_params)):
@@ -105,7 +106,7 @@ class Interpreter(object):
 
     # handle the primitives rules
     for entry in guide.templates[key]['primitives']:
-      arule = copy.copy(entry)
+      arule = copy.deepcopy(entry)
       ## match parameters
       arule_match_params = arule.attributes['mparams']
       for i in range(len(arule_match_params)):
@@ -130,6 +131,8 @@ class Interpreter(object):
                             arule_action_params[i].replace(to_replace, replace)
 
       p4commands.append(arule)
+
+    code.interact(local=dict(globals(), **locals()))
 
     return p4commands
 

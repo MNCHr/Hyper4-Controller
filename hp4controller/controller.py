@@ -15,6 +15,7 @@ import leases.lease
 from errors import AddRuleError, ModRuleError, DeleteRuleError
 
 import code
+# code.interact(local=dict(globals(), **locals()))
 
 # TODO (Global): refactor to reduce degree of coupling
 #  methods reach too deep into other class dependency trees to accomplish tasks
@@ -352,6 +353,8 @@ class Slice():
 
     # TODO: redo this properly
     match_ID = hp4commands[0].attributes['aparams'][1]
+
+    # code.interact(local=dict(globals(), **locals()))
 
     dev_name = vdev.dev_name
 

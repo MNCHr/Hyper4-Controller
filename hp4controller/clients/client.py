@@ -4,6 +4,8 @@ import argparse
 import sys
 import socket
 import cmd
+import code
+# code.interact(local=dict(globals(), **locals()))
 
 BUFFSIZE = 1024
 
@@ -62,6 +64,18 @@ class SliceManager(Client):
   def do_interpret(self, line):
     "Interpret API command: interpret <virtual device> <\'bmv2\' | \'agilio\'> <command>"
     resp = self.send_request(self.user + ' interpret ' + line)
+    print(resp)
+
+  def do_interpret_file(self, line):
+    "Interpret API commands in file: interpret_file <virtual device> <\'bmv2\' | \'agilio\'> <file>"
+    code.interact(local=dict(globals(), **locals()))    
+    resp = ''
+    with open(line.split()[2]) as commands:
+      pre = ''
+      for command in commands:
+        newline = ' '.join(line.split()[0:2]) + ' ' + command
+        resp += pre + self.send_request(self.user + ' interpret ' + newline)
+        pre = '\n'
     print(resp)
 
 class ChainSliceManager(SliceManager):

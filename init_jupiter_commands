@@ -2,4 +2,3 @@ create_virtual_device tests/arp_proxy.p4 arp
 create_virtual_device tests/firewall.p4 firewall
 create_virtual_device tests/hp4t_l2_switch.p4 switch
 lease alpha insert arp 0 etrue
-interpret arp bmv2 table_add init_meta_egress a_init_meta_egress 1 => 2

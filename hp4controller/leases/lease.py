@@ -3,6 +3,7 @@ from ..p4command import P4Command
 from ..errors import AddRuleError, LoadError, VirtnetError
 
 import code
+# code.interact(local=dict(globals(), **locals()))
 
 class Lease(object):
   def __init__(self, dev_name, dev, entry_limit, ports):

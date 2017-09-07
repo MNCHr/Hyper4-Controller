@@ -6,6 +6,7 @@ from ..compilers.compiler import CodeRepresentation
 import re
 
 import code
+# code.interact(local=dict(globals(), **locals()))
 
 class VirtualDevice():
   def __init__(self, virtual_device_ID, hp4code, guide):

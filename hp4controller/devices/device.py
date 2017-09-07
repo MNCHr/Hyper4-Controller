@@ -6,6 +6,7 @@ import re
 import sys
 from cStringIO import StringIO
 import code
+# code.interact(local=dict(globals(), **locals()))
 
 # http://stackoverflow.com/questions/16571150/how-to-capture-stdout-output-from-a-python-function-call
 class Capturing(list):
