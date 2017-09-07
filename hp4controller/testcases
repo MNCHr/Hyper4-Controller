@@ -37,11 +37,7 @@ start w/ empty vdev_chain
      --- etrue
      --- efalse
      --- econd
-- 'append' arp
-  -- etrue
-  -- efalse
-  -- econd
-9 test cases
+6 test cases
 start w/ one virtual device
 - 'insert' arp
   -- at 0
@@ -52,12 +48,8 @@ start w/ one virtual device
      --- etrue
      --- efalse
      --- econd
-- 'append' arp
-  -- etrue
-  -- efalse
-  -- econd
 - 'remove' existing virtual device
-10 test cases
+7 test cases
 start w/ two virtual devices
 - 'insert' arp
   -- at 0
@@ -72,17 +64,19 @@ start w/ two virtual devices
      --- etrue
      --- efalse
      --- econd
-- 'append' arp
-  -- etrue
-  -- efalse
-  -- econd
 - 'remove' first virtual device
 - 'remove' second virtual device
-14 test cases
+11 test cases
 -----
-33 test cases
+24 test cases
 
 Action Items:
+- Examine/fix implementation of interpret
+- Implement info commands for slice manager:
+  -- slice
+  -- phys devices
+  -- virtual devices
+- Test/fix memory accounting/enforcement
 - Test egress handling modes
 - [DONE] Fix remove: need to change tset_context, tset_pipeline, t_virtnet, t_egr_virtnet entries
 - [DONE] Implement append

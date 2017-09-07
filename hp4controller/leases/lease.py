@@ -328,10 +328,7 @@ class Chain(Lease):
       del vdev.t_egr_virtnet_handles[vegress]
 
     chain = self.vdev_chain
-
     position = chain.index(vdev_name)
-
-    # code.interact(local=dict(globals(), **locals()))
 
     if position == 0:
       if len(chain) > 1:

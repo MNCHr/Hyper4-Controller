@@ -59,9 +59,9 @@ class SliceManager(Client):
     resp = self.send_request(self.user + ' destroy_virtual_device ' + line)
     print(resp)
 
-  def do_translate(self, line):
-    "Translate API command: translate <virtual device> <\'bmv2\' | \'agilio\'> <command>"
-    resp = self.send_request(self.user + ' translate ' + line)
+  def do_interpret(self, line):
+    "Interpret API command: interpret <virtual device> <\'bmv2\' | \'agilio\'> <command>"
+    resp = self.send_request(self.user + ' interpret ' + line)
     print(resp)
 
 class ChainSliceManager(SliceManager):

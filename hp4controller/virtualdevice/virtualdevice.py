@@ -1,6 +1,6 @@
 from ..p4command import P4Command
 from p4rule import P4Rule
-from interpret import Interpretation, InterpretationGuide
+from interpret import Interpretation, InterpretationGuide, Interpreter
 from ..compilers import p4_hp4
 from ..compilers.compiler import CodeRepresentation
 import re
@@ -34,20 +34,31 @@ class VirtualDevice():
     self.t_egr_virtnet_handles = {} # KEY: vegress_spec (int)
                                     # VALUE: hp4-facing handle (int)
     self.dev_name = 'none'
-    self.next_handle = 0
+    self.next_handle = {} # KEY: table (str)
+                          # VALUE: next handle (int)
 
   def interpret(self, p4command):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::translate
     p4commands = []
-    table = p4command.attribs['table']
-    # this may be problematic, reusing the origin rule handle as the match_ID
-    match_ID = vdev.assign_handle()
-    self.origin_table_rules[(table, match_ID)] # TODO...
+    table = p4command.attributes['table']
+
+    if p4command.command_type == 'table_add':
+      match_ID = self.assign_handle(table)
+      p4commands = Interpreter.table_add(self.guide, p4command, match_ID)
+      
+    elif p4command.command_type == 'table_modify':
+      p4commands = Interpeter.table_modify(self.guide, p4command)
+
+    elif p4command.command_type == 'table_delete':
+      p4commands = Interpreter.table_delete(self.guide, p4command)
+
     return p4commands
 
-  def assign_handle(self):
-    handle = self.next_handle
-    self.next_handle += 1
+  def assign_handle(self, table):
+    if table not in self.next_handle:
+      self.next_handle[table] = 1
+    handle = self.next_handle[table]
+    self.next_handle[table] += 1
     return handle
 
 class CompileError(Exception):
@@ -171,7 +182,7 @@ class VirtualDeviceFactory():
     ig_path = self.compiled_programs[program_path].interpretation_guide_path
    
     hp4code = self.link(object_code_path, vdev_ID)
-    guide = InterpretationGuide(ig_path) # TODO: verify parameters
+    guide = InterpretationGuide(ig_path)
 
     return VirtualDevice(vdev_ID, hp4code, guide)
 

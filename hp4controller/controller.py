@@ -8,6 +8,7 @@ import os
 import devices.device as device
 from virtualdevice.virtualdevice import VirtualDevice, VirtualDeviceFactory
 from virtualdevice.interpret import Interpretation
+import virtualdevice.p4rule as p4rule
 from p4command import P4Command
 import textwrap
 import leases.lease
@@ -331,7 +332,7 @@ class Slice():
   def destroy_virtual_device(self, parameters):
     pass
 
-  def translate(self, parameters):
+  def interpret(self, parameters):
     # TODO: Fix the native -> hp4 rule handle confusion.  Need to track
     #  virtual (native) rule handles to support table_delete and table_modify
     #  commands.
@@ -341,15 +342,17 @@ class Slice():
     style = parameters[1]
     vdev_command_str = ' '.join(parameters[2:])
     if style == 'bmv2':
-      p4command = Bmv2_SSwitch.string_to_command(vdev_command_str)
+      p4command = device.Bmv2_SSwitch.string_to_command(vdev_command_str)
     elif style == 'agilio':
-      p4command = Agilio.string_to_command(vdev_command_str)
+      p4command = device.Agilio.string_to_command(vdev_command_str)
     else:
       return 'Error - ' + style + ' not one of (\'bmv2\', \'agilio\')'
     if vdev_name not in self.vdevs:
       return 'Error - ' + vdev_name + ' not a recognized virtual device'
     vdev = self.vdevs[vdev_name]
-    hp4commands = Interpreter.interpret(vdev, p4command)
+    hp4commands = vdev.interpret(p4command)
+
+    code.interact(local=dict(globals(), **locals()))
 
     dev_name = vdev.dev_name
 
@@ -410,7 +413,7 @@ class Slice():
       handle = p4command.attributes['handle']
       del vdev.origin_table_rules[(table, handle)]
 
-    return 'Translated: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
+    return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
 
 class CompTypeException(Exception):
   pass

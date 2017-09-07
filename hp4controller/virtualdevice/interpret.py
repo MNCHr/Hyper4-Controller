@@ -1,19 +1,41 @@
 import virtualdevice
-import json
 from ..p4command import P4Command
 from p4rule import P4Rule
 
-class Interpreter():
+import json
+import copy
+import code
+
+class Interpreter(object):
   @staticmethod
-  def table_add(self):
+  def table_add(guide, p4command, match_ID):
+    p4commands = []
+    rule = P4Rule(p4command.attributes['table'],
+                  p4command.attributes['action'],
+                  p4command.attributes['mparams'],
+                  p4command.attributes['aparams'])
+    key = (rule.table, rule.action)
+    mrule = copy.copy(guide.templates[key]['match'])
+
+    # TODO ...
+
+    p4commands.append(mrule)
+
+    for entry in guide.templates[key]['primitives']:
+      arule = copy.copy(entry)
+
+      # TODO ...
+
+      p4commands.append(arule)
+
+    return p4commands
+
+  @staticmethod
+  def table_modify(guide, p4command):
     pass
 
   @staticmethod
-  def table_modify(self):
-    pass
-
-  @staticmethod
-  def table_delete(self):
+  def table_delete(guide, p4command):
     pass
 
 class Interpretation():

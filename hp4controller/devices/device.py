@@ -2,6 +2,7 @@ from ..p4command import P4Command
 from ..virtualdevice.p4rule import P4Rule
 from ..errors import AddRuleError, ModRuleError, DeleteRuleError
 
+import re
 import sys
 from cStringIO import StringIO
 import code
