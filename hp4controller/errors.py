@@ -12,3 +12,6 @@ class LoadError(Exception):
 
 class VirtnetError(Exception):
   pass
+
+class MCastError(Exception):
+  pass

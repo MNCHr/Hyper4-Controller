@@ -1,6 +1,8 @@
 from ..p4command import P4Command
 from ..virtualdevice.p4rule import P4Rule
-from ..errors import AddRuleError, ModRuleError, DeleteRuleError
+from ..errors import AddRuleError, ModRuleError, DeleteRuleError, MCastError
+
+from sswitch_CLI import SimpleSwitchAPI
 
 import re
 import sys
@@ -28,6 +30,12 @@ class Device():
     self.phys_ports_remaining = list(phys_ports)
     self.ip = ip # management iface
     self.port = port # management iface
+    self.next_mcast_grp_id = 1
+
+  def assign_mcast_grp_id(self):
+    ret = self.next_mcast_grp_id
+    self.next_mcast_grp_id += 1
+    return ret
 
   def send_command(self, cmd_str_rep):
     # return handle (regardless of command type)
@@ -51,6 +59,9 @@ class Device():
 
   @staticmethod
   def string_to_command(string):
+    pass
+
+  def mcast_setup(self, mcast_grp_id, ports):
     pass
 
   def __str__(self):
@@ -183,6 +194,41 @@ class Bmv2_SSwitch(Device):
       # table_delete <table name> <entry handle>
       attributes['handle'] = int(command_str[0].split()[3])
     return P4Command(command_type, attributes)
+
+  def mcast_setup(self, mcast_grp_id, ports):
+    "Set up multicast group"
+    # mc_mgrp_create
+    with Capturing() as output:
+      try:
+        self.rta.do_mc_mgrp_create(str(mcast_grp_id))
+      except:
+        raise MCastError("mc_mgrp_create raised an exception:" + str(sys.exc_info()[0]))
+    for out in output:
+      print(out) 
+
+    # mc_node_create
+    with Capturing() as output:
+      try:
+        self.rta.do_mc_node_create("1 " + ' '.join(str(port) for port in ports))
+      except:
+        raise MCastError("mc_node_create raised an exception")
+    node_handle = -1
+    for out in output:
+      print(out)
+      if 'was created with handle' in out:
+        node_handle = int(out.split('handle ')[1])
+    if node_handle == -1:
+      raise MCastError("mc_node_create error - node_handle not assigned \
+                       (did not receive success message?)")
+
+    # mc_node_associate
+    with Capturing() as output:
+      try:
+        self.rta.do_mc_node_associate(str(mcast_grp_id) + ' ' + str(node_handle))
+      except:
+        raise MCastError("mc_node_associate raised an exception")
+    for out in output:
+      print(out)
 
 class Agilio(Device):
   @staticmethod

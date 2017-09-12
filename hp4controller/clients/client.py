@@ -67,8 +67,7 @@ class SliceManager(Client):
     print(resp)
 
   def do_interpret_file(self, line):
-    "Interpret API commands in file: interpret_file <virtual device> <\'bmv2\' | \'agilio\'> <file>"
-    code.interact(local=dict(globals(), **locals()))    
+    "Interpret API commands in file: interpret_file <virtual device> <\'bmv2\' | \'agilio\'> <file>"  
     resp = ''
     with open(line.split()[2]) as commands:
       pre = ''

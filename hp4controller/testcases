@@ -71,13 +71,29 @@ start w/ two virtual devices
 24 test cases
 
 Action Items:
+- Fix Controller::grant_lease / Lease::__init__
+  -- on bmv2 targets, need to send multicast setup commands:
+     --- mcast group creation
+     --- mcast node creation
+     --- mcast associate node w/ group
+- Fix Controller::revoke_lease
+  -- on bmv2 targets, need to destroy mcast groups and nodes
+- Fix bug:
+  - vdev: arp w/ entries in arp_entries
+  - symptom: packets aren't transmitting
+  - clues:
+    -- egress_filter MISS, looks like packet is dropped
 - Examine/fix implementation of interpret
+  -- [DONE] table_add
+  -- table_modify
+  -- table_delete
 - Implement info commands for slice manager:
   -- slice
   -- phys devices
   -- virtual devices
 - Test/fix memory accounting/enforcement
 - Test egress handling modes
+- [DONE] Implement client::do_interpret with file
 - [DONE] Fix remove: need to change tset_context, tset_pipeline, t_virtnet, t_egr_virtnet entries
 - [DONE] Implement append
 - [DONE] Fix insert: can't assume we can just step through the handles in t_egr_virtnet, because there is not a 1-to-1 correspondence with entries in t_virtnet when the entries in t_virtnet are doing physical forwarding.

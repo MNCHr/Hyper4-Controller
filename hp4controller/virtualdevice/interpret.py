@@ -43,7 +43,7 @@ primitive_types = {'[MODIFY_FIELD]':'0',
 
 class Interpreter(object):
   @staticmethod
-  def table_add(guide, p4command, match_ID, vdev_ID):
+  def table_add(guide, p4command, match_ID, vdev_ID, mcast_grp_id):
     p4commands = []
     rule = P4Rule(p4command.attributes['table'],
                   p4command.attributes['action'],
@@ -121,6 +121,8 @@ class Interpreter(object):
         if arule_action_params[i] == '[val]':
           a_idx = int(arule.attributes['src_aparam_id'])
           arule_action_params[i] = str(rule.aparams[a_idx])
+        if arule_action_params[i] == '[MCAST_GRP]':
+          arule_action_params[i] = str(mcast_grp_id)
         if re.search("\[[0-9]*x00s\]", arule_action_params[i]):
           to_replace = re.search("\[[0-9]*x00s\]", arule_action_params[i]).group()
           numzeros = int(re.search("[0-9]+", to_replace).group())
@@ -131,8 +133,6 @@ class Interpreter(object):
                             arule_action_params[i].replace(to_replace, replace)
 
       p4commands.append(arule)
-
-    code.interact(local=dict(globals(), **locals()))
 
     return p4commands
 

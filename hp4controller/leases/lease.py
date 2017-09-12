@@ -23,6 +23,10 @@ class Lease(object):
       self.egress_map[vegress_val] = port
       self.ingress_map[port] = vegress_val
       vegress_val += 1
+    # get mcast_grp_id from device
+    self.mcast_grp_id = self.device.assign_mcast_grp_id()
+    # create/associate mcast_grp, mcast_node
+    self.device.mcast_setup(self.mcast_grp_id, self.ports)
 
   def revoke(self):
     # delete rules for tset_context
@@ -75,6 +79,9 @@ class Lease(object):
 
           elif egress_mode != 'etrue':
             raise LoadError('Invalid egress handling mode: ' + egress_mode)
+
+          if action == 'mod_intmeta_mcast_grp_const':
+            aparams[0] = str(self.mcast_grp_id)
 
           attribs = {'table': table,
                      'action': action,
@@ -300,6 +307,8 @@ class Chain(Lease):
 
     vdev.dev_name = self.dev_name
     self.vdevs[vdev_name] = vdev
+
+    vdev.mcast_grp_id = self.mcast_grp_id
     
     return 'Virtual Device ' + vdev_name + ' inserted at position ' + str(position)
 

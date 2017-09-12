@@ -35,6 +35,7 @@ class VirtualDevice():
     self.t_egr_virtnet_handles = {} # KEY: vegress_spec (int)
                                     # VALUE: hp4-facing handle (int)
     self.dev_name = 'none'
+    self.mcast_grp_id = -1
     self.next_handle = {} # KEY: table (str)
                           # VALUE: next handle (int)
 
@@ -46,7 +47,7 @@ class VirtualDevice():
     if p4command.command_type == 'table_add':
       match_ID = self.assign_handle(table)
       p4commands = Interpreter.table_add(self.guide, p4command, match_ID,
-                                         self.virtual_device_ID)
+                                         self.virtual_device_ID, self.mcast_grp_id)
       
     elif p4command.command_type == 'table_modify':
       p4commands = Interpeter.table_modify(self.guide, p4command)

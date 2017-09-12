@@ -56,6 +56,7 @@ control ingress {
   apply(dmac);
 }
 
+/*
 table filter_egress {
   actions {
     _drop;
@@ -67,3 +68,4 @@ control egress {
     apply(filter_egress);
   }
 }
+*/

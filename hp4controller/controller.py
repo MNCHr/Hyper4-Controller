@@ -3,6 +3,7 @@
 import argparse
 import sys
 import runtime_CLI
+from sswitch_CLI import SimpleSwitchAPI
 import socket
 import os
 import devices.device as device
@@ -85,18 +86,22 @@ class Controller(object):
     pre = parameters[5]
     max_entries = int(parameters[6])
     ports = parameters[7:]
-    prelookup = {'None': 0, 'SimplePre': 1, 'SimplePreLAG': 2}
+    prelookup = {'None': runtime_CLI.PreType.None,
+                 'SimplePre': runtime_CLI.PreType.SimplePre,
+                 'SimplePreLAG': runtime_CLI.PreType.SimplePreLAG}
+
+    services = runtime_CLI.RuntimeAPI.get_thrift_services(prelookup[pre])
+    services.extend(SimpleSwitchAPI.get_thrift_services())
 
     try:
-      hp4_client, mc_client = runtime_CLI.thrift_connect(ip, port,
-                  runtime_CLI.RuntimeAPI.get_thrift_services(prelookup[pre]))
+      std_client, mc_client, sswitch_client = runtime_CLI.thrift_connect(ip, port, services)
     except:
         return "Error - create_device(" + dev_name + "): " + str(sys.exc_info()[0])
 
     # TODO: fix this
     json = '/home/ubuntu/hp4-src/hp4/hp4.json'
-    runtime_CLI.load_json_config(hp4_client, json)
-    rta = runtime_CLI.RuntimeAPI(pre, hp4_client)
+    runtime_CLI.load_json_config(std_client, json)
+    rta = SimpleSwitchAPI(prelookup[pre], std_client, mc_client, sswitch_client)
 
     # TODO: fix this; Controller must not be required to know every Device subclass
     if dev_type == 'bmv2_SSwitch':

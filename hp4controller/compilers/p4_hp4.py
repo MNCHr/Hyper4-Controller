@@ -7,6 +7,7 @@ from p4_hlir.hlir.p4_core import p4_enum
 from collections import OrderedDict
 import argparse
 import code
+# code.interact(local=dict(globals(), **locals()))
 import sys
 import math
 import json
@@ -173,6 +174,9 @@ class DAG_Topo_Sorter():
       self.unmarked.append(p4_tables[key])
 
   def visit(self, n):
+    if n.control_flow_parent == 'egress':
+      print("ERROR: Not yet supported: tables in egress (" + n.name + ")")
+      exit()
     if n in self.tempmarked:
       print("ERROR: not a DAG")
       exit()
@@ -180,7 +184,8 @@ class DAG_Topo_Sorter():
       self.unmarked.remove(n)
       self.tempmarked.append(n)
       for m in n.next_.values():
-        self.visit(m)
+        if m != None:
+          self.visit(m)
       self.permmarked.append(n)
       self.tempmarked.remove(n)
       self.L.insert(0, n)
@@ -1065,12 +1070,18 @@ class P4_to_HP4(HP4Compiler):
         aparams.append(leftshift)
         aparams.append(mask)
         aparams.append(val)
-      elif (mf_prim_subtype_action[call[1]] == 'mod_stdmeta_egressspec_const' or
-            mf_prim_subtype_action[call[1]] == 'mod_intmeta_mcast_grp_const'):
+      elif (mf_prim_subtype_action[call[1]] == 'mod_stdmeta_egressspec_const'):
         if type(p4_call[1][1]) == int:
           aparams.append(str(p4_call[1][1]))
         else:
           aparams.append('[val]')
+      elif (mf_prim_subtype_action[call[1]] == 'mod_intmeta_mcast_grp_const'):
+        if type(p4_call[1][1]) == int:
+          print("Not yet supported: mod_intmeta_mcast_grp_const w/ explicit const")
+          exit()
+        else:
+          aparams.append('[MCAST_GRP]')
+
       #elif mf_prim_subtype_action[call[1]] == 'mod_stdmeta_egressspec_stdmeta_ingressport':
       #  return aparams
       elif mf_prim_subtype_action[call[1]] == 'mod_extracted_extracted':
@@ -1147,6 +1158,7 @@ class P4_to_HP4(HP4Compiler):
     """ detect and handle ipv4 checksum """
     cf_none_types = 0
     cf_valid_types = 0
+    checksum_detected = False
     for cf in self.h.calculated_fields:
       for statement in cf[1]:
         if statement[0] == 'update':
@@ -1174,7 +1186,8 @@ class P4_to_HP4(HP4Compiler):
                   if (cf_none_types + cf_valid_types) > 1:
                     print("ERROR: Unsupported: multiple checksums")
                     exit()
-                  else:                    
+                  else:
+                    checksum_detected = True
                     self.commands.append(HP4_Command("table_add",
                                                       "t_checksum",
                                                       "a_ipv4_csum16",
@@ -1193,6 +1206,7 @@ class P4_to_HP4(HP4Compiler):
                           mparams = ['[vdev ID]']
                           val = format(self.vbits[key], '#x')
                           mparams.append(val + '&&&' + val)
+                          checksum_detected = True
                           self.commands.append(HP4_Command("table_add",
                                                             "t_checksum",
                                                             "a_ipv4_csum16",
@@ -1213,6 +1227,13 @@ class P4_to_HP4(HP4Compiler):
         else:
           print("WARNING: Unsupported update_verify_spec for calculated field: \
                  %s" % statement[0])
+
+    if checksum_detected == False:
+      self.commands.append(HP4_Command("table_add",
+                                      "t_checksum",
+                                      "_no_op",
+                                      ['[vdev ID]', '0&&&0'],
+                                      [str(MAX_PRIORITY)]))
 
   def gen_t_resize_pr_entries(self):
     # TODO: full implementation as the following primitives get support:
