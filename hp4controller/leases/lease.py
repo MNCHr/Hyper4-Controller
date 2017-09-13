@@ -5,6 +5,11 @@ from ..errors import AddRuleError, LoadError, VirtnetError
 import code
 # code.interact(local=dict(globals(), **locals()))
 
+FILTERED = 1
+UNFILTERED = 0
+
+filteredlookup = {'filtered': FILTERED, 'unfiltered': UNFILTERED}
+
 class Lease(object):
   def __init__(self, dev_name, dev, entry_limit, ports):
     self.dev_name = dev_name
@@ -27,6 +32,7 @@ class Lease(object):
     self.mcast_grp_id = self.device.assign_mcast_grp_id()
     # create/associate mcast_grp, mcast_node
     self.device.mcast_setup(self.mcast_grp_id, self.ports)
+    self.mcast_egress_specs = {} # {vegress_spec (int): FILTERED|UNFILTERED (int)}
 
   def revoke(self):
     # delete rules for tset_context
@@ -104,7 +110,10 @@ class Lease(object):
     command = parameters[0]
     resp = ""
     try:
-      resp = getattr(self, command)(parameters[1:], vdev)
+      if command == 'config_egress':
+        resp = getattr(self, command)(parameters[1:])
+      else:
+        resp = getattr(self, command)(parameters[1:], vdev)
     except AttributeError as e:
       return "AttributeError(handle_request - " + command + "): " + str(e)
     except Exception as e:
@@ -131,6 +140,11 @@ class Lease(object):
 
     # make lease forget about it (Lease's owning Slice still has it)
     del self.vdevs[vdev_name]
+
+  def config_egress(self, parameters):
+    egress_spec = int(parameters[0])
+    command_type = parameters[1]
+    self.mcast_egress_specs[egress_spec] = filteredlookup(parameters[2])
 
   def __str__(self):
     ret = 'entry usage/limit: ' + str(self.entry_usage) + '/' \
@@ -184,38 +198,45 @@ class Chain(Lease):
     # t_virtnet
     # t_egr_virtnet
     if len(vdev.t_virtnet_handles) > 0:
-      # table_modify
+      # table_delete
       # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                     # VALUE: hp4-facing handle (int)
-      for vegress in vdev.t_virtnet_handles:
-        command_type = 'table_modify'
+      for vegress in vdev.t_virtnet_handles.keys():
         attribs = {'table': 't_virtnet',
-                   'action': 'do_phys_fwd_only',
-                   'handle': str(vdev.t_virtnet_handles[vegress]),
-                   'aparams': [self.egress_map[vegress]]}
-        self.send_command(P4Command(command_type, attribs))
+                   'handle': str(vdev.t_virtnet_handles[vegress])}
+        self.send_command(P4Command('table_delete', attribs))
+        del vdev.t_virtnet_handles[vegress]
 
       if len(vdev.t_egr_virtnet_handles) > 0:
         # eliminate
-        command_type = 'table_delete'
         for vegress in vdev.t_egr_virtnet_handles.keys():
           attribs = {'table': 't_egr_virtnet',
                      'handle': str(vdev.t_egr_virtnet_handles[vegress])}
-          self.send_command(P4Command(command_type, attribs))
+          self.send_command(P4Command('table_delete', attribs))
           del vdev.t_egr_virtnet_handles[vegress]
         
     else:
       if len(vdev.t_egr_virtnet_handles) > 0:
         raise VirtnetError('vdev2p: t_egr_virtnet has entries when t_virtnet doesn\'t')
-      # table_add
-      for vegress in self.egress_map:
-        command_type = 'table_add'
-        attribs = {'table': 't_virtnet',
-                   'action': 'do_phys_fwd_only',
-                   'mparams': [str(vdev_ID), str(vegress)],
-                   'aparams': [self.egress_map[vegress]]}
-        handle = self.send_command(P4Command(command_type, attribs))
-        vdev.t_virtnet_handles[vegress] = handle
+
+    # table_add
+    for vegress in self.mcast_egress_specs:
+      command_type = 'table_add'
+      filtered = self.mcast_egress_specs[vegress]
+      attribs = self.device.get_mcast_attribs(vdev_ID,
+                                              vegress,
+                                              self.mcast_grp_id,
+                                              filtered)
+      handle = self.send_command(P4Command(command_type, attribs))
+      vdev.t_virtnet_handles[vegress] = (handle, table)
+    for vegress in self.egress_map:
+      command_type = 'table_add'
+      attribs = {'table': 't_virtnet',
+                 'action': 'do_phys_fwd_only',
+                 'mparams': [str(vdev_ID), str(vegress)],
+                 'aparams': [self.egress_map[vegress], str(UNFILTERED)]}
+      handle = self.send_command(P4Command(command_type, attribs))
+      vdev.t_virtnet_handles[vegress] = handle
 
   def vdev2vdev(self, src_vdev, dest_vdev):
     "Connect source virtual device to destination virtual device"
@@ -370,6 +391,9 @@ class Chain(Lease):
     chain.remove(vdev_name)
 
     return 'Virtual device ' + vdev_name + ' removed'
+
+  def config_egress(self, parameters):
+    return super(Chain, self).config_egress(parameters)
 
   def __str__(self):
     ret = ''

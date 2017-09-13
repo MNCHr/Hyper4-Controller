@@ -1,0 +1,64 @@
+Problem: distinguish between multicast and return-to-sender for purposes of filtering, or not.
+
+SMs configure virtual devices via rules that affect the final forwarding decision once the packet reaches the end of the vdev chain.  To the SM, rules appear to modify sm.egress_spec, but in reality, they modify meta.virt_egress_spec.
+
+The SM should have the ability to specify egress_spec values that trigger a multicast.  When the SM does this, the Controller should add or modify t_virtnet rules accordingly.
+
+Most egress_spec values should correspond to single ports.  Without SM action, no egress_spec value will correspond to multicast.  This means that by default, we should not filter.
+
+The Client should allow:
+
+  lease <device> config_egress <egress_spec value> mcast <filtered|unfiltered>
+
+Controller response:
+- Add entry to Lease::mcast_egress_specs{egress_spec value: FILTERED|UNFILTERED}
+  This dictionary is consulted during insert|append|remove ops,
+  affecting t_virtnet add/modify for the final vdev_ID in the chain, using egress_spec_value
+  as the match value for meta_ctrl.virt_egress_spec:
+  - bmv2-target:
+    do_bmv2_mcast(Lease::mcast_grp_id, FILTERED | UNFILTERED)
+  - other:
+    do_phys_fwd_only(Lease::mcast_grp_id, FILTERED | UNFILTERED)
+
+This way, we can have one egress_spec value for filtered, and another for unfiltered multicasting.
+
+// bmv2 targets only
+action do_bmv2_mcast(mcast_grp, filter) {
+  modify_field(intrinsic_metadata.mcast_grp, mcast_grp);
+  modify_field(meta_ctrl.efilter, filter);
+}
+
+action do_phys_fwd_only(spec, filter) {
+  modify_field(standard_metadata.egress_spec, spec);
+  modify_filed(meta_ctrl.efilter, filter);
+}
+
+action do_virt_fwd() {
+  modify_field(standard_metadata.egress_spec, standard_metadata.ingress_port);
+  modify_field(meta_ctrl.virt_fwd_flag, 1);
+}
+
+table t_virtnet {
+  reads {
+    meta_ctrl.vdev_ID : exact;
+    meta_ctrl.virt_egress_spec : exact;
+  }
+  actions {
+    a_drop;
+    do_phys_fwd_only;
+    do_bmv2_mcast; // bmv2 targets only
+    do_virt_fwd;
+  }
+}
+
+In the future, we also want to support:
+
+  lease <device> config_egress <egress_spec value> single <SM-facing port>
+  lease <device> config_egress <egress_spec value> drop
+
+to permit full control over egress_spec values.
+
+- [DONE] a good idea: compiler handles modify_field(im.mcast_grp, *) as it if were modify_field(sm.egress_spec, *), which results in a modify_field(meta.virt_egress_spec, *).
+
+Analysis: Lease::vdev2p currently checks for existing t_virtnet_handles and if present, does
+table_modify on the corresponding entries.  This is wrong, because t_virtnet matches on vdev_ID, and vdev2p should normally be called when the vdev_ID changes, and a table_modify can't change the match parameters.  The proper response is to delete all t_virtnet entries and do table_adds for every egress_spec in Lease::egress_map and Lease::mcast_egress_specs

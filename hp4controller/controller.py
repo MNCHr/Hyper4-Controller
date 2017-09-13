@@ -279,9 +279,12 @@ class Slice():
     command = parameters[0]
     if command == 'lease':
       dev_name = parameters[1]
-      vdev_name = parameters[3]
       lease = self.leases[dev_name]
-      return lease.handle_request(parameters[2:], self.vdevs[vdev_name])
+      if parameters[2] == 'config_egress':
+        return lease.handle_request(parameters[2:], None)
+      else:
+        vdev_name = parameters[3]
+        return lease.handle_request(parameters[2:], self.vdevs[vdev_name])
     else:
       try:
         resp = getattr(self, command)(parameters[1:])

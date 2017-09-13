@@ -84,6 +84,7 @@ class ChainSliceManager(SliceManager):
      \rinsert args: <position> <egress handling mode>
      \rappend args: <egress handling mode: \'etrue\'|\'efalse\'|\'econd\'>
      \rremove args: N/A
+     \rconfig_egress: lease <device> config_egress <egress_spec value> mcast <filtered|unfiltered>
     """
     resp = self.send_request(self.user + ' lease ' + line)
     print(resp)

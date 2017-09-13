@@ -64,6 +64,13 @@ class Device():
   def mcast_setup(self, mcast_grp_id, ports):
     pass
 
+  def get_mcast_attribs(vdev_ID, vegress, mcast_grp_id, filtered):
+    attribs = {'table': 't_virtnet',
+               'action': 'do_phys_fwd_only',
+               'mparams': [str(vdev_ID), str(vegress)],
+               'aparams': [str(mcast_grp_id), str(filtered)]}
+    return attribs
+
   def __str__(self):
     ret = 'Type: ' + self.__class__.__name__ + '\n'
     ret += 'Address: ' + self.ip + ':' + self.port + '\n'
@@ -229,6 +236,13 @@ class Bmv2_SSwitch(Device):
         raise MCastError("mc_node_associate raised an exception")
     for out in output:
       print(out)
+
+  def get_mcast_attribs(vdev_ID, vegress, mcast_grp_id, filtered):
+    attribs = {'table': 't_virtnet',
+               'action': 'do_bmv2_mcast',
+               'mparams': [str(vdev_ID), str(vegress)],
+               'aparams': [str(mcast_grp_id), str(filtered)]}
+    return attribs
 
 class Agilio(Device):
   @staticmethod

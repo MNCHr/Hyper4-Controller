@@ -72,8 +72,8 @@ mf_prim_subtype_ID = {('meta', 'ingress_port'): '1',
                       ('egress_spec', 'ingress_port'): '11',
                       ('ext', 'ext'): '12',
                       ('meta', 'ext'): '13',
-                      ('ext', 'meta'): '14',
-                      ('mcast_grp', 'const'): '80'}
+                      ('ext', 'meta'): '14'} #,
+                      #('mcast_grp', 'const'): '80'}
 
 mf_prim_subtype_action = {'1': 'mod_meta_stdmeta_ingressport',
                           '2': 'mod_meta_stdmeta_packetlength',
@@ -88,8 +88,8 @@ mf_prim_subtype_action = {'1': 'mod_meta_stdmeta_ingressport',
                           '11': 'mod_stdmeta_egressspec_stdmeta_ingressport',
                           '12': 'mod_extracted_extracted',
                           '13': 'mod_meta_extracted',
-                          '14': 'mod_extracted_meta',
-                          '80': 'mod_intmeta_mcast_grp_const'}
+                          '14': 'mod_extracted_meta'} #,
+                           #'80': 'mod_intmeta_mcast_grp_const'}
 
 a2f_prim_subtype_ID = {'add': '1', 'sub': '2'}
 
@@ -862,7 +862,8 @@ class P4_to_HP4(HP4Compiler):
             exit()
         elif call[1][0].instance.name == 'intrinsic_metadata':
           if call[1][0].name == 'mcast_grp':
-            first = call[1][0].name
+            #first = call[1][0].name
+            first = 'egress_spec'
           else:
             print("ERROR: Unexpected intmeta field %s as dst in modify_field primitive" % call[1][0].name)
             exit()
@@ -1017,9 +1018,19 @@ class P4_to_HP4(HP4Compiler):
         aparams.append(str(leftshift))
         aparams.append(val)
     if call[0] == 'modify_field':
+      instance_name = p4_call[1][0].instance.name
+      dst_field_name = p4_call[1][0].name
+      if instance_name == 'intrinsic_metadata':
+        if dst_field_name == 'mcast_grp':
+          instance_name = 'standard_metadata'
+          dst_field_name = 'egress_spec'
+        else:
+          print("Not supported: modify_field(" + instance_name + '.' \
+                + dst_field_name + ", *)")
+          exit()
       if isinstance(p4_call[1][1], p4_hlir.hlir.p4_headers.p4_field):
         if p4_call[1][1].width > p4_call[1][0].width:
-          dst = p4_call[1][0].instance.name + '.' + p4_call[1][0].name
+          dst = instance_name + '.' + dst_field_name
           src = p4_call[1][1].instance.name + '.' + p4_call[1][1].name
           print("WARNING: modify_field(%s, %s): %s width (%i) > %s width (%i)" \
               % (dst, src, src, p4_call[1][1].width, dst, p4_call[1][0].width))
