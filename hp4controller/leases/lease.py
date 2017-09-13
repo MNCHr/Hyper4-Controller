@@ -152,7 +152,9 @@ class Lease(object):
   def config_egress(self, parameters):
     egress_spec = int(parameters[0])
     command_type = parameters[1]
-    self.mcast_egress_specs[egress_spec] = filteredlookup(parameters[2])
+    self.mcast_egress_specs[egress_spec] = filteredlookup[parameters[2]]
+
+    return 'Egress ' + str(egress_spec) + ' configured'
 
   def __str__(self):
     ret = 'entry usage/limit: ' + str(self.entry_usage) + '/' \
@@ -200,6 +202,18 @@ class Chain(Lease):
         self.assignments[port] = vdev_ID
         self.assignment_handles[port] = self.send_command(command)
 
+  def install_mcast_rules(self, vdev, vegress):
+    vdev_ID = vdev.virtual_device_ID
+    command_type = 'table_add'
+    filtered = self.mcast_egress_specs[vegress]
+    attribs = self.device.get_mcast_attribs(vdev_ID,
+                                            vegress,
+                                            self.mcast_grp_id,
+                                            filtered)
+    handle = self.send_command(P4Command(command_type, attribs))
+    table = attribs['table']
+    vdev.t_virtnet_handles[vegress] = (handle, table)
+
   def vdev2p(self, vdev):
     "Connect virtual device to physical interfaces"
     vdev_ID = vdev.virtual_device_ID
@@ -227,16 +241,9 @@ class Chain(Lease):
       if len(vdev.t_egr_virtnet_handles) > 0:
         raise VirtnetError('vdev2p: t_egr_virtnet has entries when t_virtnet doesn\'t')
 
-    # table_add
     for vegress in self.mcast_egress_specs:
-      command_type = 'table_add'
-      filtered = self.mcast_egress_specs[vegress]
-      attribs = self.device.get_mcast_attribs(vdev_ID,
-                                              vegress,
-                                              self.mcast_grp_id,
-                                              filtered)
-      handle = self.send_command(P4Command(command_type, attribs))
-      vdev.t_virtnet_handles[vegress] = (handle, table)
+      self.install_mcast_rules(vdev, vegress)
+
     for vegress in self.egress_map:
       command_type = 'table_add'
       attribs = {'table': 't_virtnet',
@@ -402,7 +409,13 @@ class Chain(Lease):
     return 'Virtual device ' + vdev_name + ' removed'
 
   def config_egress(self, parameters):
-    return super(Chain, self).config_egress(parameters)
+    super(Chain, self).config_egress(parameters)
+    vegress = int(parameters[0])
+    if len(self.vdev_chain) > 0:
+      end_vdev_name = self.vdev_chain[-1]
+      end_vdev = self.vdevs[end_vdev_name]
+      self.install_mcast_rules(end_vdev, vegress)
+    return 'Chain: Egress ' + str(vegress) + ' configured'
 
   def __str__(self):
     ret = ''

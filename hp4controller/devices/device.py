@@ -67,6 +67,7 @@ class Device():
   def mcast_teardown(self, mcast_grp_id, node_handle):
     pass
 
+  @staticmethod
   def get_mcast_attribs(vdev_ID, vegress, mcast_grp_id, filtered):
     attribs = {'table': 't_virtnet',
                'action': 'do_phys_fwd_only',
@@ -242,6 +243,7 @@ class Bmv2_SSwitch(Device):
 
     return node_handle
 
+  @staticmethod
   def get_mcast_attribs(vdev_ID, vegress, mcast_grp_id, filtered):
     attribs = {'table': 't_virtnet',
                'action': 'do_bmv2_mcast',
