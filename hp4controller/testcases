@@ -71,13 +71,6 @@ start w/ two virtual devices
 24 test cases
 
 Action Items:
-- Fix Controller::revoke_lease
-  -- on bmv2 targets, need to destroy mcast groups and nodes
-- Fix bug:
-  - vdev: arp w/ entries in arp_entries
-  - symptom: packets aren't transmitting
-  - clues:
-    -- egress_filter MISS, looks like packet is dropped
 - Examine/fix implementation of interpret
   -- [DONE] table_add
   -- table_modify
@@ -88,6 +81,13 @@ Action Items:
   -- virtual devices
 - Test/fix memory accounting/enforcement
 - Test egress handling modes
+- [DONE] Fix bug:
+  - vdev: arp w/ entries in arp_entries
+  - symptom: packets aren't transmitting
+  - clues:
+    -- egress_filter MISS, looks like packet is dropped
+- [DONE] Fix Controller::revoke_lease
+  -- [DONE] on bmv2 targets, need to destroy mcast groups and nodes
 - [DONE] Fix Controller::grant_lease / Lease::__init__
   -- [DONE] on bmv2 targets, need to send multicast setup commands:
      --- [DONE] mcast group creation

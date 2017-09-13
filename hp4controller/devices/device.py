@@ -64,6 +64,9 @@ class Device():
   def mcast_setup(self, mcast_grp_id, ports):
     pass
 
+  def mcast_teardown(self, mcast_grp_id, node_handle):
+    pass
+
   def get_mcast_attribs(vdev_ID, vegress, mcast_grp_id, filtered):
     attribs = {'table': 't_virtnet',
                'action': 'do_phys_fwd_only',
@@ -237,12 +240,30 @@ class Bmv2_SSwitch(Device):
     for out in output:
       print(out)
 
+    return node_handle
+
   def get_mcast_attribs(vdev_ID, vegress, mcast_grp_id, filtered):
     attribs = {'table': 't_virtnet',
                'action': 'do_bmv2_mcast',
                'mparams': [str(vdev_ID), str(vegress)],
                'aparams': [str(mcast_grp_id), str(filtered)]}
     return attribs
+
+  def mcast_teardown(self, mcast_grp_id, node_handle):
+    with Capturing() as output:
+      try:
+        self.rta.do_mc_node_destroy(str(node_handle))
+      except:
+        raise MCastError("mc_node_destroy raised an exception")
+    for out in output:
+      print(out)
+    with Capturing() as output:
+      try:
+        self.rta.do_mc_mgrp_destroy(str(mcast_grp_id))
+      except:
+        raise MCastError("mc_mgrp_destroy raised an exception")
+    for out in output:
+      print(out)
 
 class Agilio(Device):
   @staticmethod

@@ -206,10 +206,6 @@ class Controller(object):
     dev_name = parameters[2]
     lease = self.slices[hp4slice].leases[dev_name]
 
-    for vdev_name in lease.vdevs.keys():
-      lease.vdevs[vdev_name].dev_name = 'none'
-      lease.remove(vdev_name)
-
     lease.revoke()
 
     del self.slices[hp4slice].leases[dev_name]

@@ -31,10 +31,15 @@ class Lease(object):
     # get mcast_grp_id from device
     self.mcast_grp_id = self.device.assign_mcast_grp_id()
     # create/associate mcast_grp, mcast_node
-    self.device.mcast_setup(self.mcast_grp_id, self.ports)
+    self.mcast_node_handle = self.device.mcast_setup(self.mcast_grp_id, self.ports)
     self.mcast_egress_specs = {} # {vegress_spec (int): FILTERED|UNFILTERED (int)}
 
   def revoke(self):
+    for vdev_name in self.vdevs.keys():
+      vdev = self.vdevs[vdev_name]
+      vdev.dev_name = 'none'
+      self.remove([vdev_name], vdev)
+
     # delete rules for tset_context
     for port in self.assignments.keys():
       table = 'tset_context'
@@ -43,6 +48,9 @@ class Lease(object):
       self.device.do_table_delete(rule_identifier)
     self.assignments = {}
     self.assignment_handles = {}
+
+    # delete mcast group and node
+    self.device.mcast_teardown(self.mcast_grp_id, self.mcast_node_handle)
 
     for port in self.ports:
       self.device.phys_ports_remaining.append(port)
@@ -388,6 +396,7 @@ class Chain(Lease):
         self.vdev2p(leftvdev)
           
     super(Chain, self).remove(parameters, vdev)
+    # code.interact(local=dict(globals(), **locals()))
     chain.remove(vdev_name)
 
     return 'Virtual device ' + vdev_name + ' removed'
