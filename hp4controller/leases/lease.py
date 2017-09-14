@@ -403,7 +403,6 @@ class Chain(Lease):
         self.vdev2p(leftvdev)
           
     super(Chain, self).remove(parameters, vdev)
-    # code.interact(local=dict(globals(), **locals()))
     chain.remove(vdev_name)
 
     return 'Virtual device ' + vdev_name + ' removed'

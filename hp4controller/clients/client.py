@@ -77,6 +77,16 @@ class SliceManager(Client):
         pre = '\n'
     print(resp)
 
+  def do_list_vdevs(self, line):
+    "List virtual devices: list_vdevs"
+    resp = self.send_request(self.user + ' list_vdevs ' + line)
+    print(resp)
+
+  def do_list_vdev(self, line):
+    "List details about a virtual device: list_vdev <virtual device>"
+    resp = self.send_request(self.user + ' list_vdev ' + line)
+    print(resp)
+
 class ChainSliceManager(SliceManager):
 
   def do_lease(self, line):
@@ -85,27 +95,10 @@ class ChainSliceManager(SliceManager):
      \rappend args: <egress handling mode: \'etrue\'|\'efalse\'|\'econd\'>
      \rremove args: N/A
      \rconfig_egress: lease <device> config_egress <egress_spec value> mcast <filtered|unfiltered>
+     \rinfo: lease <device> info
     """
     resp = self.send_request(self.user + ' lease ' + line)
     print(resp)
-
-  """
-  def do_lease_insert(self, line):
-    "Insert virtual device: insert <virtual device> <position> <egress handling mode>"
-    # <slice name> lease <device name> insert
-    resp = self.send_request(self.user + ' lease insert ' + line)
-    print(resp)
-
-  def do_append(self, line):
-    "Append virtual device: append <virtual device> <egress handling mode>"
-    resp = self.send_request(self.user + ' append ' + line)
-    print(resp)
-
-  def do_remove(self, line):
-    "Remove virtual device: remove <virtual device>"
-    resp = self.send_request(self.user + ' remove ' + line)
-    print(resp)
-  """
 
 class Administrator(Client):
   prompt = 'HP4# '

@@ -231,7 +231,7 @@ class Controller(object):
     vdev_name = parameters[2]
     vdev_ID = self.assign_vdev_ID()
 
-    vdev = self.vdev_factory.create_vdev(vdev_ID, program_path)
+    vdev = self.vdev_factory.create_vdev(vdev_name, vdev_ID, program_path)
     self.slices[hp4slice].vdevs[vdev_name] = vdev
     
     return 'Virtual device ' + vdev_name + ' created'
@@ -289,6 +289,16 @@ class Slice():
       except Exception as e:
         return "Unexpected error: " + str(e)
       return resp
+
+  def list_vdevs(self, parameters):
+    resp = ""
+    for vdev_name in self.vdevs:
+      vdev = self.vdevs[vdev_name]
+      resp += vdev_name + '@' + vdev.dev_name + '\n'
+    return resp
+
+  def list_vdev(self, parameters):
+    return str(self.vdevs[parameters[0]])
 
   """
   def migrate_virtual_device(self, parameters):
@@ -358,8 +368,6 @@ class Slice():
     # TODO: redo this properly
     match_ID = hp4commands[0].attributes['aparams'][1]
 
-    # code.interact(local=dict(globals(), **locals()))
-
     dev_name = vdev.dev_name
 
     # accounting
@@ -376,7 +384,7 @@ class Slice():
            + ') exceeds availability(' + str(entries_available) + ')'
 
     # push hp4 rules, collect handles
-    hp4_rule_handles = []
+    hp4_rule_handles = [] # list of (table, handle) tuples
     for hp4command in hp4commands:
       # return value should be handle for all commands
       hp4handle = self.leases[dev_name].send_command(hp4command)
@@ -397,9 +405,9 @@ class Slice():
       # accounting
       if hp4command.command_type == 'table_add':
         self.leases[dev_name].entry_usage += 1
-        hp4_rule_handles.append(hp4handle)
+        hp4_rule_handles.append((table, hp4handle))
       elif hp4command.command_type == 'table_modify':
-        hp4_rule_handles.append(hp4handle)
+        hp4_rule_handles.append((table, hp4handle))
       elif hp4command.command_type == 'table_delete':
         self.leases[dev_name].entry_usage -= 1
 
@@ -411,18 +419,7 @@ class Slice():
                            p4command.attributes['mparams'],
                            p4command.attributes['aparams'])
       vdev.origin_table_rules[(table, match_ID)] = \
-                                         Interpretation(rule, hp4_rule_handles)
-
-    elif p4command.command_type == 'table_modify':
-      # replace Origin_to_HP4Map w/ one with new rule, new hp4_rules_handles list
-      handle = p4command.attributes['handle']
-      oldrule = vdev.origin_table_rules[(table, handle)].origin_rule
-      action = p4command.attributes['action']
-      mparams = oldrule.mparams
-      aparams = p4command.attributes['aparams']
-      rule = p4rule.P4Rule(table, action, mparams, aparams)
-      vdev.origin_table_rules[(table, handle)] = \
-                                         Interpretation(rule, hp4_rule_handles)
+                                         Interpretation(rule, match_ID, hp4_rule_handles)
 
     elif p4command.command_type == 'table_delete':
       handle = p4command.attributes['handle']

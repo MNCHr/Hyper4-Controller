@@ -137,17 +137,65 @@ class Interpreter(object):
     return p4commands
 
   @staticmethod
-  def table_modify(guide, p4command):
-    pass
+  def table_modify(guide, p4command, interpretation):
+    p4commands = []
+    # p4command attributes:
+    #  'action': str
+    #  'table': str
+    #  'handle': int
+    #  'aparams': [str]
+    key = (p4command.attributes['table'], p4command.attributes['action'])
+
+    if p4command.attributes['action'] == interpretation.origin_rule.action:
+      # update interpretation origin rule
+      interpretation.origin_rule = P4Rule(interpretation.origin_rule.table,
+                                          p4command.attributes['action'],
+                                          interpretation.origin_rule.mparams,
+                                          p4command.attributes['aparams'])
+      # table_modifies
+      for table, handle in interpretation.table_handle_pairs.keys()[1:]:
+        code.interact(local=dict(globals(), **locals()))
+        """
+        guide.templates[key]['primitives']
+        attribs = {'table': table,
+                   'handle': handle,
+                   'action': ??,
+                   'aparams': ??}
+        p4commands.append(P4Command('table_modify', attribs))
+        """
+
+      for entry in guide.templates[key]['primitives']:
+        arule = copy.deepcopy(entry)
+        
+
+    else:
+      # update interpretation origin rule
+      interpretation.origin_rule = P4Rule(interpretation.origin_rule.table,
+                                          p4command.attributes['action'],
+                                          interpretation.origin_rule.mparams,
+                                          p4command.attributes['aparams'])
+      # table_deletes, table_adds
+      # skip match-related entry (don't want to delete it)
+      for table, handle in interpretation.table_handle_pairs.keys()[1:]:
+        attribs = {'table': table,
+                   'handle': handle}
+        p4commands.append(P4Command('table_delete', attribs))
+        del interpretation.table_handle_pairs[(table, handle)]
+      for entry in guide.templates[key]['primitives']:
+        pass
+
+    return p4commands
+    # TODO: verify p4command has a handle
 
   @staticmethod
-  def table_delete(guide, p4command):
+  def table_delete(guide, p4command, interpretation):
     pass
 
 class Interpretation():
-  def __init__(self, rule, handles):
+  def __init__(self, rule, match_ID, table_handle_pairs):
     self.origin_rule = rule
-    self.hp4_rule_handles = handles
+    self.match_ID = match_ID
+    self.hp4_rule_handles = table_handle_pairs
 
 class InterpretationGuide():
   def __init__(self, ig_path):

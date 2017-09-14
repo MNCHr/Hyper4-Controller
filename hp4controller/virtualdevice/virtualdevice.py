@@ -9,7 +9,8 @@ import code
 # code.interact(local=dict(globals(), **locals()))
 
 class VirtualDevice():
-  def __init__(self, virtual_device_ID, hp4code, guide):
+  def __init__(self, name, virtual_device_ID, hp4code, guide):
+    self.name = name
     self.virtual_device_ID = virtual_device_ID
     self.guide = guide
 
@@ -39,6 +40,19 @@ class VirtualDevice():
     self.next_handle = {} # KEY: table (str)
                           # VALUE: next handle (int)
 
+  def __str__(self):
+    indent = '  '
+    ret = self.name + '@' + self.dev_name + '\n'
+    ret += indent + 'vdev_ID: ' + str(self.virtual_device_ID) + '\n'
+    ret += indent + 'handle\trule\n'
+    indent += '  '
+    sorted_rules = sorted(self.origin_table_rules.keys(),
+                          key=lambda entry: entry[0] + str(entry[1]))
+    for table, handle in sorted_rules:
+      interpretation = self.origin_table_rules[(table, handle)]
+      ret += indent + str(handle) + '\t\t' + str(interpretation.origin_rule) + '\n'
+    return ret
+
   def interpret(self, p4command):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::translate
     p4commands = []
@@ -48,12 +62,14 @@ class VirtualDevice():
       match_ID = self.assign_handle(table)
       p4commands = Interpreter.table_add(self.guide, p4command, match_ID,
                                          self.virtual_device_ID, self.mcast_grp_id)
-      
-    elif p4command.command_type == 'table_modify':
-      p4commands = Interpeter.table_modify(self.guide, p4command)
-
-    elif p4command.command_type == 'table_delete':
-      p4commands = Interpreter.table_delete(self.guide, p4command)
+    else:
+      origin_table = p4command.attributes['table']
+      origin_handle = p4command.attributes['handle']
+      interpretation = self.origin_table_rules[(origin_table, origin_handle)]
+      if p4command.command_type == 'table_modify':
+        p4commands = Interpeter.table_modify(self.guide, p4command, interpretation)
+      elif p4command.command_type == 'table_delete':
+        p4commands = Interpreter.table_delete(self.guide, p4command, interpretation)
 
     return p4commands
 
@@ -166,7 +182,7 @@ class VirtualDeviceFactory():
 
     return hp4code
 
-  def create_vdev(self, vdev_ID, program_path):
+  def create_vdev(self, vdev_name, vdev_ID, program_path):
     if program_path not in self.compiled_programs:
       # compile
       if program_path.endswith('.p4'):
@@ -187,7 +203,7 @@ class VirtualDeviceFactory():
     hp4code = self.link(object_code_path, vdev_ID)
     guide = InterpretationGuide(ig_path)
 
-    return VirtualDevice(vdev_ID, hp4code, guide)
+    return VirtualDevice(vdev_name, vdev_ID, hp4code, guide)
 
   def writefile(self, program_path, outfile):
     pass
