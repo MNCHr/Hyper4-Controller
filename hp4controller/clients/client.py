@@ -87,6 +87,11 @@ class SliceManager(Client):
     resp = self.send_request(self.user + ' list_vdev ' + line)
     print(resp)
 
+  def do_list_devs(self, line):
+    "List devices: list_devs"
+    resp = self.send_request(self.user + ' list_devs ' + line)
+    print(resp)
+
 class ChainSliceManager(SliceManager):
 
   def do_lease(self, line):

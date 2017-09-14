@@ -105,7 +105,7 @@ class Bmv2_SSwitch(Device):
     elif cmd_str_rep.split()[0] == 'table_modify':
       try:
         self.do_table_modify(cmd_str_rep.split('table_modify ')[1])
-        handle = cmd_str_rep.split()[2]
+        handle = cmd_str_rep.split('table_modify ')[1].split()[2]
       except ModRuleError as e:
         print('ModRuleError exception: ' + str(e))
       except:

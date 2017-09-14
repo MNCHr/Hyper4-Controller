@@ -51,7 +51,7 @@ class VirtualDevice():
     for table, handle in sorted_rules:
       interpretation = self.origin_table_rules[(table, handle)]
       ret += indent + str(handle) + '\t\t' + str(interpretation.origin_rule) + '\n'
-    return ret
+    return ret[:-1] # remove trailing '\n'
 
   def interpret(self, p4command):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::translate
@@ -67,7 +67,10 @@ class VirtualDevice():
       origin_handle = p4command.attributes['handle']
       interpretation = self.origin_table_rules[(origin_table, origin_handle)]
       if p4command.command_type == 'table_modify':
-        p4commands = Interpeter.table_modify(self.guide, p4command, interpretation)
+        p4commands = Interpreter.table_modify(self.guide,
+                                              p4command,
+                                              interpretation,
+                                              self.mcast_grp_id)
       elif p4command.command_type == 'table_delete':
         p4commands = Interpreter.table_delete(self.guide, p4command, interpretation)
 

@@ -300,6 +300,12 @@ class Slice():
   def list_vdev(self, parameters):
     return str(self.vdevs[parameters[0]])
 
+  def list_devs(self, parameters):
+    resp = ""
+    for dev_name in self.leases:
+      resp += dev_name + ': ' + str(self.leases[dev_name]) + '\n'
+    return resp[0:-1]
+
   """
   def migrate_virtual_device(self, parameters):
     # parameters:
@@ -364,9 +370,7 @@ class Slice():
       return 'Error - ' + vdev_name + ' not a recognized virtual device'
     vdev = self.vdevs[vdev_name]
     hp4commands = vdev.interpret(p4command)
-
-    # TODO: redo this properly
-    match_ID = hp4commands[0].attributes['aparams'][1]
+    print("CHECKPOINT ALPHA")
 
     dev_name = vdev.dev_name
 
@@ -383,20 +387,26 @@ class Slice():
       return 'Error - entries net increase(' + str(diff) \
            + ') exceeds availability(' + str(entries_available) + ')'
 
+    print("CHECKPOINT BRAVO")
+
+    if p4command.command_type == 'table_modify':
+      code.interact(local=dict(globals(), **locals()))
+
     # push hp4 rules, collect handles
-    hp4_rule_handles = [] # list of (table, handle) tuples
+    hp4_rule_keys = [] # list of (table, action, handle) tuples
     for hp4command in hp4commands:
       # return value should be handle for all commands
-      hp4handle = self.leases[dev_name].send_command(hp4command)
+      hp4handle = int(self.leases[dev_name].send_command(hp4command))
       table = hp4command.attributes['table']
+      action = hp4command.attributes['action']
       if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
         if hp4command.command_type == 'table_add':
-          rule = p4rule.P4Rule(table, hp4command.attributes['action'],
+          rule = p4rule.P4Rule(table, action,
                                hp4command.attributes['mparams'],
                                hp4command.attributes['aparams'])
         else: # 'table_modify'
           mparams = vdev.hp4_code_and_rules[(table, hp4handle)].mparams
-          rule = p4rule.P4Rule(table, hp4command.attributes['action'],
+          rule = p4rule.P4Rule(table, action,
                                mparams,
                                hp4command.attributes['aparams'])
         vdev.hp4_code_and_rules[(table, hp4handle)] = rule
@@ -405,25 +415,31 @@ class Slice():
       # accounting
       if hp4command.command_type == 'table_add':
         self.leases[dev_name].entry_usage += 1
-        hp4_rule_handles.append((table, hp4handle))
+        hp4_rule_keys.append((table, action, hp4handle))
       elif hp4command.command_type == 'table_modify':
-        hp4_rule_handles.append((table, hp4handle))
+        hp4_rule_keys.append((table, action, hp4handle))
       elif hp4command.command_type == 'table_delete':
         self.leases[dev_name].entry_usage -= 1
+
+    print("CHECKPOINT CHARLIE")
 
     # account for origin rule: handle, hp4 rules & hp4 handles
     table = p4command.attributes['table']
     if p4command.command_type == 'table_add':
-      # new Origin_to_HP4Map w/ new hp4_rule_handles list
+      # new Origin_to_HP4Map w/ new hp4_rule_keys list
       rule = p4rule.P4Rule(table, p4command.attributes['action'],
                            p4command.attributes['mparams'],
                            p4command.attributes['aparams'])
+      # TODO: redo this properly
+      match_ID = int(hp4commands[0].attributes['aparams'][1])
       vdev.origin_table_rules[(table, match_ID)] = \
-                                         Interpretation(rule, match_ID, hp4_rule_handles)
+                                         Interpretation(rule, match_ID, hp4_rule_keys)
 
     elif p4command.command_type == 'table_delete':
       handle = p4command.attributes['handle']
       del vdev.origin_table_rules[(table, handle)]
+
+    print("CHECKPOINT DELTA")
 
     return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
 

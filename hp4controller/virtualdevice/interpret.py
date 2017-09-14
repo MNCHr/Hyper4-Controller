@@ -137,7 +137,7 @@ class Interpreter(object):
     return p4commands
 
   @staticmethod
-  def table_modify(guide, p4command, interpretation):
+  def table_modify(guide, p4command, interpretation, mcast_grp_id):
     p4commands = []
     # p4command attributes:
     #  'action': str
@@ -153,8 +153,34 @@ class Interpreter(object):
                                           interpretation.origin_rule.mparams,
                                           p4command.attributes['aparams'])
       # table_modifies
-      for table, handle in interpretation.table_handle_pairs.keys()[1:]:
-        code.interact(local=dict(globals(), **locals()))
+      # TODO: revise to be less 'hacky' - this quality arises from lack of separation
+      # in Interpretation class between the match rule and the primitive rules
+      for i in range(1, len(interpretation.hp4_rule_keys)):
+        table, action, handle = interpretation.hp4_rule_keys[i]
+        # the 'i-1' is because the Interpretation has a match-rule-related P4Command first:
+        arule = copy.deepcopy(guide.templates[key]['primitives'][i-1])
+        if (arule.attributes['table'] != table) or (arule.attributes['action'] != action):
+          print("Error: Interpret::table_modify observed interpretation out-of-sync w/ guide")
+          exit()
+        arule_action_params = arule.attributes['aparams']
+        del arule_action_params[len(arule_action_params)-1] # last is tern priority
+        for i in range(len(arule_action_params)):
+          if arule_action_params[i] == '[val]':
+            a_idx = int(arule.attributes['src_aparam_id'])
+            arule_action_params[i] = str(p4command.attributes['aparams'][a_idx])
+          elif arule_action_params[i] == '[MCAST_GRP]':
+            arule_action_params[i] = str(mcast_grp_id) # pass as parameter?
+          elif re.search("\[[0-9]*x00s\]", arule_action_params[i]):
+            to_replace = re.search("\[[0-9]*x00s\]", arule_action_params[i]).group()
+            numzeros = int(re.search("[0-9]+", to_replace).group())
+            replace = ""
+            for j in range(numzeros):
+              replace += "00"
+            arule_action_params[i] = \
+                              arule_action_params[i].replace(to_replace, replace)
+        arule.command_type = 'table_modify'
+        arule.attributes['handle'] = str(handle)
+        p4commands.append(arule)
         """
         guide.templates[key]['primitives']
         attribs = {'table': table,
@@ -163,10 +189,6 @@ class Interpreter(object):
                    'aparams': ??}
         p4commands.append(P4Command('table_modify', attribs))
         """
-
-      for entry in guide.templates[key]['primitives']:
-        arule = copy.deepcopy(entry)
-        
 
     else:
       # update interpretation origin rule
@@ -192,26 +214,26 @@ class Interpreter(object):
     pass
 
 class Interpretation():
-  def __init__(self, rule, match_ID, table_handle_pairs):
+  def __init__(self, rule, match_ID, hp4_rule_keys):
     self.origin_rule = rule
-    self.match_ID = match_ID
-    self.hp4_rule_handles = table_handle_pairs
+    self.match_ID = match_ID # int
+    self.hp4_rule_keys = hp4_rule_keys # [(table (str), action (str), handle (int))]
 
 class InterpretationGuide():
   def __init__(self, ig_path):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::parse_json
-    self.templates_match = {}
-    self.templates_prims = {}
+    self.templates_match = {} # {(origin_table, origin_action): P4Command}
+    self.templates_prims = {} # {(origin_table, origin_action): [P4Command]}
     with open(ig_path) as json_data:
       d = json.load(json_data)
       for hp4_command in d:
         attributes = {}
-        attributes['src_table'] = hp4_command['source_table']
         src_table = hp4_command['source_table']
         src_action = hp4_command['source_action']
         key = (src_table, src_action)
         command_type = hp4_command['command']
         attributes['src_table'] = src_table
+        attributes['src_action'] = src_action
         attributes['table'] = hp4_command['table']
         attributes['action'] = hp4_command['action']
         attributes['mparams'] = hp4_command['match_params']
