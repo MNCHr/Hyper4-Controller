@@ -70,6 +70,8 @@ class VirtualDevice():
         p4commands = Interpreter.table_modify(self.guide,
                                               p4command,
                                               interpretation,
+                                              origin_handle,
+                                              self.virtual_device_ID,
                                               self.mcast_grp_id)
       elif p4command.command_type == 'table_delete':
         p4commands = Interpreter.table_delete(self.guide, p4command, interpretation)

@@ -137,7 +137,7 @@ class Interpreter(object):
     return p4commands
 
   @staticmethod
-  def table_modify(guide, p4command, interpretation, mcast_grp_id):
+  def table_modify(guide, p4command, interpretation, match_ID, vdev_ID, mcast_grp_id):
     p4commands = []
     # p4command attributes:
     #  'action': str
@@ -181,14 +181,6 @@ class Interpreter(object):
         arule.command_type = 'table_modify'
         arule.attributes['handle'] = str(handle)
         p4commands.append(arule)
-        """
-        guide.templates[key]['primitives']
-        attribs = {'table': table,
-                   'handle': handle,
-                   'action': ??,
-                   'aparams': ??}
-        p4commands.append(P4Command('table_modify', attribs))
-        """
 
     else:
       # update interpretation origin rule
@@ -198,16 +190,43 @@ class Interpreter(object):
                                           p4command.attributes['aparams'])
       # table_deletes, table_adds
       # skip match-related entry (don't want to delete it)
-      for table, handle in interpretation.table_handle_pairs.keys()[1:]:
+      for i in range(1, len(interpretation.hp4_rule_keys)):
+        table, action, handle = interpretation.hp4_rule_keys[i]
         attribs = {'table': table,
                    'handle': handle}
         p4commands.append(P4Command('table_delete', attribs))
-        del interpretation.table_handle_pairs[(table, handle)]
+        del interpretation.hp4_rule_keys[(table, action, handle)]
+
       for entry in guide.templates[key]['primitives']:
-        pass
+        arule = copy.deepcopy(entry)
+        ## match parameters
+        arule_match_params = arule.attributes['mparams']
+        for i in range(len(arule_match_params)):
+          if arule_match_params[i] == '[vdev ID]':
+            arule_match_params[i] = str(vdev_ID)
+          elif '[match ID]' in arule_match_params[i]:
+            arule_match_params[i] = arule_match_params[i].replace('[match ID]',
+                                                                 str(match_ID))
+        ## action parameters
+        arule_action_params = arule.attributes['aparams']
+        for i in range(len(arule_action_params)):
+          if arule_action_params[i] == '[val]':
+            a_idx = int(arule.attributes['src_aparam_id'])
+            arule_action_params[i] = str(p4command.attributes['aparams'][a_idx])
+          if arule_action_params[i] == '[MCAST_GRP]':
+            arule_action_params[i] = str(mcast_grp_id)
+          if re.search("\[[0-9]*x00s\]", arule_action_params[i]):
+            to_replace = re.search("\[[0-9]*x00s\]", arule_action_params[i]).group()
+            numzeros = int(re.search("[0-9]+", to_replace).group())
+            replace = ""
+            for j in range(numzeros):
+              replace += "00"   
+            arule_action_params[i] = \
+                            arule_action_params[i].replace(to_replace, replace)
+
+        p4commands.append(arule)
 
     return p4commands
-    # TODO: verify p4command has a handle
 
   @staticmethod
   def table_delete(guide, p4command, interpretation):

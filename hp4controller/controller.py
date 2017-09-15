@@ -389,9 +389,6 @@ class Slice():
 
     print("CHECKPOINT BRAVO")
 
-    if p4command.command_type == 'table_modify':
-      code.interact(local=dict(globals(), **locals()))
-
     # push hp4 rules, collect handles
     hp4_rule_keys = [] # list of (table, action, handle) tuples
     for hp4command in hp4commands:
@@ -434,6 +431,17 @@ class Slice():
       match_ID = int(hp4commands[0].attributes['aparams'][1])
       vdev.origin_table_rules[(table, match_ID)] = \
                                          Interpretation(rule, match_ID, hp4_rule_keys)
+
+    elif p4command.command_type == 'table_modify':
+      # update interpretation origin rule
+      match_ID = p4command.attributes['handle']
+      interpretation = vdev.origin_table_rules[(table, match_ID)]
+      rule = p4rule.P4Rule(table, p4command.attributes['action'],
+                           interpretation.origin_rule.mparams,
+                           p4command.attributes['aparams'])
+
+      vdev.origin_table_rules[(table, match_ID)] = \
+                                        Interpretation(rule, match_ID, hp4_rule_keys)
 
     elif p4command.command_type == 'table_delete':
       handle = p4command.attributes['handle']
