@@ -115,7 +115,7 @@ class Bmv2_SSwitch(Device):
     elif cmd_str_rep.split()[0] == 'table_delete':
       try:
         self.do_table_delete(cmd_str_rep.split('table_delete ' )[1])
-        handle = cmd_str_rep.split()[1]
+        handle = cmd_str_rep.split()[2]
       except DeleteRuleError as e:
         print('DeleteRuleError exception: ' + str(e))
       except:
@@ -203,7 +203,7 @@ class Bmv2_SSwitch(Device):
       attributes['aparams'] = command_str[0].split()[4:]
     elif command_type == 'table_delete':
       # table_delete <table name> <entry handle>
-      attributes['handle'] = int(command_str[0].split()[3])
+      attributes['handle'] = int(command_str[0].split()[2])
     return P4Command(command_type, attributes)
 
   def mcast_setup(self, mcast_grp_id, ports):

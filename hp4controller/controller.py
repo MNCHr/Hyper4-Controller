@@ -357,6 +357,7 @@ class Slice():
     #  commands.
     # parameters:
     # <slice name> <virtual device> <style: 'bmv2' | 'agilio'> <command>
+    print(parameters)
     vdev_name = parameters[0]
     style = parameters[1]
     vdev_command_str = ' '.join(parameters[2:])
@@ -395,8 +396,8 @@ class Slice():
       # return value should be handle for all commands
       hp4handle = int(self.leases[dev_name].send_command(hp4command))
       table = hp4command.attributes['table']
-      action = hp4command.attributes['action']
       if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
+        action = hp4command.attributes['action']
         if hp4command.command_type == 'table_add':
           rule = p4rule.P4Rule(table, action,
                                hp4command.attributes['mparams'],

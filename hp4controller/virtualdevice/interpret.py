@@ -183,11 +183,6 @@ class Interpreter(object):
         p4commands.append(arule)
 
     else:
-      # update interpretation origin rule
-      interpretation.origin_rule = P4Rule(interpretation.origin_rule.table,
-                                          p4command.attributes['action'],
-                                          interpretation.origin_rule.mparams,
-                                          p4command.attributes['aparams'])
       # table_deletes, table_adds
       # skip match-related entry (don't want to delete it)
       for i in range(1, len(interpretation.hp4_rule_keys)):
@@ -195,7 +190,6 @@ class Interpreter(object):
         attribs = {'table': table,
                    'handle': handle}
         p4commands.append(P4Command('table_delete', attribs))
-        del interpretation.hp4_rule_keys[(table, action, handle)]
 
       for entry in guide.templates[key]['primitives']:
         arule = copy.deepcopy(entry)
@@ -230,7 +224,12 @@ class Interpreter(object):
 
   @staticmethod
   def table_delete(guide, p4command, interpretation):
-    pass
+    p4commands = []
+    for table, action, handle in interpretation.hp4_rule_keys:
+      attribs = {'table': table,
+                 'handle': handle}
+      p4commands.append(P4Command('table_delete', attribs))
+    return p4commands
 
 class Interpretation():
   def __init__(self, rule, match_ID, hp4_rule_keys):
