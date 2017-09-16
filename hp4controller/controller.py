@@ -247,7 +247,7 @@ class Controller(object):
       try:
         clientsocket, addr = serversocket.accept()
         self.dbugprint("Got a connection from %s" % str(addr))
-        data = clientsocket.recv(1024)
+        data = clientsocket.recv(4096)
         self.dbugprint(data)
         response = self.handle_request(data)
         clientsocket.sendall(response)
@@ -300,10 +300,24 @@ class Slice():
   def list_vdev(self, parameters):
     return str(self.vdevs[parameters[0]])
 
+  def list_vdev_hp4code(self, parameters):
+    vdev = self.vdevs[parameters[0]]
+    return vdev.str_hp4code()
+
+  def list_vdev_hp4rules(self, parameters):
+    vdev = self.vdevs[parameters[0]]
+    return vdev.str_hp4rules()
+
+  def list_vdev_hp4_code_and_rules(self, parameters):
+    vdev = self.vdevs[parameters[0]]
+    return vdev.str_hp4_code_and_rules()
+
   def list_devs(self, parameters):
-    resp = ""
+    resp = "device(used/allocated)\tvdev chain\n"
     for dev_name in self.leases:
-      resp += dev_name + ': ' + str(self.leases[dev_name]) + '\n'
+      lease = self.leases[dev_name]
+      resp += dev_name + '(' + str(lease.entry_usage) + '/' \
+              + str(lease.entry_limit) + '): ' + str(lease) + '\n'
     return resp[0:-1]
 
   """
@@ -371,7 +385,7 @@ class Slice():
       return 'Error - ' + vdev_name + ' not a recognized virtual device'
     vdev = self.vdevs[vdev_name]
     hp4commands = vdev.interpret(p4command)
-    print("CHECKPOINT ALPHA")
+    #print("CHECKPOINT ALPHA")
 
     dev_name = vdev.dev_name
 
@@ -388,9 +402,9 @@ class Slice():
       return 'Error - entries net increase(' + str(diff) \
            + ') exceeds availability(' + str(entries_available) + ')'
 
-    print("CHECKPOINT BRAVO")
+    #print("CHECKPOINT BRAVO")
 
-    # push hp4 rules, collect handles
+    # push hp4 rules, collect handles, update hp4-facing ruleset
     hp4_rule_keys = [] # list of (table, action, handle) tuples
     for hp4command in hp4commands:
       # return value should be handle for all commands
@@ -407,9 +421,11 @@ class Slice():
           rule = p4rule.P4Rule(table, action,
                                mparams,
                                hp4command.attributes['aparams'])
+        vdev.hp4rules[(table, hp4handle)] = rule
         vdev.hp4_code_and_rules[(table, hp4handle)] = rule
       else: # command_type == 'table_delete'
         del vdev.hp4_code_and_rules[(table, hp4handle)]
+        del vdev.hp4rules[(table, hp4handle)]
       # accounting
       if hp4command.command_type == 'table_add':
         self.leases[dev_name].entry_usage += 1
@@ -419,7 +435,7 @@ class Slice():
       elif hp4command.command_type == 'table_delete':
         self.leases[dev_name].entry_usage -= 1
 
-    print("CHECKPOINT CHARLIE")
+    #print("CHECKPOINT CHARLIE")
 
     # account for origin rule: handle, hp4 rules & hp4 handles
     table = p4command.attributes['table']
@@ -448,7 +464,7 @@ class Slice():
       handle = p4command.attributes['handle']
       del vdev.origin_table_rules[(table, handle)]
 
-    print("CHECKPOINT DELTA")
+    #print("CHECKPOINT DELTA")
 
     return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
 

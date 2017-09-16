@@ -8,6 +8,48 @@ import re
 import code
 # code.interact(local=dict(globals(), **locals()))
 
+"""
+VirtualDevice::hp4code
+- static code, the .hp4t but with vdev_ID and other tokens filled in
+  - all values should be portable across physical devices
+    - the only one that would cause concern is the vdev_ID, but the
+      controller has been written to ensure this is unique to minimize
+      the hassle involved in migrating a vdev from one device to another
+- persists independent of host (endures for the lifetime of the vdev)
+
+VirtualDevice::hp4rules
+- dynamic hp4-facing ruleset generated/modified/filtered by interpret commands
+- persists independent of host, unless slice manager takes explicit action
+
+VirtualDevice::hp4_code_and_rules <-- 'hp4-facing'
+- {(table (str), hp4-facing handle (int)): P4Rule}
+- tracks rules in the host associated with the VirtualDevice - code + dynamic rules
+- updated by Slice::interpret
+- used by Lease::load_virtual_device
+  - validate request
+  - emptied and filled again via VirtualDevice::hp4code and VirtualDevice::hp4rules
+  - used to back out if error occurs, tracking all hp4-facing (table, handle) pairs
+    in order to issue table_deletes
+- used by Lease::remove
+  - issue table_deletes
+
+VirtualDevice::origin_table_rules <-- 'user-facing'
+- {(user-facing table (str), user-facing handle (int)): Interpretation}
+- Interpretation:
+  - origin_rule
+  - match_ID (syn. w/ origin_handle)
+  - hp4_rule_keys:
+    list of hp4-facing (table, action, handle) tuples
+CHANGE: need to restore original vision of origin_table_rules; hp4_rule_keys
+was supposed to be keys looking up rules in hp4_code_and_rules
+- but don't remove 'action' member of hp4_rule_keys; it is needed by
+  Interpreter.table_modify
+
+Whenever origin_table_rules is updated, hp4_code_and_rules should be also.
+
+One entry in origin_table_rules corresponds to many entries in hp4_code_and_rules.
+"""
+
 class VirtualDevice():
   def __init__(self, name, virtual_device_ID, hp4code, guide):
     self.name = name
@@ -17,7 +59,7 @@ class VirtualDevice():
     # from the elements in these lists, generate table_add commands when loading
     # onto a device
     self.hp4code = []  # representation of .p4
-    self.hp4rules = [] # representation of table entries added (e.g., via CLI)
+    self.hp4rules = {} # {(hp4-facing table (str), hp4-facing handle (int)): P4Rule}
     # object_code format:
     #  <table> <action> :<mparams>:<aparams
     for line in hp4code:
@@ -39,6 +81,27 @@ class VirtualDevice():
     self.mcast_grp_id = -1
     self.next_handle = {} # KEY: table (str)
                           # VALUE: next handle (int)
+
+  def str_hp4code(self):
+    #ret = 'HP4 Code:\n'
+    ret = ''
+    for rule in self.hp4code:
+      ret += str(rule) + '\n'
+    return ret[:-1]
+
+  def str_hp4rules(self):
+    ret = ''
+    for table, handle in self.hp4rules:
+      rule = self.hp4rules[(table, handle)]
+      ret += str(rule) + '\n'
+    return ret[:-1]
+
+  def str_hp4_code_and_rules(self):
+    ret = ''
+    for table, handle in self.hp4_code_and_rules:
+      rule = self.hp4_code_and_rules[(table, handle)]
+      ret += table + ':' + str(handle) + ': ' + str(rule) + '\n'
+    return ret[:-1]
 
   def __str__(self):
     indent = '  '

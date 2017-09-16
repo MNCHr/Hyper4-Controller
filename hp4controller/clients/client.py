@@ -7,7 +7,7 @@ import cmd
 import code
 # code.interact(local=dict(globals(), **locals()))
 
-BUFFSIZE = 1024
+BUFFSIZE = 4096
 
 class Client(cmd.Cmd):
   prompt = 'HP4$ '
@@ -90,6 +90,18 @@ class SliceManager(Client):
   def do_list_devs(self, line):
     "List devices: list_devs"
     resp = self.send_request(self.user + ' list_devs ' + line)
+    print(resp)
+
+  def do_list_vdev_hp4code(self, line):
+    resp = self.send_request(self.user + ' list_vdev_hp4code ' + line)
+    print(resp)
+
+  def do_list_vdev_hp4rules(self, line):
+    resp = self.send_request(self.user + ' list_vdev_hp4rules ' + line)
+    print(resp)
+
+  def do_list_vdev_hp4_code_and_rules(self, line):
+    resp = self.send_request(self.user + ' list_vdev_hp4_code_and_rules ' + line)
     print(resp)
 
 class ChainSliceManager(SliceManager):

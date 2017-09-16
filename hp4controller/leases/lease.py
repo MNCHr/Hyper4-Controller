@@ -2,6 +2,8 @@ from ..virtualdevice.virtualdevice import VirtualDevice
 from ..p4command import P4Command
 from ..errors import AddRuleError, LoadError, VirtnetError
 
+import copy
+
 import code
 # code.interact(local=dict(globals(), **locals()))
 
@@ -74,9 +76,14 @@ class Lease(object):
       raise LoadError('first remove ' + vdev_name + ' from ' + vdev.dev_name)
 
     vdev.hp4_code_and_rules = {}
+    # vdev.hp4rules needs new handles
+    hp4rules = copy.copy(vdev.hp4rules.values())
+    vdev.hp4rules = {}
 
-    for ruleset in [vdev.hp4code, vdev.hp4rules]:
-      for rule in ruleset:
+    rulesets = {'code': vdev.hp4code, 'rules': hp4rules}
+
+    for ruleset in rulesets:
+      for rule in rulesets[ruleset]:
         try:
           table = rule.table
           command_type = 'table_add'
@@ -103,6 +110,8 @@ class Lease(object):
                      'aparams': aparams}
           handle = self.send_command(P4Command(command_type, attribs))
           vdev.hp4_code_and_rules[(table, handle)] = rule
+          if ruleset == 'rules':
+            vdev.hp4rules[(table, handle)] = rule
           
         except AddRuleError as e:
           # remove all entries already added

@@ -73,12 +73,12 @@ start w/ two virtual devices
 Action Items:
 - Examine/fix implementation of interpret
   -- [DONE] table_add
-  -- table_modify
-  -- table_delete
+  -- [DONE] table_modify
+  -- [DONE] table_delete
 - Implement info commands for slice manager:
   -- slice
-  -- phys devices
-  -- virtual devices
+  -- [DONE] phys devices
+  -- [DONE] virtual devices
 - Test/fix memory accounting/enforcement
 - Test egress handling modes
 - [DONE] Fix bug:
