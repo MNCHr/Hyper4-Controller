@@ -123,14 +123,11 @@ class Lease(object):
 
     self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
 
-  def handle_request(self, parameters, vdev):
+  def handle_request(self, parameters, args):
     command = parameters[0]
     resp = ""
     try:
-      if command == 'config_egress':
-        resp = getattr(self, command)(parameters[1:])
-      else:
-        resp = getattr(self, command)(parameters[1:], vdev)
+      resp = getattr(self, command)(parameters[1:], *args)
     except AttributeError as e:
       return "AttributeError(handle_request - " + command + "): " + str(e)
     except Exception as e:
@@ -180,8 +177,8 @@ class Chain(Lease):
     super(Chain, self).__init__(dev_name, dev, entry_limit, ports)
     self.vdev_chain = [] # vdev_names (strings)
 
-  def handle_request(self, parameters, vdev):
-    return super(Chain, self).handle_request(parameters, vdev)
+  def handle_request(self, parameters, *args):
+    return super(Chain, self).handle_request(parameters, args)
 
   def p2vdev(self, vdev):
     "Connect physical interfaces to virtual device"
@@ -220,8 +217,7 @@ class Chain(Lease):
                                             self.mcast_grp_id,
                                             filtered)
     handle = self.send_command(P4Command(command_type, attribs))
-    table = attribs['table']
-    vdev.t_virtnet_handles[vegress] = (handle, table)
+    vdev.t_virtnet_handles[vegress] = handle
 
   def vdev2p(self, vdev):
     "Connect virtual device to physical interfaces"
@@ -319,6 +315,42 @@ class Chain(Lease):
         handle = self.send_command(P4Command(command_type, attribs))
         src_vdev.t_egr_virtnet_handles[vegress] = handle
 
+  def replace(self, parameters, vdev, new_vdev):
+    # parameters:
+    # <old virtual device name> <new virtual device name> <egress mode>
+    vdev_name = parameters[0]
+    new_vdev_name = parameters[1]
+    egress_mode = parameters[2]
+
+    try:
+      self.load_virtual_device(new_vdev_name, new_vdev, egress_mode)
+    except LoadError as e:
+      if 'already present' in str(e):
+        pass
+      else:
+        return 'Error - could not load ' + new_vdev_name + '; ' + str(e)
+
+    chain = self.vdev_chain
+    position = chain.index(vdev_name)
+
+    if position >= len(chain) - 1:
+      self.vdev2p(new_vdev)
+    if (len(chain) > 0) and (position < len(chain) - 1):
+      rightvdev_name = chain[position + 1]
+      rightvdev = self.vdevs[rightvdev_name]
+      self.vdev2vdev(new_vdev, rightvdev)
+    if len(chain) > 0 and position > 0:
+      leftvdev_name = chain[position - 1]
+      leftvdev = self.vdevs[leftvdev_name]
+      self.vdev2vdev(leftvdev, new_vdev)
+    if position == 0:
+      self.p2vdev(new_vdev)
+
+    # update vdev_chain
+    chain.remove(vdev_name)
+    chain.insert(position, new_vdev_name)
+    return 'Virtual device ' + vdev_name + ' replaced with ' + new_vdev_name
+
   def insert(self, parameters, vdev):
     # parameters:
     # <virtual device name> <position> <egress handling mode>
@@ -331,15 +363,16 @@ class Chain(Lease):
     try:
       self.load_virtual_device(vdev_name, vdev, egress_mode)
     except LoadError as e:
-      return 'Error - could not load ' + vdev_name + '; ' + str(e)
+      if 'already present' in str(e):
+        pass
+      else:
+        return 'Error - could not load ' + vdev_name + '; ' + str(e)
 
     chain = self.vdev_chain
 
-    if position == 0:
-      self.p2vdev(vdev)
-    if position >= len(chain):
+    if position >= len(chain) - 1:
       self.vdev2p(vdev)
-    if len(chain) > 0 and position < len(chain):
+    if (len(chain) > 0) and (position < len(chain) - 1):
       rightvdev_name = chain[position]
       rightvdev = self.vdevs[rightvdev_name]
       self.vdev2vdev(vdev, rightvdev)
@@ -347,6 +380,8 @@ class Chain(Lease):
       leftvdev_name = chain[position - 1]
       leftvdev = self.vdevs[leftvdev_name]
       self.vdev2vdev(leftvdev, vdev)
+    if position == 0:
+      self.p2vdev(vdev)
 
     chain.insert(position, vdev_name)
 

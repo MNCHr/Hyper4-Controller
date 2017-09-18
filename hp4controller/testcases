@@ -71,15 +71,14 @@ start w/ two virtual devices
 24 test cases
 
 Action Items:
-- Examine/fix implementation of interpret
+- [DONE] Examine/fix implementation of interpret
   -- [DONE] table_add
   -- [DONE] table_modify
   -- [DONE] table_delete
-- Implement info commands for slice manager:
-  -- slice
+- [DONE] Implement info commands for slice manager:
   -- [DONE] phys devices
   -- [DONE] virtual devices
-- Test/fix memory accounting/enforcement
+- [DONE] Test/fix memory accounting/enforcement
 - Test egress handling modes
 - [DONE] Fix bug:
   - vdev: arp w/ entries in arp_entries

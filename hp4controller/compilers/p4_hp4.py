@@ -948,9 +948,8 @@ class P4_to_HP4(HP4Compiler):
             aname = a2f_prim_subtype_action[call[1]]
           else:
             aname = gen_prim_subtype_action[call[0]]
-          mparams = []
+          mparams = ['[vdev ID]']
           if call[0] != 'drop':
-            mparams.append('[vdev ID]')
             if call[0] == 'modify_field' or call[0] == 'add_to_field':
               mparams.append( call[1] )
             mparams.append(str(self.action_ID[action]))

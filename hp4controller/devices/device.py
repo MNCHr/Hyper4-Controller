@@ -114,10 +114,11 @@ class Bmv2_SSwitch(Device):
 
     elif cmd_str_rep.split()[0] == 'table_delete':
       try:
+        print(cmd_str_rep)
         self.do_table_delete(cmd_str_rep.split('table_delete ' )[1])
         handle = cmd_str_rep.split()[2]
       except DeleteRuleError as e:
-        print('DeleteRuleError exception: ' + str(e))
+        print('DeleteRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
       except:
           raise
       return handle

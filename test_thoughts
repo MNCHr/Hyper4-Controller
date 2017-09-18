@@ -44,6 +44,7 @@ Scenarios:
 
   - show number of packets dropped, bmv2 / agilio swapping programs 'natively', vs. HP4
     - don't worry about numbers, result is more binary
+    - feature comparison chart, HyPer4 vs. bmv2, PISCES, Agilio, Xilinx, others
 - Modular development
   - separate programs for L2 vs L3 vs L4
   - First deploy L2
@@ -74,10 +75,14 @@ Tasks:
 - read papers describing P4 switches and support for dynamic program swapping
 - read P4 paper showcasing INT
 - write INT.p4
-- implement Chain::replace(old_vdev_name, new_vdev_name)
-- implement Interpreter::table_modify
-- implement Interpreter::table_delete
-- implement resource tracking / enforcement
+- [DONE] implement Chain::replace(old_vdev_name, new_vdev_name)
+  -- [DONE] make sure t_virtnet / t_egr_virtnet entries added BEFORE tset_context to
+     avoid packet drops
+     --- [DONE] same for insert / remove / append ops
+- [LATER] implement table commands for non-loaded vdevs (just updates vdev.hp4rules)
+- [DONE] implement Interpreter::table_modify
+- [DONE] implement Interpreter::table_delete
+- [DONE] implement resource tracking / enforcement
 
 
 

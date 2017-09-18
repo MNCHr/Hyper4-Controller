@@ -277,10 +277,16 @@ class Slice():
       dev_name = parameters[1]
       lease = self.leases[dev_name]
       if parameters[2] == 'config_egress':
-        return lease.handle_request(parameters[2:], None)
+        return lease.handle_request(parameters[2:])
+      elif parameters[2] == 'replace':
+        vdev_name = parameters[3]
+        new_vdev_name = parameters[4]
+        args = (self.vdevs[vdev_name], self.vdevs[new_vdev_name])
+        return lease.handle_request(parameters[2:], *args)
       else:
         vdev_name = parameters[3]
-        return lease.handle_request(parameters[2:], self.vdevs[vdev_name])
+        args = (self.vdevs[vdev_name],)
+        return lease.handle_request(parameters[2:], *args)
     else:
       try:
         resp = getattr(self, command)(parameters[1:])

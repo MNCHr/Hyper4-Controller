@@ -107,10 +107,11 @@ class SliceManager(Client):
 class ChainSliceManager(SliceManager):
 
   def do_lease(self, line):
-    """insert|append|remove: lease <device> <insert|append|remove> <virtual device> [args]
+    """insert|append|remove: lease <device> <insert|append|remove|replace> <virtual device> [args]
      \rinsert args: <position> <egress handling mode>
      \rappend args: <egress handling mode: \'etrue\'|\'efalse\'|\'econd\'>
      \rremove args: N/A
+     \rreplace args: <new virtual device> <egress handling mode>
      \rconfig_egress: lease <device> config_egress <egress_spec value> mcast <filtered|unfiltered>
      \rinfo: lease <device> info
     """
