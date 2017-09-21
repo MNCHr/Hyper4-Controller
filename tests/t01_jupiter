@@ -1,0 +1,6 @@
+create_virtual_device tests/arp_proxy.p4 arp
+create_virtual_device tests/firewall.p4 firewall
+create_virtual_device tests/hp4t_l2_switch.p4 switch
+lease alpha insert switch 0 etrue
+lease alpha config_egress 5 mcast filtered
+interpret_file switch bmv2 tests/t01_switch_entries
