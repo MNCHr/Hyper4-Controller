@@ -1004,7 +1004,7 @@ class P4_to_HP4(HP4Compiler):
     aparams = []
     if call[0] == 'drop':
       return aparams
-    if call[0] == 'math_on_field':
+    if call[0] == 'add_to_field':
       if (a2f_prim_subtype_action[call[1]] == 'a_add2f_extracted_const_u' or
           a2f_prim_subtype_action[call[1]] == 'a_subff_extracted_const_u'):
         # aparams: leftshift, val
@@ -1012,6 +1012,8 @@ class P4_to_HP4(HP4Compiler):
         leftshift = 800 - (dst_offset + p4_call[1][0].width)
         if type(p4_call[1][1]) == int:
           val = str(p4_call[1][1])
+          if a2f_prim_subtype_action[call[1]] == 'a_subff_extracted_const_u':
+            val = str(p4_call[1][1]*-1)
         else:
           val = '[val]'
         aparams.append(str(leftshift))
@@ -1175,22 +1177,21 @@ class P4_to_HP4(HP4Compiler):
           flc = self.h.p4_field_list_calculations[statement[1]]
           for fl in flc.input:
             count = 0
-            min_field_offset = 1000
-            min_field = None
+            max_field_offset = 0
+            max_field = None
             for field in fl.fields:
               count += field.width
-              if field.offset < min_field_offset:
-                min_field_offset = field.offset
-                min_field = field
+              if field.offset > max_field_offset:
+                max_field_offset = field.offset
+                max_field = field
             if count == 144:
               if flc.algorithm == 'csum16' and flc.output_width == 16:
                 # Calculate rshift_base parameter
                 #  This is the amount to R-shift extracted.data such
-                #  that the first two bytes of the ipv4 header are
-                #  right aligned
-                key = min_field.instance.name + '.' + min_field.name
+                #  that the ipv4 header is right aligned
+                key = max_field.instance.name + '.' + max_field.name
                 # TODO: remove assumption that extracted.data is 800 bits
-                aparam = str(784 - self.field_offsets[key])
+                aparam = str(800 - self.field_offsets[key] - max_field.width)
                 if statement[2] == None:
                   cf_none_types += 1
                   if (cf_none_types + cf_valid_types) > 1:
@@ -1202,7 +1203,7 @@ class P4_to_HP4(HP4Compiler):
                                                       "t_checksum",
                                                       "a_ipv4_csum16",
                                                       ['[vdev ID]', '0&&&0'],
-                                                      [aparam]))
+                                                      [aparam, str(MAX_PRIORITY)]))
                 else:
                   if statement[2].op == 'valid':
                     cf_valid_types += 1
@@ -1221,7 +1222,7 @@ class P4_to_HP4(HP4Compiler):
                                                             "t_checksum",
                                                             "a_ipv4_csum16",
                                                             mparams,
-                                                            [aparam]))
+                                                            [aparam, '0']))
                   else:
                     print("ERROR: Unsupported if_cond op in calculated field: \
                            %s" % statement[2].op)

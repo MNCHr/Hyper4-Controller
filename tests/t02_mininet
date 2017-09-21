@@ -1,0 +1,18 @@
+s1 ifconfig s1-eth1 192.168.1.1
+s1 ifconfig s1-eth2 192.168.2.1
+s1 ifconfig s1-eth3 192.168.3.1
+s1 ifconfig s1-eth1 hw ether 00:aa:bb:00:00:10
+s1 ifconfig s1-eth2 hw ether 00:aa:bb:00:00:20
+s1 ifconfig s1-eth3 hw ether 00:aa:bb:00:00:30
+h1 ifconfig eth0 hw ether 00:04:00:00:00:00
+h1 ifconfig eth0 192.168.1.2 netmask 255.255.255.0
+h1 route add default gw 192.168.1.1
+h1 arp -s 192.168.1.1 00:aa:bb:00:00:10
+h2 ifconfig eth0 hw ether 00:04:00:00:00:01
+h2 ifconfig eth0 192.168.2.2 netmask 255.255.255.0
+h2 route add default gw 192.168.2.1
+h2 arp -s 192.168.2.1 00:aa:bb:00:00:20
+h3 ifconfig eth0 hw ether 00:04:00:00:00:02
+h3 ifconfig eth0 192.168.3.2 netmask 255.255.255.0
+h3 route add default gw 192.168.3.1
+h3 arp -s 192.168.3.1 00:aa:bb:00:00:30
