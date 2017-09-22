@@ -15,3 +15,6 @@ class VirtnetError(Exception):
 
 class MCastError(Exception):
   pass
+
+class InterpretError(Exception):
+  pass

@@ -1,5 +1,6 @@
 import virtualdevice
 from ..p4command import P4Command
+from ..errors import InterpretError
 from p4rule import P4Rule
 
 import json
@@ -7,6 +8,8 @@ import copy
 import re
 import code
 # code.interact(local=dict(globals(), **locals()))
+
+MAX_PRIORITY = 2147483646
 
 match_types = {'[DONE]':'0',
                '[EXTRACTED_EXACT]':'1',
@@ -42,6 +45,72 @@ primitive_types = {'[MODIFY_FIELD]':'0',
 									 '[MATH_ON_FIELD]':'20'}
 
 class Interpreter(object):
+  @staticmethod
+  def table_set_default(guide, p4command, match_ID, vdev_ID, mcast_grp_id):
+    p4commands = []
+    rule = P4Rule(p4command.attributes['table'],
+                  p4command.attributes['action'],
+                  [],
+                  p4command.attributes['aparams'])
+    key = (rule.table, rule.action)
+    mrule = copy.deepcopy(guide.templates[key]['match'])
+    mrule_match_params = mrule.attributes['mparams']
+    for i in range(len(mrule_match_params)):
+      if mrule_match_params[i] == '[vdev ID]':
+        mrule_match_params[i] = str(vdev_ID)
+      elif ('[val]' in mrule_match_params[i]) or ('[valid]' in mrule_match_params[i]):
+        if '&&&' in mrule_match_params[i]:
+          mrule_match_params[i] = '0&&&0' # 'don't care'
+        else:
+          raise InterpretError('Not yet supported: table_set_default for ' \
+                               + mrule_match_params[i] + '(' + rule.table + ')')
+
+    ## action parameters
+    mrule_action_params = mrule.attributes['aparams']
+    for i in range(len(mrule_action_params)):
+      if mrule_action_params[i] == '[match ID]':
+        mrule_action_params[i] = str(match_ID)
+      elif mrule_action_params[i] == '[PRIORITY]':
+        mrule_action_params[i] = str(MAX_PRIORITY)
+      elif mrule_action_params[i] in match_types:
+        mrule_action_params[i] = match_types[mrule_action_params[i]]
+      elif mrule_action_params[i] in primitive_types:
+        mrule_action_params[i] = primitive_types[mrule_action_params[i]]
+
+    p4commands.append(mrule)
+
+    # handle the primitives rules
+    for entry in guide.templates[key]['primitives']:
+      arule = copy.deepcopy(entry)
+      ## match parameters
+      arule_match_params = arule.attributes['mparams']
+      for i in range(len(arule_match_params)):
+        if arule_match_params[i] == '[vdev ID]':
+          arule_match_params[i] = str(vdev_ID)
+        elif '[match ID]' in arule_match_params[i]:
+          arule_match_params[i] = arule_match_params[i].replace('[match ID]',
+                                                                 str(match_ID))
+      ## action parameters
+      arule_action_params = arule.attributes['aparams']
+      for i in range(len(arule_action_params)):
+        if arule_action_params[i] == '[val]':
+          a_idx = int(arule.attributes['src_aparam_id'])
+          arule_action_params[i] = str(rule.aparams[a_idx])
+        if arule_action_params[i] == '[MCAST_GRP]':
+          arule_action_params[i] = str(mcast_grp_id)
+        if re.search("\[[0-9]*x00s\]", arule_action_params[i]):
+          to_replace = re.search("\[[0-9]*x00s\]", arule_action_params[i]).group()
+          numzeros = int(re.search("[0-9]+", to_replace).group())
+          replace = ""
+          for j in range(numzeros):
+            replace += "00"   
+          arule_action_params[i] = \
+                            arule_action_params[i].replace(to_replace, replace)
+
+      p4commands.append(arule)
+
+    return p4commands
+    
   @staticmethod
   def table_add(guide, p4command, match_ID, vdev_ID, mcast_grp_id):
     p4commands = []

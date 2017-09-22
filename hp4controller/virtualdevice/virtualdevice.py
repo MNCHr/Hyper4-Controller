@@ -125,6 +125,11 @@ class VirtualDevice():
       match_ID = self.assign_handle(table)
       p4commands = Interpreter.table_add(self.guide, p4command, match_ID,
                                          self.virtual_device_ID, self.mcast_grp_id)
+    elif p4command.command_type == 'table_set_default':
+      match_ID = self.assign_handle(table)
+      p4commands = Interpreter.table_set_default(self.guide, p4command, match_ID,
+                                                 self.virtual_device_ID,
+                                                 self.mcast_grp_id)
     else:
       origin_table = p4command.attributes['table']
       origin_handle = p4command.attributes['handle']

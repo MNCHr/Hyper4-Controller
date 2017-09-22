@@ -390,6 +390,7 @@ class Slice():
     if vdev_name not in self.vdevs:
       return 'Error - ' + vdev_name + ' not a recognized virtual device'
     vdev = self.vdevs[vdev_name]
+
     hp4commands = vdev.interpret(p4command)
     #print("CHECKPOINT ALPHA")
 

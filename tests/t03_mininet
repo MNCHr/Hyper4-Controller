@@ -1,0 +1,6 @@
+h1 ifconfig eth0 hw ether 00:04:00:00:00:00
+h1 ifconfig eth0 192.168.0.1 netmask 255.255.255.0
+h2 ifconfig eth0 hw ether 00:04:00:00:00:01
+h2 ifconfig eth0 192.168.0.2 netmask 255.255.255.0
+h3 ifconfig eth0 hw ether 00:04:00:00:00:02
+h3 ifconfig eth0 192.168.0.3 netmask 255.255.255.0

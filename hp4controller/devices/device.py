@@ -184,6 +184,9 @@ class Bmv2_SSwitch(Device):
       command_str += ' => ' + ' '.join(cmd.attributes['aparams'])
     elif cmd.command_type == 'table_delete':
       command_str += ' ' + str(cmd.attributes['handle'])
+    elif cmd.command_type == 'table_set_default':
+      command_str += ' ' + cmd.attributes['action']
+      command_str += ' ' + ' '.join(cmd.attribtes['aparams'])
     return command_str
 
   @staticmethod
@@ -205,6 +208,10 @@ class Bmv2_SSwitch(Device):
     elif command_type == 'table_delete':
       # table_delete <table name> <entry handle>
       attributes['handle'] = int(command_str[0].split()[2])
+    elif command_type == 'table_set_default':
+      # table_set_default <table name> <action name> <action parameters> [priority]
+      attributes['action'] = command_str[0].split()[2]
+      attributes['aparams'] = command_str[0].split()[3:]
     return P4Command(command_type, attributes)
 
   def mcast_setup(self, mcast_grp_id, ports):
