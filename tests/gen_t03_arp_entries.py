@@ -23,11 +23,10 @@ nb_links_per_switch = nb_switches - 1 + nb_hosts_per_switch
 
 assert((nb_links_per_switch % 2) == 0)
 
-output = []
-
 random.seed(args.seed)
 
 for i in range(nb_switches):
+  output = []
   ports = range(1, nb_links_per_switch + 1)
   rand_ports = random.sample(ports, nb_links_per_switch)
   pairs = []
