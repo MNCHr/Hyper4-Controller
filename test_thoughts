@@ -36,7 +36,7 @@ Scenarios:
                3. 
 
                each ping to new IP address - can we program the mininet simulation to
-               fire pings automatically, or just issue arp commands to flush arp caches each time
+               fire pings automatically, or just issue 'ip -s -s neigh flush all' commands to flush arp caches each time
     - chart: latency per packet over time as events occur (infinite if dropped)
              bandwidth per 100ms as events occur
              - multiple things on timeseries, include firewall effect
