@@ -1,34 +1,54 @@
 #!/bin/bash
 
+# defaults for command-line arguments
 TEST=0
 RUN1=0
 RUN2=1
-IFACES=3
+SWITCHES=3
+IFACES=10
 
-if [ $# -gt 0 ]
-then
-  TEST=$1
-  if [ $# -gt 1 ]
-    then
-      RUN1=$2
-      if [ $# -gt 2 ]
-        then
-          RUN2=$3
-          if [ $# -gt 3 ]
-            then
-              IFACES=$4
-          fi
-      fi
-  fi
-fi
-
-for i in `seq 1 $IFACES`;
+while [[ $# -gt 1 ]]
 do
-  f1pre=t${TEST}"_s1_eth"$i"_run"${RUN1}
-  f2pre=t${TEST}"_s1_eth"$i"_run"${RUN2}
-  tcpdump -r $f1pre".dump" -t -vvv -e -n > $f1pre".txt"
-  tcpdump -r $f2pre".dump" -t -vvv -e -n > $f2pre".txt"
-  ./process_pcap.py $f1pre".txt" > $f1pre"_processed.txt"
-  ./process_pcap.py $f2pre".txt" > $f2pre"_processed.txt"
-  diff $f1pre"_processed.txt" $f2pre"_processed.txt"
+key="$1"
+
+case $key in
+    -t|--test)
+    TEST="$2"
+    shift # past argument
+    ;;
+    -r1|--run1)
+    RUN1="$2"
+    shift # past argument
+    ;;
+    -r2|--run2)
+    RUN2="$2"
+    shift # past argument
+    ;;
+    -s|--switches)
+    SWITCHES="$2"
+    shift # past argument
+    ;;
+    -i|--ifaces)
+    IFACES="$2"
+    shift # past argument
+    ;;
+    *)
+            # unknown option
+    ;;
+esac
+shift # past argument or value
+done
+
+for i in `seq 1 $SWITCHES`;
+do
+  for j in `seq 1 $IFACES`;
+  do
+    f1pre=t${TEST}"_s"$i"_eth"$j"_run_"${RUN1}
+    f2pre=t${TEST}"_s"$i"_eth"$j"_run_"${RUN2}
+    tcpdump -r $f1pre".dump" -t -vvv -e -n > $f1pre".txt"
+    tcpdump -r $f2pre".dump" -t -vvv -e -n > $f2pre".txt"
+    ./process_pcap.py $f1pre".txt" > $f1pre"_processed.txt"
+    ./process_pcap.py $f2pre".txt" > $f2pre"_processed.txt"
+    diff $f1pre"_processed.txt" $f2pre"_processed.txt"
+  done
 done

@@ -1,5 +1,15 @@
 TESTING PLAN
 
+Test Index
+- t01 - L2 switch semantic equivalence test
+- t02 - L3 router semantic equivalence test
+- t03 - Arp proxy semantic equivalence test
+- t04 - Firewall semantic equivalence test
+- t05 - Chain performance test
+- t06 - Feature comparison
+- t07 - Modular development test
+- t08 - slice impact test
+
 Areas of Interest
 - Development
 - Deployment

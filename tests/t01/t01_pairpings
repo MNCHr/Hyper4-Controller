@@ -1,0 +1,6 @@
+h1 ping h2 -c 1 -W 1 &
+h2 ping h1 -c 1 -W 1 &
+h1 ping h3 -c 1 -W 1 &
+h3 ping h1 -c 1 -W 1 &
+h2 ping h3 -c 1 -W 1 &
+h3 ping h2 -c 1 -W 1 &

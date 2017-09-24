@@ -1,4 +1,0 @@
-create_virtual_device tests/arp_proxy.p4 arp
-lease alpha insert arp 0 etrue
-lease alpha config_egress 5 mcast filtered
-interpret_file arp bmv2 tests/t03_arp_entries

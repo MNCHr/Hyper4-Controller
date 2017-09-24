@@ -1,0 +1,32 @@
+00:aa:bb:00:00:30 > 00:04:00:00:00:02, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 63, X, offset 0, flags [DF], proto ICMP (1), length 84)
+
+    192.168.1.2 > 192.168.3.2: ICMP echo request, id 0, seq 1, length 64
+
+00:04:00:00:00:02 > 00:aa:bb:00:00:30, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 64, X, offset 0, flags [none], proto ICMP (1), length 84)
+
+    192.168.3.2 > 192.168.1.2: ICMP echo reply, id 0, seq 1, length 64
+
+00:04:00:00:00:02 > 00:aa:bb:00:00:30, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 64, X, offset 0, flags [DF], proto ICMP (1), length 84)
+
+    192.168.3.2 > 192.168.1.2: ICMP echo request, id 1, seq 1, length 64
+
+00:aa:bb:00:00:30 > 00:04:00:00:00:02, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 63, X, offset 0, flags [none], proto ICMP (1), length 84)
+
+    192.168.1.2 > 192.168.3.2: ICMP echo reply, id 1, seq 1, length 64
+
+00:aa:bb:00:00:30 > 00:04:00:00:00:02, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 63, X, offset 0, flags [DF], proto ICMP (1), length 84)
+
+    192.168.2.2 > 192.168.3.2: ICMP echo request, id 2, seq 1, length 64
+
+00:04:00:00:00:02 > 00:aa:bb:00:00:30, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 64, X, offset 0, flags [none], proto ICMP (1), length 84)
+
+    192.168.3.2 > 192.168.2.2: ICMP echo reply, id 2, seq 1, length 64
+
+00:04:00:00:00:02 > 00:aa:bb:00:00:30, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 64, X, offset 0, flags [DF], proto ICMP (1), length 84)
+
+    192.168.3.2 > 192.168.2.2: ICMP echo request, id 3, seq 1, length 64
+
+00:aa:bb:00:00:30 > 00:04:00:00:00:02, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 63, X, offset 0, flags [none], proto ICMP (1), length 84)
+
+    192.168.2.2 > 192.168.3.2: ICMP echo reply, id 3, seq 1, length 64
+

@@ -36,7 +36,7 @@ for i in range(nb_switches):
     output.append("table_add init_meta_egress a_init_meta_egress %d => %d" \
                   % (rand_ports[j+1], rand_ports[j]))
 
-  output.append("table_add check_arp present 1 =>")
+  output.append("table_add check_arp arp_present 1 =>")
   output.append("table_add check_arp send_packet 0 =>")
   output.append("table_add check_opcode arp_request 1 =>")
   output.append("table_set_default check_opcode send_packet")
