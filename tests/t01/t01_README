@@ -23,7 +23,7 @@ cd ~/hp4-ctrl
 
 WINDOW - TESTS
 cd ~/hp4-ctrl/tests
-./test_tcpdump.sh -t 01 -r hp4 -s 1 -i 3
+sudo ./test_tcpdump.sh -t 01 -r hp4 -s 1 -i 3
 
 WINDOW - MININET
 mininet> source /home/ubuntu/hp4-ctrl/tests/t01/t01_pairpings
@@ -36,7 +36,7 @@ WINDOW - TESTS
 WINDOW - MININET
 cd ~/p4-projects/projects/hp4t_l2_switch
 ./run.sh --commands setup_commands.txt --topo ~/hp4-ctrl/tests/t01/topo.txt
-sh ./run_cli.sh 22222 < /home/ubuntu/hp4-ctrl/tests/t01/t01_switch_entries
+mininet> sh ./run_cli.sh 22222 < /home/ubuntu/hp4-ctrl/tests/t01/t01_switch_entries
 
 WINDOW - TESTS
 cd ~/hp4-ctrl
@@ -50,4 +50,4 @@ WINDOW - TESTS
 ----- END NATIVE
 
 cd ~/hp4-ctrl/tests
-./compare_pcaps.sh -t t01 -r1 hp4 -r2 native -s <numswitches> -i <numifaces>
+./compare_pcaps.sh -t 01 -r1 hp4 -r2 native -s <numswitches> -i <numifaces>

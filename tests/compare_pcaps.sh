@@ -39,12 +39,14 @@ esac
 shift # past argument or value
 done
 
+tt01_s1_eth1_run_hp4.dump
+
 for i in `seq 1 $SWITCHES`;
 do
   for j in `seq 1 $IFACES`;
   do
-    f1pre=t${TEST}"_s"$i"_eth"$j"_run_"${RUN1}
-    f2pre=t${TEST}"_s"$i"_eth"$j"_run_"${RUN2}
+    f1pre=t${TEST}"/"t${TEST}"_s"$i"_eth"$j"_run_"${RUN1}
+    f2pre=t${TEST}"/"t${TEST}"_s"$i"_eth"$j"_run_"${RUN2}
     tcpdump -r $f1pre".dump" -t -vvv -e -n > $f1pre".txt"
     tcpdump -r $f2pre".dump" -t -vvv -e -n > $f2pre".txt"
     ./process_pcap.py $f1pre".txt" > $f1pre"_processed.txt"

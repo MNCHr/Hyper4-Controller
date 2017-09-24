@@ -40,7 +40,7 @@ for i in `seq 1 $SWITCHES`;
 do
   for j in `seq 1 $IFACES`;
   do
-    fname=t${TEST}"_s"${i}"_eth"${j}"_run_"${RUN}".dump"
+    fname=t${TEST}"/t"${TEST}"_s"${i}"_eth"${j}"_run_"${RUN}".dump"
     tcpdump -i s$i"-eth"$j -n -s 0 -w $fname &
     var="PID_$suffix"
     declare "$var"=$!
