@@ -7,7 +7,7 @@ cd ~/hp4-ctrl/tests
 ----- HP4
 WINDOW - MININET
 cd ~/hp4-src/hp4
-./run_demo.sh --commands hp4commands.txt --topo ~/hp4-ctrl/tests/t01/topo.txt
+./run.sh --commands hp4commands.txt --topo ~/hp4-ctrl/tests/t01/topo.txt
 
 WINDOW - HP4CONTROLLER
 cd ~/hp4-ctrl

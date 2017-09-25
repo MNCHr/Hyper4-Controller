@@ -39,8 +39,6 @@ esac
 shift # past argument or value
 done
 
-tt01_s1_eth1_run_hp4.dump
-
 for i in `seq 1 $SWITCHES`;
 do
   for j in `seq 1 $IFACES`;
