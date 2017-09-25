@@ -45,10 +45,10 @@ do
   do
     f1pre=t${TEST}"/"t${TEST}"_s"$i"_eth"$j"_run_"${RUN1}
     f2pre=t${TEST}"/"t${TEST}"_s"$i"_eth"$j"_run_"${RUN2}
-    tcpdump -r $f1pre".dump" -t -vvv -e -n > $f1pre".txt"
-    tcpdump -r $f2pre".dump" -t -vvv -e -n > $f2pre".txt"
-    ./process_pcap.py $f1pre".txt" > $f1pre"_processed.txt"
-    ./process_pcap.py $f2pre".txt" > $f2pre"_processed.txt"
-    diff $f1pre"_processed.txt" $f2pre"_processed.txt"
+    tcpdump -r $f1pre".dump" -t -vvv -e -n > $f1pre".rdump"
+    tcpdump -r $f2pre".dump" -t -vvv -e -n > $f2pre".rdump"
+    ./process_pcap.py $f1pre".txt" > $f1pre"_processed.rdump"
+    ./process_pcap.py $f2pre".txt" > $f2pre"_processed.rdump"
+    diff $f1pre"_processed.rdump" $f2pre"_processed.rdump"
   done
 done

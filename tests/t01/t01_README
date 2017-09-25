@@ -50,4 +50,4 @@ WINDOW - TESTS
 ----- END NATIVE
 
 cd ~/hp4-ctrl/tests
-./compare_pcaps.sh -t 01 -r1 hp4 -r2 native -s <numswitches> -i <numifaces>
+./compare_pcaps.sh -t 01 -r1 hp4 -r2 native -s 1 -i 3
