@@ -2,8 +2,8 @@ T03: TEST SEMANTIC EQUIVALENCE OF ARP PROXY (hp4 vs native)
 
 WINDOW - TESTS
 cd ~/hp4-ctrl/tests
-./gen_t03_arp_entries.py --seed --numswitches --numhosts
--> t03_arp_entries_test_$i for i in range(1, numswitches + 1)
+./t03/gen_t03_arp_entries.py --seed --numswitches --numhosts
+-> t03_arp_entries_s$i for i in range(1, numswitches + 1)
 
 ./gen_pairpings.py --numswitches <numswitches> --numhosts <numhosts> --test t03
 -> t03_pairpings
@@ -14,7 +14,7 @@ cd ~/hp4-ctrl/tests
 ----- HP4
 WINDOW - MININET
 cd ~/hp4-src/hp4
-./run_demo.sh 
+./run_demo.sh --commands hp4commands.txt --topo ~/hp4-ctrl/tests/t03/topo.txt
 
 WINDOW - HP4CONTROLLER
 cd ~/hp4-ctrl

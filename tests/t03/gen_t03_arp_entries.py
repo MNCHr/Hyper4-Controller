@@ -53,6 +53,6 @@ for i in range(nb_switches):
 
   output.append("table_set_default handle_arp_request send_packet")
 
-  with open("t03_arp_entries_test_%d"%(i+1), 'w') as out:
+  with open("t03_arp_entries_s%d"%(i+1), 'w') as out:
     for line in output:
       out.write(line + '\n')
