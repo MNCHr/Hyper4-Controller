@@ -36,14 +36,14 @@ WINDOW - TESTS
 ----- NATIVE
 WINDOW - MININET
 cd ~/p4-projects/projects/simple_router
-./run.sh --commands setup_commands.txt --topo ~/hp4-ctrl/tests/t02/topo.txt
+./run.sh --topo ~/hp4-ctrl/tests/t02/topo.txt
 mininet> source /home/ubuntu/hp4-ctrl/tests/t02/t02_mininet
 mininet> sh ./run_cli.sh 22222 < /home/ubuntu/hp4-ctrl/tests/t02/t02_router1_entries
 mininet> sh ./run_cli.sh 22223 < /home/ubuntu/hp4-ctrl/tests/t02/t02_router2_entries
 
 WINDOW - TESTS
 cd ~/hp4-ctrl
-./test_tcpdump.sh -t 02 -r native -s 2 -i 4
+sudo ./test_tcpdump.sh -t 02 -r native -s 2 -i 4
 
 WINDOW -  MININET
 mininet> source /home/ubuntu/hp4-ctrl/tests/t02/t02_pairpings
