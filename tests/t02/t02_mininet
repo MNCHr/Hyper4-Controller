@@ -1,18 +1,52 @@
-s1 ifconfig s1-eth1 192.168.1.1
-s1 ifconfig s1-eth2 192.168.2.1
-s1 ifconfig s1-eth3 192.168.3.1
-s1 ifconfig s1-eth1 hw ether 00:aa:bb:00:00:10
-s1 ifconfig s1-eth2 hw ether 00:aa:bb:00:00:20
-s1 ifconfig s1-eth3 hw ether 00:aa:bb:00:00:30
-h1 ifconfig eth0 hw ether 00:04:00:00:00:00
-h1 ifconfig eth0 192.168.1.2 netmask 255.255.255.0
-h1 route add default gw 192.168.1.1
-h1 arp -s 192.168.1.1 00:aa:bb:00:00:10
-h2 ifconfig eth0 hw ether 00:04:00:00:00:01
-h2 ifconfig eth0 192.168.2.2 netmask 255.255.255.0
-h2 route add default gw 192.168.2.1
-h2 arp -s 192.168.2.1 00:aa:bb:00:00:20
-h3 ifconfig eth0 hw ether 00:04:00:00:00:02
-h3 ifconfig eth0 192.168.3.2 netmask 255.255.255.0
-h3 route add default gw 192.168.3.1
-h3 arp -s 192.168.3.1 00:aa:bb:00:00:30
+s1 ifconfig s1-eth1 10.1.0.1
+s1 ifconfig s1-eth2 10.1.0.2
+s1 ifconfig s1-eth3 10.1.0.3
+s1 ifconfig s1-eth4 10.0.0.1
+s1 ifconfig s1-eth1 hw ether 00:aa:bb:00:01:10
+s1 ifconfig s1-eth2 hw ether 00:aa:bb:00:01:20
+s1 ifconfig s1-eth3 hw ether 00:aa:bb:00:01:30
+s1 ifconfig s1-eth4 hw ether 00:aa:bb:00:01:40
+s2 ifconfig s2-eth1 10.2.0.1
+s2 ifconfig s2-eth2 10.2.0.2
+s2 ifconfig s2-eth3 10.2.0.3
+s2 ifconfig s2-eth4 10.0.0.2
+s2 ifconfig s2-eth1 hw ether 00:aa:bb:00:02:10
+s2 ifconfig s2-eth2 hw ether 00:aa:bb:00:02:20
+s2 ifconfig s2-eth3 hw ether 00:aa:bb:00:02:30
+s2 ifconfig s2-eth4 hw ether 00:aa:bb:00:02:40
+h6 ifconfig eth0 hw ether 00:04:00:00:00:06
+h6 ifconfig eth0 10.2.0.103 netmask 255.255.255.0
+h6 route add default gw 10.2.0.3
+h6 arp -s 10.2.0.3 00:aa:bb:00:02:30
+h5 ifconfig eth0 hw ether 00:04:00:00:00:05
+h5 ifconfig eth0 10.2.0.102 netmask 255.255.255.0
+h5 route add default gw 10.2.0.2
+h5 arp -s 10.2.0.2 00:aa:bb:00:02:20
+h4 ifconfig eth0 hw ether 00:04:00:00:00:04
+h4 ifconfig eth0 10.2.0.101 netmask 255.255.255.0
+h4 route add default gw 10.2.0.1
+h4 arp -s 10.2.0.1 00:aa:bb:00:02:10
+h3 ifconfig eth0 hw ether 00:04:00:00:00:03
+h3 ifconfig eth0 10.1.0.103 netmask 255.255.255.0
+h3 route add default gw 10.1.0.3
+h3 arp -s 10.1.0.3 00:aa:bb:00:01:30
+h2 ifconfig eth0 hw ether 00:04:00:00:00:02
+h2 ifconfig eth0 10.1.0.102 netmask 255.255.255.0
+h2 route add default gw 10.1.0.2
+h2 arp -s 10.1.0.2 00:aa:bb:00:01:20
+h1 ifconfig eth0 hw ether 00:04:00:00:00:01
+h1 ifconfig eth0 10.1.0.101 netmask 255.255.255.0
+h1 route add default gw 10.1.0.1
+h1 arp -s 10.1.0.1 00:aa:bb:00:01:10
+h1 arp -s 10.1.0.102 00:04:00:00:00:02
+h1 arp -s 10.1.0.103 00:04:00:00:00:03
+h2 arp -s 10.1.0.101 00:04:00:00:00:01
+h2 arp -s 10.1.0.103 00:04:00:00:00:03
+h3 arp -s 10.1.0.101 00:04:00:00:00:01
+h3 arp -s 10.1.0.102 00:04:00:00:00:02
+h4 arp -s 10.2.0.102 00:04:00:00:00:05
+h4 arp -s 10.2.0.103 00:04:00:00:00:06
+h5 arp -s 10.2.0.101 00:04:00:00:00:04
+h5 arp -s 10.2.0.103 00:04:00:00:00:06
+h6 arp -s 10.2.0.101 00:04:00:00:00:04
+h6 arp -s 10.2.0.102 00:04:00:00:00:05

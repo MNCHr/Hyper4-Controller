@@ -1,4 +1,8 @@
-create_virtual_device tests/simple_router/simple_router.p4 router
-lease alpha insert router 0 etrue
+create_virtual_device tests/simple_router/simple_router.p4 r1
+create_virtual_device tests/simple_router/simple_router.p4 r2
+lease alpha insert r1 0 etrue
 lease alpha config_egress 5 mcast filtered
-interpret_file router bmv2 tests/t02_router_entries
+lease bravo insert r2 0 etrue
+lease bravo config_egress 5 mcast filtered
+interpret_file r1 bmv2 tests/t02/t02_router1_entries
+interpret_file r2 bmv2 tests/t02/t02_router2_entries

@@ -1,9 +1,0 @@
-table_add ipv4_lpm set_nhop 0xC0A80102 => 0xC0A80102 1
-table_add ipv4_lpm set_nhop 0xC0A80202 => 0xC0A80202 2
-table_add ipv4_lpm set_nhop 0xC0A80302 => 0xC0A80302 3
-table_add forward set_dmac 0xC0A80102 => 0x000400000000
-table_add forward set_dmac 0xC0A80202 => 0x000400000001
-table_add forward set_dmac 0xC0A80302 => 0x000400000002
-table_add send_frame rewrite_mac 1 => 0x00aabb000010
-table_add send_frame rewrite_mac 2 => 0x00aabb000020
-table_add send_frame rewrite_mac 3 => 0x00aabb000030

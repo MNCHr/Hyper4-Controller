@@ -1,3 +1,5 @@
 create_device alpha localhost 22222 bmv2_SSwitch SimplePreLAG 1000 1 2 3 4
+create_device bravo localhost 22223 bmv2_SSwitch SimplePreLAG 1000 1 2 3 4
 create_slice jupiter
 grant_lease jupiter alpha 500 Chain 1 2 3 4
+grant_lease jupiter bravo 500 Chain 1 2 3 4

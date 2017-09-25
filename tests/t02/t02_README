@@ -2,18 +2,23 @@ T02: TEST SEMANTIC EQUIVALENCE OF L3 ROUTER (hp4 vs native)
 
 WINDOW - TESTS
 cd ~/hp4-ctrl/tests
-./gen_pairpings.py --numswitches 2 --numhosts 6
+./gen_pairpings.py --numswitches 2 --numhosts 6 --test t02
 
 ----- HP4
 WINDOW - MININET
 cd ~/hp4-src/hp4
 ./run.sh --commands hp4commands.txt --topo ~/hp4-ctrl/tests/t02/topo.txt
+mininet> source /home/ubuntu/hp4-ctrl/tests/t02/t02_mininet
 
 WINDOW - HP4CONTROLLER
 cd ~/hp4-ctrl
 ./controller --debug
 
 WINDOW - HP4CLIENT (ADMIN)
+cd ~/hp4-ctrl
+./client --debug --startup tests/t02/t02_admin admin
+
+WINDOW - HP4CLIENT (SLICE MANAGER)
 cd ~/hp4-ctrl
 ./client --debug --startup tests/t02/t02_jupiter jupiter
 
@@ -32,6 +37,7 @@ WINDOW - TESTS
 WINDOW - MININET
 cd ~/p4-projects/projects/simple_router
 ./run.sh --commands setup_commands.txt --topo ~/hp4-ctrl/tests/t02/topo.txt
+mininet> source /home/ubuntu/hp4-ctrl/tests/t02/t02_mininet
 mininet> sh ./run_cli.sh 22222 < /home/ubuntu/hp4-ctrl/tests/t02/t02_router1_entries
 mininet> sh ./run_cli.sh 22223 < /home/ubuntu/hp4-ctrl/tests/t02/t02_router2_entries
 
