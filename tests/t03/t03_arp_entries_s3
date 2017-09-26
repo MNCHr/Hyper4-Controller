@@ -1,0 +1,23 @@
+table_add init_meta_egress a_init_meta_egress 6 => 1
+table_add init_meta_egress a_init_meta_egress 1 => 6
+table_add init_meta_egress a_init_meta_egress 5 => 4
+table_add init_meta_egress a_init_meta_egress 4 => 5
+table_add init_meta_egress a_init_meta_egress 3 => 2
+table_add init_meta_egress a_init_meta_egress 2 => 3
+table_add check_arp arp_present 1 =>
+table_add check_arp send_packet 0 =>
+table_add check_opcode arp_request 1 =>
+table_set_default check_opcode send_packet
+table_add handle_arp_request arp_reply 0x0A000014 => 0x000400000001
+table_add handle_arp_request arp_reply 0x0A000038 => 0x000400000002
+table_add handle_arp_request arp_reply 0x0A00004f => 0x000400000003
+table_add handle_arp_request arp_reply 0x0A0000e5 => 0x000400000004
+table_add handle_arp_request arp_reply 0x0A000080 => 0x000400000005
+table_add handle_arp_request arp_reply 0x0A0000b8 => 0x000400000006
+table_add handle_arp_request arp_reply 0x0A00001a => 0x000400000007
+table_add handle_arp_request arp_reply 0x0A000083 => 0x000400000008
+table_add handle_arp_request arp_reply 0x0A0000d7 => 0x000400000009
+table_add handle_arp_request arp_reply 0x0A000087 => 0x00040000000a
+table_add handle_arp_request arp_reply 0x0A0000f1 => 0x00040000000b
+table_add handle_arp_request arp_reply 0x0A0000e0 => 0x00040000000c
+table_set_default handle_arp_request send_packet

@@ -2,21 +2,21 @@ T03: TEST SEMANTIC EQUIVALENCE OF ARP PROXY (hp4 vs native)
 
 WINDOW - TESTS
 cd ~/hp4-ctrl/tests
-./gen_topo.py --numswitches 3 --hostsperswitch 3 --test t03
+./gen_topo.py --numswitches 3 --hostsperswitch 4 --test t03
 -> ./t03/topo.txt
-./t03/gen_t03_arp_entries.py --seed --numswitches --numhosts
+./t03/gen_t03_arp_entries.py --seed 32 --numswitches 3 --hostsperswitch 4
 -> ./t03/t03_arp_entries_s$i for i in range(1, numswitches + 1)
 
-./gen_pairpings.py --numswitches 3 --numhosts 9 --test t03
+./gen_pairpings.py --numswitches 3 --hostsperswitch 4 --test t03
 -> t03_pairpings
 
-./gen_scanpings.py --numswitches <numswitches> --numhosts <numhosts> --test t03
+./gen_scanpings.py --numswitches 3 --numhosts 4 --test t03
 -> t03_scanpings
 
 ----- HP4
 WINDOW - MININET
 cd ~/hp4-src/hp4
-./run_demo.sh --commands hp4commands.txt --topo ~/hp4-ctrl/tests/t03/topo.txt
+./run.sh --commands hp4commands.txt --scenario arp --topo ~/hp4-ctrl/tests/t03/topo.txt --seed 32
 
 WINDOW - HP4CONTROLLER
 cd ~/hp4-ctrl
@@ -24,19 +24,19 @@ cd ~/hp4-ctrl
 
 WINDOW - HP4CLIENT (ADMIN)
 cd ~/hp4-ctrl
-./client --debug --startup tests/t03_admin admin
+./client --debug --startup tests/t03/t03_admin admin
 
 WINDOW - HP4CLIENT (SLICE MANAGER)
 cd ~/hp4-ctrl
-./client --debug --startup tests/t03_jupiter jupiter
+./client --debug --startup tests/t03/t03_jupiter jupiter
 
 WINDOW - TESTS
 cd ~/hp4-ctrl/tests
-test_tcpdump.sh $TEST HP4 $NUMSWITCHES $NUMIFACES
+sudo ./test_tcpdump.sh -t 03 -r hp4 -s 3 -i 6
 
 WINDOW - MININET
-mininet> source /home/ubuntu/hp4-ctrl/tests/t03_pairpings
-mininet> source /home/ubuntu/hp4-ctrl/tests/t03_scanpings
+mininet> source /home/ubuntu/hp4-ctrl/tests/t03/t03_pairpings
+mininet> source /home/ubuntu/hp4-ctrl/tests/t03/t03_scanpings
 
 WINDOW - TESTS
 <keypress>
@@ -45,16 +45,22 @@ WINDOW - TESTS
 ----- NATIVE
 WINDOW - MININET
 cd ~/p4-projects/projects/arp_proxy
-./run_demo_bmv2.sh
+./run.sh -c ~/hp4-ctrl/tests/t03/t03_arp_entries_s1 \
+         -c ~/hp4-ctrl/tests/t03/t03_arp_entries_s2 \
+         -c ~/hp4-ctrl/tests/t03/t03_arp_entries_s3 \
+         --topo ~/hp4-ctrl/tests/t03/topo.txt --seed 32
 
 WINDOW - TESTS
 cd ~/hp4-ctrl/tests
-test_tcpdump.sh -t 03 -r native -s <numswitches> -i <numifaces>
+sudo ./test_tcpdump.sh -t 03 -r native -s 3 -i 6
 
 WINDOW - MININET
+mininet> source /home/ubuntu/hp4-ctrl/tests/t03/t03_pairpings
+mininet> source /home/ubuntu/hp4-ctrl/tests/t03/t03_scanpings
 
 WINDOW - TESTS
+<keypress>
 ----- END NATIVE
 
 cd ~/hp4-ctrl/tests
-./compare_pcaps.sh -t t03 -r1 hp4 -r2 native -s <numswitches> -i <numifaces>
+./compare_pcaps.sh -t t03 -r1 hp4 -r2 native -s 3 -i 6
