@@ -48,6 +48,7 @@ cd ~/p4-projects/projects/arp_proxy
 ./run.sh -c ~/hp4-ctrl/tests/t03/t03_arp_entries_s1 \
          -c ~/hp4-ctrl/tests/t03/t03_arp_entries_s2 \
          -c ~/hp4-ctrl/tests/t03/t03_arp_entries_s3 \
+         --scenario arp \
          --topo ~/hp4-ctrl/tests/t03/topo.txt --seed 32
 
 WINDOW - TESTS
