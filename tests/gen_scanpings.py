@@ -9,7 +9,7 @@ parser.add_argument('--numswitches', help='Number of switches',
 parser.add_argument('--numhosts', help='Number of hosts',
                     type=int, action="store", default=24)
 parser.add_argument('--test', help='Name of test',
-                    type=str, action"store", default="t0")
+                    type=str, action="store", default="t0")
 
 args = parser.parse_args(sys.argv[1:])
 
@@ -20,7 +20,8 @@ assert(nb_hosts % nb_switches == 0)
 selected_hosts = [1]
 sw = 1
 while sw < nb_switches:
-  selected_hosts.append(sw * nb_hosts / nb_switches)
+  selected_hosts.append(1 + sw * nb_hosts / nb_switches)
+  sw += 1
 
 with open("%s/%s_scanpings"%(args.test, args.test), 'w') as out:
   for i in selected_hosts:
