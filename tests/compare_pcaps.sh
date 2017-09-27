@@ -43,12 +43,13 @@ for i in `seq 1 $SWITCHES`;
 do
   for j in `seq 1 $IFACES`;
   do
-    f1pre=${TEST}"/"${TEST}"_s"$i"_eth"$j"_run_"${RUN1}
-    f2pre=${TEST}"/"${TEST}"_s"$i"_eth"$j"_run_"${RUN2}
-    tcpdump -r $f1pre".dump" -vvv -e -n > $f1pre".rdump"
-    tcpdump -r $f2pre".dump" -vvv -e -n > $f2pre".rdump"
+    f1=${TEST}"/"${TEST}"_s"$i"_eth"$j"_run_"${RUN1}".dump"
+    f2=${TEST}"/"${TEST}"_s"$i"_eth"$j"_run_"${RUN2}".dump"
+    #tcpdump -r $f1pre".dump" -vvv -e -n > $f1pre".rdump"
+    #tcpdump -r $f2pre".dump" -vvv -e -n > $f2pre".rdump"
     #./process_pcap.py $f1pre".rdump" > $f1pre"_processed.rdump"
     #./process_pcap.py $f2pre".rdump" > $f2pre"_processed.rdump"
     #diff $f1pre"_processed.rdump" $f2pre"_processed.rdump"
+    ./compare_pcaps.py -r1 $f1 -r2 $f2
   done
 done

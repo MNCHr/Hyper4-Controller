@@ -94,6 +94,8 @@ for endpoint_key in r1_endpoints.keys():
     if len(pkts1) != len(pkts2):
       mismatches.append(str(endpoint_key) + " number of packets: pkts1: %d;" \
                         " pkts2: %d" % (len(pkts1), len(pkts2)))
+      del r1_endpoints[endpoint_key]
+      del r2_endpoints[endpoint_key]
       continue
     for i in range(len(pkts1)):
       pkt1 = pkts1[i]
