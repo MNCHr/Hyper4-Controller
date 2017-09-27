@@ -1,0 +1,17 @@
+cost of basic operation
+- latency / bw / memory
+
+cost of features
+e.g. dynamic deployment / service chaining
+what is the baseline? how long to make a change in other systems
+
+cost of effort
+- loc ok... need more discussion re: decisions that must be made
+
+be wary of testing for completeness
+
+writing:
+- write something every day, even if just 1 paragraph
+
+student groups:
+- limit time

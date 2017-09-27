@@ -1,6 +1,21 @@
-T04: TEST SEMANTIC EQUIVALENCE OF FIREWALL (hp4 vs native)
+T04: TEST SEMANTIC EQUIVALENCE OF FIREWALL+L2 SWITCH (hp4 vs native)
+
+use iperf or nmap portscan
+
+topology: single switch, 3 hosts, 1 scanner
+traffic: h1 portscans h2-h3, 20 ports over a range with live services (iperf servers)
+  40001 - 400020
+  h1 nmap -PS -p 40001-40020 -T4 h2 -r
+  h1 nmap -PS -p 40001-40020 -T4 h3 -r
+fw rules:
+- t0: no rules
+- t1: block all traffic to h2 ip address
+- t2: block all traffic to 10 different ports (both h1 and h2)
+- t3: block all traffic to 20 different ip-port tuples
 
 WINDOW - TESTS
+cd ~/hp4-ctrl/tests
+
 
 ----- HP4
 WINDOW - MININET

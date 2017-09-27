@@ -170,6 +170,7 @@ table ip_dst_block {
   }
 }
 
+/*
 // action ID: 
 action tcp_present() {
 }
@@ -185,7 +186,36 @@ action udp_present() {
 // action ID: 
 action udp_not_present() {
 }
+*/
 
+action l4_present() {
+}
+
+action l4_not_present() {
+}
+
+table is_l4_valid {
+  reads {
+    l4 : valid;
+  }
+  actions {
+    l4_present;
+    l4_not_present;
+    _no_op;
+  }
+}
+
+table l4_src_block {
+  reads {
+    l4.src_port : exact;
+  }
+  actions {
+    _drop;
+    _no_op;
+  }
+}
+
+/*
 table is_tcp_valid {
   reads {
     tcp : valid;
@@ -247,6 +277,7 @@ table udp_dst_block {
     _no_op;
   }
 }
+*/
 
 control ingress {
   // stage 1
