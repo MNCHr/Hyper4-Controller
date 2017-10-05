@@ -42,7 +42,7 @@ primitive_ID = {'modify_field': '[MODIFY_FIELD]',
 primitive_tnames = {'modify_field': 'mod',
                     'add_header': 'addh',
                     'copy_header': '',
-                    'remove_header': '',
+                    'remove_header': 'removeh',
                     'modify_field_with_hash_based_offset': '',
                     'truncate' : 'truncate',
                     'drop' : 'drop',
@@ -237,6 +237,8 @@ class Table_Rep():
     elif self.source_type == 'metadata':
       if self.match_type == 'P4_MATCH_EXACT':
         return '[METADATA_EXACT]'
+      elif self.match_type == 'P4_MATCH_TERNARY':
+        return '[METADATA_TERNARY]'
       else:
         print("Not supported: metadata with %s match type" % self.match_type)
         exit()
@@ -791,7 +793,13 @@ class P4_to_HP4(HP4Compiler):
                                                maskwidth)
             isternary = True
           match_params.append(mp)
-          # match_params_list.append(match_params)
+        # TODO (5 Oct 2017): implement ternary match support.  Probably
+        # the best thing is to add 'P4_MATCH_TERNARY' as an additional
+        # match to the elif clause above, and handle ternary matching
+        # entries in the rule interpreter
+        #elif table.match_fields[0][1].value == 'P4_MATCH_TERNARY':
+        #  field = table.match_fields[0][0]
+          
 
       # need a distinct template entry for every possible action
       for action in table.next_.keys():
