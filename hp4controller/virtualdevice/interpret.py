@@ -20,6 +20,8 @@ match_types = {'[DONE]':'0',
                '[STDMETA_PACKET_LENGTH_EXACT]':'6',
                '[STDMETA_INSTANCE_TYPE_EXACT]':'7',
                '[STDMETA_EGRESS_SPEC_EXACT]':'8',
+               '[METADATA_TERNARY]':'9',
+               '[EXTRACTED_TERNARY]':'10',
                '[MATCHLESS]':'99'}
 
 primitive_types = {'[MODIFY_FIELD]':'0',

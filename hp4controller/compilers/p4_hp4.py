@@ -247,6 +247,8 @@ class Table_Rep():
         return '[EXTRACTED_EXACT]'
       elif self.match_type == 'P4_MATCH_VALID':
         return '[EXTRACTED_VALID]'
+      elif self.match_type == 'P4_MATCH_TERNARY':
+        return '[EXTRACTED_TERNARY]'
       else:
         print("Not supported: extracted with %s match type" % self.match_type)
         exit()
@@ -690,28 +692,36 @@ class P4_to_HP4(HP4Compiler):
     if len(first_table.match_fields) > 1:
       print("Not yet supported: multiple match fields (%s)" % first_table.name)
       exit()
-    field_match = first_table.match_fields[0]
-    field = field_match[0]
-    match_type = field_match[1]
-    if match_type.value != 'P4_MATCH_EXACT':
-      print("Not yet supported: match type %s" % match_type.value)
-      exit()
-    if self.headers_hp4_type[field.instance.name] == 'standard_metadata':
-      if field.name == 'ingress_port':
-        aparam_table_ID = '[STDMETA_INGRESS_PORT_EXACT]'
-      elif field.name == 'packet_length':
-        aparam_table_ID = '[STDMETA_PACKET_LENGTH_EXACT]'
-      elif field.name == 'instance_type':
-        aparam_table_ID = '[STDMETA_INSTANCE_TYPE_EXACT]'
-      elif field.name == 'egress_spec':
-        aparam_table_ID = '[STDMETA_EGRESS_SPEC_EXACT]'
+    if len(first_table.match_fields) == 0:
+      aparam_table_ID = '[MATCHLESS]'
+    else:
+      field_match = first_table.match_fields[0]
+      field = field_match[0]
+      match_type = field_match[1]
+
+      if match_type.value == 'P4_MATCH_EXACT':
+        if self.headers_hp4_type[field.instance.name] == 'standard_metadata':
+          if field.name == 'ingress_port':
+            aparam_table_ID = '[STDMETA_INGRESS_PORT_EXACT]'
+          elif field.name == 'packet_length':
+            aparam_table_ID = '[STDMETA_PACKET_LENGTH_EXACT]'
+          elif field.name == 'instance_type':
+            aparam_table_ID = '[STDMETA_INSTANCE_TYPE_EXACT]'
+          elif field.name == 'egress_spec':
+            aparam_table_ID = '[STDMETA_EGRESS_SPEC_EXACT]'
+          else:
+            print("ERROR: Unsupported: match on stdmetadata field %s" % field.name)
+            exit()
+        elif self.headers_hp4_type[field.instance.name] == 'metadata':
+          aparam_table_ID = '[METADATA_EXACT]'
+        elif self.headers_hp4_type[field.instance.name] == 'extracted':
+          aparam_table_ID = '[EXTRACTED_EXACT]'
+      elif match_type.value == 'P4_MATCH_VALID':
+        aparam_table_ID = '[EXTRACTED_VALID]'
       else:
-        print("ERROR: Unsupported: match on stdmetadata field %s" % field.name)
+        print("ERROR: Not yet supported: " + match_type.value)
         exit()
-    elif self.headers_hp4_type[field.instance.name] == 'metadata':
-      aparam_table_ID = '[METADATA_EXACT]'
-    elif self.headers_hp4_type[field.instance.name] == 'extracted':
-      aparam_table_ID = '[EXTRACTED_EXACT]'
+        # code.interact(local=dict(globals(), **locals()))
 
     for ps in self.h.p4_ingress_ptr[first_table]:
       for pc_state in self.ps_to_pc[ps]:
@@ -781,7 +791,8 @@ class P4_to_HP4(HP4Compiler):
               # temp_match_params.append(mp)
               # match_params_list.append(temp_match_params)
               match_params.append(mp)
-        elif table.match_fields[0][1].value == 'P4_MATCH_EXACT':
+        elif ((table.match_fields[0][1].value == 'P4_MATCH_EXACT') or
+             (table.match_fields[0][1].value == 'P4_MATCH_TERNARY')):
           field = table.match_fields[0][0]
           mp = '[val]'
           if field.instance.name != 'standard_metadata':
@@ -793,13 +804,6 @@ class P4_to_HP4(HP4Compiler):
                                                maskwidth)
             isternary = True
           match_params.append(mp)
-        # TODO (5 Oct 2017): implement ternary match support.  Probably
-        # the best thing is to add 'P4_MATCH_TERNARY' as an additional
-        # match to the elif clause above, and handle ternary matching
-        # entries in the rule interpreter
-        #elif table.match_fields[0][1].value == 'P4_MATCH_TERNARY':
-        #  field = table.match_fields[0][0]
-          
 
       # need a distinct template entry for every possible action
       for action in table.next_.keys():
