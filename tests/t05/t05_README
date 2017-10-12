@@ -1,0 +1,132 @@
+T05: TEST PROPER FUNCTIONING OF COMPOSITIONS
+
+-----
+xterm h2
+python -m SimpleHTTPServer
+xterm h1
+wget http://10.0.0.2:8000/hp4.json -O file.test --limit-rate=10k
+-----
+
+All switch chain changes are symmetrical once s2 is added.
+
+topo start: 1 switch, 3 hosts
+
+L2
+
+WINDOW - TESTS
+cd ~/hp4-ctrl/tests
+./gen_topo.py --numswitches 1 --hostsperswitch 3 --test t05
+./gen_pairpings.py --numswitches 1 --hostsperswitch 3 --test t05
+
+WINDOW - MININET
+cd ~/hp4-src/hp4
+./run.sh --commands hp4commands.txt --topo ~/hp4-ctrl/tests/t05/topo.txt
+
+WINDOW - HP4CONTROLLER
+cd ~/hp4-ctrl
+./controller --debug
+
+WINDOW - HP4CLIENT (ADMIN)
+cd ~/hp4-ctrl
+./client --debug --startup tests/t05/t05_admin admin
+
+WINDOW - HP4CLIENT (SLICE MANAGER)
+cd ~/hp4-ctrl
+./client --debug --startup tests/t05/t05_jupiter jupiter
+
+test: pairpings
+
+WINDOW - MININET
+mininet> source /home/ubuntu/hp4-ctrl/tests/t05/t05_pairpings
+
+topo change: add switch + 3 hosts in separate IP subnet
+
+test:
+- pairpings (show failure to cross subnets)
+- long flow (iperf / HTTP transfer) between h1->h2
+
+L2 + L3
+
+test:
+- pairpings (show success between subnets)
+- observe h1->h2 flow not disrupted
+
+L2
+
+test (continue previous)
+- observe pairpings disrupted between subnets
+- observe h1->h2 flow not disrupted
+
+test:
+- change IP addresses of hosts to all belong to same subnet
+- add 3 more hosts to each switch
+- pings between hosts:
+  4 5 (both on s2)
+  3 6 (s1 -> s2)
+  7 10 ("")
+  8 11 ("")
+  9 12 ("")
+
+L2 + arp proxy
+
+test:
+- pings between hosts:
+  5 6
+  3 10
+  7 11
+  8 12
+  9 4
+  observe no arps sent between switches
+- observe h1->h2 flow not disrupted
+
+arp proxy
+
+test:
+- pings fail
+- observe h1->h2 flow disrupted
+
+arp proxy + L2
+
+test:
+- pings work
+- h1->h2 flow restored
+
+test:
+- change IP addresses of s2 hosts back to separate subnet
+- pings between subnets fail
+
+arp proxy + L2 + L3
+
+test:
+- pings between subnets succeed, no ARPs between switches
+  6 10 (both on s2)
+  3 11
+  7 12
+  8  4
+  9  5
+- h1->h2 flow not disrupted
+
+arp proxy + L2 + L3 + firewall
+
+test:
+- pings continue to succeed w/out ARPs between switches
+  - add fw rule, block all traffic from s1 to s2's subnet
+  - remove fw rule, pings succeed
+  - add fw rule, block traffic from 3
+  - add fw rule, block traffic to 4
+  - some pings succeed, others fail
+- h1->h2 flow not disrupted until we enter a fw rule to block
+- h1->h2 flow restored as soon as fw rule removed
+
+arp proxy + L2 + firewall
+- pings between subnets fail
+- pings within subnets succeed, ARP requests never seen by hosts
+- h1->h2 flow not disrupted
+
+L2 + firewall
+- pings within subnets succeed, ARP requests now seen by hosts
+- h1->h2 flow not disrupted
+
+firewall
+- pings fail
+- h1->h2 flow disrupted
