@@ -1,7 +1,7 @@
 py net.addSwitch('s2', sw_path = "/home/ubuntu/bmv2/targets/simple_switch/simple_switch", json_path = "/home/ubuntu/hp4-src/hp4/hp4.json", thrift_port = 22223, pcap_dump = False)
-py net.addHost('h4', ip = "10.1.0.4/24", mac = "00:04:00:00:00:03")
-py net.addHost('h5', ip = "10.1.0.5/24", mac = "00:04:00:00:00:04")
-py net.addHost('h6', ip = "10.1.0.6/24", mac = "00:04:00:00:00:05")
+py net.addHost('h4', ip = "10.2.0.104/24", mac = "00:04:00:00:00:04")
+py net.addHost('h5', ip = "10.2.0.105/24", mac = "00:04:00:00:00:05")
+py net.addHost('h6', ip = "10.2.0.106/24", mac = "00:04:00:00:00:06")
 py net.addLink('h4', 's2')
 py net.addLink('h5', 's2')
 py net.addLink('h6', 's2')
@@ -12,3 +12,31 @@ sh ./run_cli.sh 22223 < hp4commands.txt
 py h4.configDefault(defaultRoute=h4.defaultIntf())
 py h5.configDefault(defaultRoute=h4.defaultIntf())
 py h6.configDefault(defaultRoute=h4.defaultIntf())
+s1 ifconfig s1-eth1 10.1.0.1
+s1 ifconfig s1-eth2 10.1.0.2
+s1 ifconfig s1-eth3 10.1.0.3
+s1 ifconfig s1-eth4 10.0.0.1
+s1 ifconfig s1-eth1 hw ether 00:aa:bb:00:01:10
+s1 ifconfig s1-eth2 hw ether 00:aa:bb:00:01:20
+s1 ifconfig s1-eth3 hw ether 00:aa:bb:00:01:30
+s1 ifconfig s1-eth4 hw ether 00:aa:bb:00:01:40
+s2 ifconfig s2-eth1 10.2.0.1
+s2 ifconfig s2-eth2 10.2.0.2
+s2 ifconfig s2-eth3 10.2.0.3
+s2 ifconfig s2-eth4 10.0.0.2
+s2 ifconfig s2-eth1 hw ether 00:aa:bb:00:02:10
+s2 ifconfig s2-eth2 hw ether 00:aa:bb:00:02:20
+s2 ifconfig s2-eth3 hw ether 00:aa:bb:00:02:30
+s2 ifconfig s2-eth4 hw ether 00:aa:bb:00:02:40
+h1 route add default gw 10.1.0.1
+h1 arp -s 10.1.0.1 00:aa:bb:00:01:10
+h2 route add default gw 10.1.0.2
+h2 arp -s 10.1.0.2 00:aa:bb:00:01:20
+h3 route add default gw 10.1.0.3
+h3 arp -s 10.1.0.3 00:aa:bb:00:01:30
+h4 route add default gw 10.2.0.1
+h4 arp -s 10.2.0.1 00:aa:bb:00:02:10
+h5 route add default gw 10.2.0.2
+h5 arp -s 10.2.0.2 00:aa:bb:00:02:20
+h6 route add default gw 10.2.0.3
+h6 arp -s 10.2.0.3 00:aa:bb:00:02:30

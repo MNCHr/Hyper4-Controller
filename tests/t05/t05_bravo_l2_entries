@@ -1,0 +1,4 @@
+table_add dmac forward 0x000400000004 => 1
+table_add dmac forward 0x000400000005 => 2
+table_add dmac forward 0x000400000006 => 3
+table_add dmac broadcast 0xFFFFFFFFFFFF => 7

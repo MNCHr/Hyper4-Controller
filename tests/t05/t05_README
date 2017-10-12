@@ -20,7 +20,7 @@ cd ~/hp4-ctrl/tests
 
 WINDOW - MININET
 cd ~/hp4-src/hp4
-./run.sh --commands hp4commands.txt --topo ~/hp4-ctrl/tests/t05/topo.txt
+./run.sh --commands hp4commands.txt --scenario chain --topo ~/hp4-ctrl/tests/t05/topo.txt
 
 WINDOW - HP4CONTROLLER
 cd ~/hp4-ctrl
@@ -54,6 +54,8 @@ test:
 - long flow (iperf / HTTP transfer) between h1->h2
 
 L2 + L3
+
+
 
 test:
 - pairpings (show success between subnets)
