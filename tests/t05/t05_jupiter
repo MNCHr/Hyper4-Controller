@@ -1,4 +1,4 @@
 create_virtual_device tests/hp4t_l2_switch.p4 switch
 lease alpha insert switch 0 etrue
 lease alpha config_egress 7 mcast filtered
-interpret_file switch bmv2 tests/t05/t05_switch_entries
+interpret_file switch bmv2 tests/t05/t05_alpha_entries

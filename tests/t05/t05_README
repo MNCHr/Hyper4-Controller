@@ -28,11 +28,11 @@ cd ~/hp4-ctrl
 
 WINDOW - HP4CLIENT (ADMIN)
 cd ~/hp4-ctrl
-./client --debug --startup tests/t05/t05_admin admin
+./client --debug --startup tests/t05/t05_admin_1 admin
 
 WINDOW - HP4CLIENT (SLICE MANAGER)
 cd ~/hp4-ctrl
-./client --debug --startup tests/t05/t05_jupiter jupiter
+./client --debug --startup tests/t05/t05_jupiter_1 jupiter
 
 test: pairpings
 
@@ -40,6 +40,14 @@ WINDOW - MININET
 mininet> source /home/ubuntu/hp4-ctrl/tests/t05/t05_pairpings
 
 topo change: add switch + 3 hosts in separate IP subnet
+
+mininet> source /home/ubuntu/hp4-ctrl/tests/t05/t05_addnodes
+
+WINDOW - HP4CLIENT (ADMIN)
+# source tests/t05/t05_admin_2
+
+WINDOW - HP4CLIENT (SLICE MANAGER)
+$ source tests/t05/t05_jupiter_2
 
 test:
 - pairpings (show failure to cross subnets)

@@ -28,6 +28,12 @@ class Client(cmd.Cmd):
     s.close()
     return resp
 
+  def do_source(self, line):
+    "Source a file: source <file>"
+    with open(line, 'r') as f:
+      for l in f:
+        self.cmdqueue.append(l)
+
   def do_EOF(self, line):
     print
     return True
