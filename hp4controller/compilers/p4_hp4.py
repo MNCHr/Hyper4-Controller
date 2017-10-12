@@ -719,7 +719,7 @@ class P4_to_HP4(HP4Compiler):
       elif match_type.value == 'P4_MATCH_VALID':
         aparam_table_ID = '[EXTRACTED_VALID]'
       else:
-        print("ERROR: Not yet supported: " + match_type.value)
+        print("Not yet supported: " + match_type.value)
         exit()
         # code.interact(local=dict(globals(), **locals()))
 
