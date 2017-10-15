@@ -1,9 +1,12 @@
+table_add is_ipv4_valid is_valid 1 =>
+table_add is_ipv4_valid is_not_valid 0 =>
 table_add ipv4_lpm set_nhop 0x0A020065 => 0x0A020065 1
 table_add ipv4_lpm set_nhop 0x0A020066 => 0x0A020066 2
 table_add ipv4_lpm set_nhop 0x0A020067 => 0x0A020067 3
 table_add ipv4_lpm set_nhop 0x0A010065 => 0x0A000001 4
 table_add ipv4_lpm set_nhop 0x0A010066 => 0x0A000001 4
 table_add ipv4_lpm set_nhop 0x0A010067 => 0x0A000001 4
+table_set_default ipv4_lpm _no_op =>
 table_add forward set_dmac 0x0A020065 => 0x000400000004
 table_add forward set_dmac 0x0A020066 => 0x000400000005
 table_add forward set_dmac 0x0A020067 => 0x000400000006

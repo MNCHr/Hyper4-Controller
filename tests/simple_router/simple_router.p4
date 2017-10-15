@@ -43,11 +43,6 @@ calculated_field ipv4.hdrChecksum {
   update ipv4_calc;
 }
 
-// 1
-action _drop() {
-    drop();
-}
-
 header_type routing_metadata_t {
     fields {
         nhop_ipv4 : 32;
@@ -56,7 +51,34 @@ header_type routing_metadata_t {
 
 metadata routing_metadata_t routing_metadata;
 
+// 1
+action is_valid() {
+}
+
 // 2
+action is_not_valid() {
+}
+
+table is_ipv4_valid {
+  reads {
+    ipv4 : valid;
+  }
+  actions {
+    is_valid;
+    is_not_valid;
+  }
+}
+
+// 3
+action _drop() {
+    drop();
+}
+
+// 4
+action _no_op() {
+}
+
+// 5
 action set_nhop(nhop_ipv4, port) {
     modify_field(routing_metadata.nhop_ipv4, nhop_ipv4);
     modify_field(standard_metadata.egress_spec, port);
@@ -70,11 +92,12 @@ table ipv4_lpm {
     actions {
         set_nhop;
         _drop;
+        _no_op;
     }
     size: 1024;
 }
 
-// 3
+// 6
 action set_dmac(dmac) {
     modify_field(ethernet.dstAddr, dmac);
 }
@@ -90,7 +113,7 @@ table forward {
     size: 512;
 }
 
-// 4
+// 7
 action rewrite_mac(smac) {
     modify_field(ethernet.srcAddr, smac);
 }
@@ -107,7 +130,14 @@ table send_frame {
 }
 
 control ingress {
-        apply(ipv4_lpm);
-        apply(forward);
-        apply(send_frame);
+  apply(is_ipv4_valid) {
+    is_valid {
+      apply(ipv4_lpm) {
+        set_nhop {
+          apply(forward);
+          apply(send_frame);
+        }
+      }
+    }
+  }
 }

@@ -45,5 +45,13 @@ ttyecho -n $SLICEMGR source tests/t05/t05_jupiter_2
 echo "Observe: pings between subnets don't work (no L3 router function)"
 read -n 1 -s
 
-ttyecho -n $MININET h1 ping h4 -c 1 -W 1
-ttyecho -n $MININET h2 ping h5 -c 1 -W 1
+ttyecho -n $MININET h1 ping h4 -c 1 -W 1 &
+sleep 2
+ttyecho -n $MININET h2 ping h5 -c 1 -W 1 &
+sleep 2
+ttyecho -n $MININET h3 ping h6 -c 1 -W 1 &
+
+echo "Next: add L3 router to alpha and bravo"
+read -n 1 -s
+
+ttyecho -n $SLICEMGR source tests/t05/t05_jupiter_3
