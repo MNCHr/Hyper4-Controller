@@ -28,6 +28,12 @@ class Client(cmd.Cmd):
     s.close()
     return resp
 
+  def do_slice_dump(self, line):
+    "Display leases and virtual devices in a slice"
+    resp = self.send_request(self.user + ' slice_dump ' + line)
+    print(resp)
+    
+
   def do_source(self, line):
     "Source a file: source <file>"
     with open(line, 'r') as f:
@@ -40,6 +46,86 @@ class Client(cmd.Cmd):
 
 class SliceManager(Client):
 
+  def do_slice_dump(self, line):
+    "Display leases and virtual devices in a slice"
+    resp = super(SliceManager, self).do_slice_dump(line + ' ' + self.user)
+    print(resp)
+    
+  def do_vdev_create(self, line):
+    "Create virtual device: vdev_create <p4_path> <vdev_name>"
+    resp = self.send_request(self.user + ' vdev_create ' + line)
+    print(resp)
+
+  def do_vdev_destroy(self, line):
+    "Destroy virtual device (remove AND delete): vdev_destroy <virtual device>"
+    resp = self.send_request(self.user + ' vdev_destroy ' + line)
+    print(resp)
+
+  def do_vdev_dump(self, line):
+    "Display all pushed entries in a vdev: vdev_dump <virtual device>"
+    resp = self.send_request(self.user + ' vdev_dump ' + line)
+    print(resp)
+
+  def do_vdev_info(self, line):
+    "Show info about a vdev: vdev_info <virtual device>"
+    resp = self.send_request(self.user + ' vdev_info ' + line)
+    print(resp)
+
+  def help_vdev_interpret(self):
+    print('Interpret API command: vdev_interpret <virtual device> ' \
+          + '<\'bmv2\' | \'agilio\'> [--stage|--stage_if_full] <command>')
+
+  def do_vdev_interpret(self, line):
+    resp = self.send_request(self.user + ' vdev_interpret ' + line)
+    print(resp)
+
+  def help_vdev_interpretf(self):
+    print('Interpret API commands in file: interpret_file <virtual device> ' \
+          + '<\'bmv2\' | \'agilio\'> [--stage|--stage_if_full] <file>')
+
+  def do_vdev_interpretf(self, line):
+    resp = self.send_request(self.user + ' vdev_interpretf ' + line)
+    print(resp)
+
+  def do_vdev_stage_clear(self, line):
+    "Clear staged entries: vdev_stage_clear <virtual device>"
+    resp = self.send_request(self.user + ' vdev_stage_clear ' + line)
+    print(resp)
+
+  def do_vdev_stage_dump(self, line):
+    "Display all staged entries in a vdev: vdev_stage_dump <virtual device>"
+    resp = self.send_request(self.user + ' vdev_stage_dump ' + line)
+    print(resp)
+
+  def do_vdev_stage_flush(self, line):
+    "Push all staged entries to physical device: vdev_stage_flush <virtual device>"
+    resp = self.send_request(self.user + ' vdev_stage_flush ' + line)
+    print(resp)
+
+  def do_vdev_withdraw(self, line):
+    "Stage pushed entries & pull virtual device: vdev_withdraw <virtual device>"
+    resp = self.send_request(self.user + ' vdev_withdraw ' + line)
+    print(resp)
+
+  def help_lease_config_egress(self):
+    print("Configure lease egress: lease_config_egress <device> " \
+          + "<egress_spec value> mcast <filtered|unfiltered>")
+
+  def do_lease_config_egress(self, line):
+    resp = self.send_request(self.user + ' lease_config_egress ' + line)
+    print(resp)
+
+  def do_lease_dump(self, line):
+    "Display vdev info for each resident vdev: lease_dump <device>"
+    resp = self.send_request(self.user + ' lease_dump ' + line)
+    print(resp)
+
+  def do_lease_info(self, line):
+    "Show info about a lease: lease_info <device>"
+    resp = self.send_request(self.user + ' lease_info ' + line)
+    print(resp)
+
+  """
   def do_lease(self, line):
     "Call a lease method: lease <device> <method name> <virtual device> [args]"
     resp = self.send_request(self.user + ' lease ' + line)
@@ -50,7 +136,6 @@ class SliceManager(Client):
     resp = self.send_request(self.user + ' create_virtual_device ' + line)
     print(resp)
 
-  """
   def do_migrate_virtual_device(self, line):
     "Migrate virtual device: migrate_virtual_device <virtual device> <destination device>"
     resp = self.send_request(self.user + ' migrate_virtual_device ' + line)
@@ -60,7 +145,6 @@ class SliceManager(Client):
     "Remove virtual device from current location: withdraw_virtual_device <virtual device>"
     resp = self.send_request(self.user + ' withdraw_virtual_device ' + line)
     print(resp)
-  """
 
   def do_destroy_virtual_device(self, line):
     "Destroy virtual device (remove AND delete): destroy_virtual_device <virtual device>"
@@ -109,19 +193,56 @@ class SliceManager(Client):
   def do_list_vdev_hp4_code_and_rules(self, line):
     resp = self.send_request(self.user + ' list_vdev_hp4_code_and_rules ' + line)
     print(resp)
+  """
 
 class ChainSliceManager(SliceManager):
 
+  """
   def do_lease(self, line):
-    """insert|append|remove: lease <device> <insert|append|remove|replace> <virtual device> [args]
+  """
+  """insert|append|remove: lease <device> <insert|append|remove|replace> <virtual device> [args]
      \rinsert args: <position> <egress handling mode>
      \rappend args: <egress handling mode: \'etrue\'|\'efalse\'|\'econd\'>
      \rremove args: N/A
      \rreplace args: <new virtual device> <egress handling mode>
      \rconfig_egress: lease <device> config_egress <egress_spec value> mcast <filtered|unfiltered>
      \rinfo: lease <device> info
-    """
+  """
+  """
     resp = self.send_request(self.user + ' lease ' + line)
+    print(resp)
+  """
+
+  def help_lease_append(self):
+    print("Append virtual device to end of chain: lease_append <device> " \
+          + "<virtual device> <etrue|efalse|econd>")
+
+  def do_lease_append(self, line):
+    resp = self.send_request(self.user + ' lease_append ' + line)
+    print(resp)
+
+  def help_lease_insert(self):
+    print("Insert virtual device in chain: lease_insert <device> " \
+           + "<virtual device> <position> <etrue|efalse|econd>")
+
+  def do_lease_insert(self, line):
+    resp = self.send_request(self.user + ' lease_insert ' + line)
+    print(resp)
+
+  def help_lease_remove(self):
+    print("Remove virtual device from chain: lease_remove <device> " \
+          + "<virtual device>")
+
+  def do_lease_remove(self, line):
+    resp = self.send_request(self.user + ' lease_remove ' + line)
+    print(resp)
+
+  def help_lease_replace(self):
+    print("Replace virtual device in chain: lease_replace <device> " \
+          + "<virtual device> <new virtual device> <etrue|efalse|econd>")
+
+  def do_lease_replace(self, line):
+    resp = self.send_request(self.user + ' lease_replace ' + line)
     print(resp)
 
 class Administrator(Client):
