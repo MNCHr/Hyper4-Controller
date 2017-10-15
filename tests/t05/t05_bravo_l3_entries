@@ -1,0 +1,17 @@
+table_add is_ipv4_valid is_valid 1 =>
+table_add is_ipv4_valid is_not_valid 0 =>
+table_add ipv4_lpm set_nhop 0x0A020068 => 0x0A020068 1
+table_add ipv4_lpm set_nhop 0x0A020069 => 0x0A020069 2
+table_add ipv4_lpm set_nhop 0x0A02006A => 0x0A02006A 3
+table_add ipv4_lpm set_nhop 0x0A010065 => 0x0A000001 4
+table_add ipv4_lpm set_nhop 0x0A010066 => 0x0A000001 4
+table_add ipv4_lpm set_nhop 0x0A010067 => 0x0A000001 4
+table_set_default ipv4_lpm _no_op =>
+table_add forward set_dmac 0x0A020068 => 0x000400000004
+table_add forward set_dmac 0x0A020069 => 0x000400000005
+table_add forward set_dmac 0x0A02006A => 0x000400000006
+table_add forward set_dmac 0x0A000001 => 0x00aabb000140
+table_add send_frame rewrite_mac 1 => 0x00aabb000210
+table_add send_frame rewrite_mac 2 => 0x00aabb000220
+table_add send_frame rewrite_mac 3 => 0x00aabb000230
+table_add send_frame rewrite_mac 4 => 0x00aabb000240

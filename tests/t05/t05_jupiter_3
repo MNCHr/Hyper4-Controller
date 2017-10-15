@@ -1,0 +1,4 @@
+create_virtual_device tests/simple_router/simple_router.p4 alpha_l3
+lease alpha insert alpha_l3 1 etrue
+create_virtual_device tests/simple_router/simple_router.p4 bravo_l3
+lease bravo insert bravo_l3 1 etrue

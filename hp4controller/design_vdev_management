@@ -1,0 +1,34 @@
+Task: Enable vdev management while not part of a vdev chain
+
+interpret process:
+- client: interpret <vdev name> <rule style> <command>
+- Controller::handle_request
+- Slice::handle_request
+- Slice::interpret
+  - VirtualDevice::interpret
+  - Accounting - check whether space is available to push rules
+  - Push rules
+
+This is good news - all we have to do is split the 'interpret' method after line 394:
+
+  hp4commands = vdev.interpret(p4command)
+
+Currently, the client's 'interpret' command assumes the intent is to push the resulting rules to the physical device associated with the virtual device.  We should define the following semantics:
+  - default:
+    if vdev has a device:
+      if device has sufficient space:
+        push rules to the device
+      else:
+        discard
+    else:
+      discard
+  - --stage:
+    interpret command but do not push result; hold w/out handle (use staging area handle)
+  - --stage_if_full:
+    interpret and push if possible; else hold
+
+vdev management
+  - vdev_stage_flush:
+    push all staged rules
+    vdev_stage_clear:
+    drop all staged rules

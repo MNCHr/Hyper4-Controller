@@ -1,0 +1,33 @@
+s/list_devs+list_vdevs/slice_dump
+# implement for Client (requires supplying slice name); override and call for SliceManager (to automatically supply slice name)
+"list leases and virtual devices"
+"virtual devices org'd by lease (and order within lease, for chainleases)"
+"unassigned virtual devices"
+
+s/create_virtual_device/vdev_create
+s/destroy_virtual_device/vdev_destroy
+s/list_vdev/vdev_dump
+  "print all pushed entries"
+vdev_info
+  "print name, P4 function, physical device, num pushed entries, num staged entries"
+s/interpret/vdev_interpret [--stage|--stage_if_full]
+s/interpret_file/vdev_interpretf
+vdev_stage_clear
+  "clear all staged entries"
+vdev_stage_dump
+  "print all staged entries"
+vdev_stage_flush
+  "push all staged entries"
+vdev_withdraw
+  "withdraw vdev from lease; all pushed entries go to staged"
+
+s/lease append/lease_append
+s/lease config_egress/lease_config_egress
+lease_dump
+  "print phys device, allocated vs used entries; print vdev_info for each resident vdev"
+lease_info
+  "print class name, print phys device, allocated vs used entries"
+s/lease insert/lease_insert [--empty]
+  "insert vdev; default pushes all staged rules; --empty does not push staged rules"
+s/lease remove/lease_remove
+s/lease replace/lease_replace

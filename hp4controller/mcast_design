@@ -1,0 +1,17 @@
+Multicast group creation / management
+
+Fastest:
+- Support only broadcasting to all ports on the lease.  Assume that, for bmv2 devices, setting im.mcast_grp is with intent to broadcast.
+
+Tasks:
+- Compiler: need to leave token [MCAST_GRP] in for any modify_field on im.mcast_grp that is replaced when loaded onto device w/ lease's mcast_grp id for broadcasting
+
+- Lease creation:
+  - Query device for mcast_grp ID
+  - Send mcast_grp, mcast_node create/assignment commands to device
+
+- Virtual Device Load
+  - replace [MCAST_GRP] with lease's mcast_grp_id
+
+- Fix: at creation of RuntimeAPI, not passing mc_client, resulting in error
+  __init__(self, pre_type, standard_client, mc_client=None):
