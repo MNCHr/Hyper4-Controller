@@ -68,8 +68,8 @@ class Controller(object):
         return "AttributeError(handle_request - " + command + "): " + str(e)
       except Exception as e:
         return "Unexpected error: " + str(e)
-    elif command == 'create_virtual_device':
-      resp = self.create_virtual_device(parameters)
+    elif command == 'vdev_create':
+      resp = self.vdev_create(parameters)
     else:
       resp = self.slices[requester].handle_request(request.split()[1:])
 
@@ -222,7 +222,7 @@ class Controller(object):
     
     return 'Device reset: ' + dev_name
 
-  def create_virtual_device(self, parameters):
+  def vdev_create(self, parameters):
     # invoke loader
     # parameters:
     # <slice_name> <program_path> <vdev_name>
@@ -296,15 +296,35 @@ class Slice():
         return "Unexpected error: " + str(e)
       return resp
 
+  def slice_dump(self, parameters):
+    resp = ""
+    for dev_name in self.leases:
+      lease = self.leases[dev_name]
+      resp += dev_name + '(' + str(lease.entry_usage) + '/' \
+              + str(lease.entry_limit) + ') [' + str(lease.ports) + ']: \n'
+      resp += lease.print_vdevs()
+    resp += 'unassigned:\n'
+    unassigned = [vdev in self.vdevs.values() if vdev.dev_name == 'none']
+    unassigned.sort(key=lambda vdev: vdev.name)
+    for vdev in unassigned:
+      resp += '  ' + vdev.name + '\n'
+    return resp[0:-1]
+
+  """
   def list_vdevs(self, parameters):
     resp = ""
     for vdev_name in self.vdevs:
       vdev = self.vdevs[vdev_name]
       resp += vdev_name + '@' + vdev.dev_name + '\n'
     return resp
+  """
 
-  def list_vdev(self, parameters):
-    return str(self.vdevs[parameters[0]])
+  def vdev_dump(self, parameters):
+    "Display all pushed entries"
+    return self.vdevs[parameters[0]].dump()
+
+  def vdev_info(self, parameters):
+    return self.vdevs[parameters[0]].info()
 
   def list_vdev_hp4code(self, parameters):
     vdev = self.vdevs[parameters[0]]
@@ -318,6 +338,7 @@ class Slice():
     vdev = self.vdevs[parameters[0]]
     return vdev.str_hp4_code_and_rules()
 
+  """
   def list_devs(self, parameters):
     resp = "device(used/allocated)\tvdev chain\n"
     for dev_name in self.leases:
@@ -325,6 +346,7 @@ class Slice():
       resp += dev_name + '(' + str(lease.entry_usage) + '/' \
               + str(lease.entry_limit) + '): ' + str(lease) + '\n'
     return resp[0:-1]
+  """
 
   """
   def migrate_virtual_device(self, parameters):

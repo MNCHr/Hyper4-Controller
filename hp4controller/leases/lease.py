@@ -162,13 +162,18 @@ class Lease(object):
 
     return 'Egress ' + str(egress_spec) + ' configured'
 
+  def print_vdevs(self):
+    ret = ''
+    for vdev in self.vdevs:
+      ret += '  ' + vdev + '\n'
+    return ret
+
   def __str__(self):
     ret = 'entry usage/limit: ' + str(self.entry_usage) + '/' \
                                 + str(self.entry_limit) + '\n'
     ret += 'ports:' + str(self.ports) + '\n'
     ret += 'virtual devices:\n'
-    for vdev in self.vdevs:
-      ret += ' ' + vdev + '\n'
+    ret += self.print_vdevs()
     #ret += 'composition: ' + str(self.composition)
     return ret
 
@@ -179,6 +184,12 @@ class Chain(Lease):
 
   def handle_request(self, parameters, *args):
     return super(Chain, self).handle_request(parameters, args)
+
+  def print_vdevs(self):
+    ret = ''
+    for vdev in self.vdev_chain:
+      ret += '  ' + vdev + '\n'
+    return ret
 
   def p2vdev(self, vdev):
     "Connect physical interfaces to virtual device"

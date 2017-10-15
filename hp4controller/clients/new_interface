@@ -10,6 +10,7 @@ s/list_vdev/vdev_dump
   "print all pushed entries"
 vdev_info
   "print name, P4 function, physical device, num pushed entries, num staged entries"
+----- WHERE WE LEFT OFF
 s/interpret/vdev_interpret [--stage|--stage_if_full]
 s/interpret_file/vdev_interpretf
 vdev_stage_clear

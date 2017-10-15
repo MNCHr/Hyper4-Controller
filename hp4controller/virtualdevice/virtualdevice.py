@@ -51,10 +51,11 @@ One entry in origin_table_rules corresponds to many entries in hp4_code_and_rule
 """
 
 class VirtualDevice():
-  def __init__(self, name, virtual_device_ID, hp4code, guide):
+  def __init__(self, name, virtual_device_ID, hp4code, guide, program_path):
     self.name = name
     self.virtual_device_ID = virtual_device_ID
     self.guide = guide
+    self.program_path = program_path
 
     # from the elements in these lists, generate table_add commands when loading
     # onto a device
@@ -69,8 +70,18 @@ class VirtualDevice():
       aparams = line.split(':')[2].split()
       self.hp4code.append(P4Rule(table, action, mparams, aparams))
 
+    self.staged_hp4rules = {} # {(hp4-facing table (str), staged-hp4-facing handle (int)): P4Rule}
+    self.staged_next_hp4_handle = {} # KEY: table (str)
+                                     # VALUE: next staged-hp4-facing handle (int)
+
     self.origin_table_rules = {} # KEY: (table (str), user-facing handle (int))
                                  # VALUE: Interpretation
+    self.staged_next_origin_handle = {} # KEY: table (str)
+                                        # VALUE: next staged-user-facing handle (int)
+
+    self.staged_origin_table_rules = {} # KEY: (table (str), staged-user-facing handle (int))
+                                        # VALUE: Interpretation
+
     self.hp4_code_and_rules = {} # KEY: (table (str), hp4-facing handle (int))
                                  # VALUE: P4Rule}
     self.t_virtnet_handles = {} # KEY: vegress_spec (int)
@@ -103,6 +114,27 @@ class VirtualDevice():
       ret += table + ':' + str(handle) + ': ' + str(rule) + '\n'
     return ret[:-1]
 
+  def dump(self):
+    indent = '  '
+    ret = self.name + '@' + self.dev_name + '\n'
+    ret += indent + 'handle\trule\n'
+    indent += '  '
+    sorted_rules = sorted(self.origin_table_rules.keys(),
+                          key=lambda entry: entry[0] + str(entry[1]))
+    for table, handle in sorted_rules:
+      interpretation = self.origin_table_rules[(table, handle)]
+      ret += indent + str(handle) + '\t\t' + str(interpretation.origin_rule) + '\n'
+    return ret[:-1]
+
+  def info(self):
+    ret = self.name + '@' + self.dev_name + '\n'
+    ret += self.program_path + '\n'
+    ret += 'pushed (user-facing : hp4-facing): (' + len(self.hp4rules) + ' : ' \
+            + len(self.origin_table_rules) + ')\n'
+    ret += 'staged (user-facing : hp4-facing): (' + len(self.staged_hp4rules) \
+            + ' : ' + len(self.staged_origin_table_rules) + ')'
+
+  """
   def __str__(self):
     indent = '  '
     ret = self.name + '@' + self.dev_name + '\n'
@@ -115,6 +147,7 @@ class VirtualDevice():
       interpretation = self.origin_table_rules[(table, handle)]
       ret += indent + str(handle) + '\t\t' + str(interpretation.origin_rule) + '\n'
     return ret[:-1] # remove trailing '\n'
+  """
 
   def interpret(self, p4command):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::translate
@@ -276,7 +309,7 @@ class VirtualDeviceFactory():
     hp4code = self.link(object_code_path, vdev_ID)
     guide = InterpretationGuide(ig_path)
 
-    return VirtualDevice(vdev_name, vdev_ID, hp4code, guide)
+    return VirtualDevice(vdev_name, vdev_ID, hp4code, guide, program_path)
 
   def writefile(self, program_path, outfile):
     pass

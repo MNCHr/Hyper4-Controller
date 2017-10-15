@@ -29,11 +29,10 @@ class Client(cmd.Cmd):
     return resp
 
   def do_slice_dump(self, line):
-    "Display leases and virtual devices in a slice"
-    resp = self.send_request(self.user + ' slice_dump ' + line)
+    "Display leases and virtual devices in a slice: slice_dump <slice>"
+    resp = self.send_request(line + ' slice_dump')
     print(resp)
     
-
   def do_source(self, line):
     "Source a file: source <file>"
     with open(line, 'r') as f:
@@ -47,8 +46,8 @@ class Client(cmd.Cmd):
 class SliceManager(Client):
 
   def do_slice_dump(self, line):
-    "Display leases and virtual devices in a slice"
-    resp = super(SliceManager, self).do_slice_dump(line + ' ' + self.user)
+    "Display leases and virtual devices in a slice: slice_dump"
+    resp = super(SliceManager, self).do_slice_dump(self.user)
     print(resp)
     
   def do_vdev_create(self, line):
