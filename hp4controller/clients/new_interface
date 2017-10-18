@@ -32,3 +32,52 @@ s/lease insert/lease_insert [--empty]
   "insert vdev; default pushes all staged rules; --empty does not push staged rules"
 s/lease remove/lease_remove
 s/lease replace/lease_replace
+
+----- LIFETIME OF KEY VDEV ATTRIBUTES
+hp4code
+hp4rules
+nrules
+hp4_code_and_rules
+dev_name
+next_handle
+next_staged_hp4_handle
+
+Startup Scenario 1
+1. vdev created
+    Controller::vdev_create
+    Controller.vdev_factory::create_vdev
+
+    hp4code: filled by Compiler::compile_to_hp4 + VirtualDeviceFactory::linker
+    hp4rules: {}
+    nrules: {}
+    hp4_code_and_rules: {}
+    dev_name: 'none'
+    next_handle: {}
+    next_staged_hp4_handle: {}
+
+2. vdev populated
+    Slice::interpret
+    
+    next_staged_hp4_handle: {(hp4 table): next staged hp4 handle}
+    - for all hp4 *tables* involved in interpretation
+    - next staged hp4 handle always <= -2
+    hp4rules: {(hp4 table, hp4 staged handle): P4Rule)}
+    - for all hp4 table *entries* involved in interpretation
+    nrules:
+
+3. vdev inserted
+
+4. vdev depopulated
+
+Startup Scenario 2
+1. vdev created
+2. vdev inserted
+3. vdev populated
+4. vdev depopulated
+
+Transition/Termination Scenario 1
+1. vdev withdrawn
+
+Transition/Termination Scenario 2
+1. vdev destroyed
+

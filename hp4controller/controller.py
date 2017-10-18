@@ -71,6 +71,7 @@ class Controller(object):
     elif command == 'vdev_create':
       resp = self.vdev_create(parameters)
     else:
+      print("SLICE TO HANDLE " + request)
       resp = self.slices[requester].handle_request(request.split()[1:])
 
     return resp
@@ -273,20 +274,25 @@ class Slice():
     # parameters:
     # <command> <command parameters>
     command = parameters[0]
-    if command == 'lease':
+    if 'lease' in command:
       dev_name = parameters[1]
       lease = self.leases[dev_name]
-      if parameters[2] == 'config_egress':
-        return lease.handle_request(parameters[2:])
-      elif parameters[2] == 'replace':
-        vdev_name = parameters[3]
-        new_vdev_name = parameters[4]
-        args = (self.vdevs[vdev_name], self.vdevs[new_vdev_name])
-        return lease.handle_request(parameters[2:], *args)
+      if command == 'lease_config_egress':
+        resp = lease.lease_config_egress(parameters[2:])
+        return resp
+      elif command == 'lease_replace':
+        vdev = self.vdevs[parameters[2]]
+        new_vdev = self.vdevs[parameters[3]]
+        return lease.lease_replace(parameters[2:], vdev, new_vdev)
       else:
-        vdev_name = parameters[3]
-        args = (self.vdevs[vdev_name],)
-        return lease.handle_request(parameters[2:], *args)
+        vdev = self.vdevs[parameters[2]]
+        try:
+          resp = getattr(lease, command)(parameters[2:], vdev)
+        except AttributeError as e:
+          return "AttributeError(handle_request - " + command + "): " + str(e)
+        except Exception as e:
+          return "Unexpected error: " + str(e)
+        return resp
     else:
       try:
         resp = getattr(self, command)(parameters[1:])
@@ -304,7 +310,7 @@ class Slice():
               + str(lease.entry_limit) + ') [' + str(lease.ports) + ']: \n'
       resp += lease.print_vdevs()
     resp += 'unassigned:\n'
-    unassigned = [vdev in self.vdevs.values() if vdev.dev_name == 'none']
+    unassigned = [vdev for vdev in self.vdevs.values() if vdev.dev_name == 'none']
     unassigned.sort(key=lambda vdev: vdev.name)
     for vdev in unassigned:
       resp += '  ' + vdev.name + '\n'
@@ -390,13 +396,14 @@ class Slice():
     return 'Virtual device ' + vdev_name + ' withdrawn from ' + dev_name
   """
 
-  def destroy_virtual_device(self, parameters):
-    pass
+  def vdev_destroy(self, parameters):
+    vdev_name = parameters[0]
+    vdev = self.vdevs[vdev_name]
+    if vdev.dev_name != 'none':
+      lease = self.leases[vdev.dev_name]
+      lease.remove(parameters, vdev)
 
-  def interpret(self, parameters):
-    # TODO: Fix the native -> hp4 rule handle confusion.  Need to track
-    #  virtual (native) rule handles to support table_delete and table_modify
-    #  commands.
+  def vdev_interpret(self, parameters):
     # parameters:
     # <slice name> <virtual device> <style: 'bmv2' | 'agilio'> <command>
     print(parameters)
@@ -414,59 +421,75 @@ class Slice():
     vdev = self.vdevs[vdev_name]
 
     hp4commands = vdev.interpret(p4command)
-    #print("CHECKPOINT ALPHA")
-
     dev_name = vdev.dev_name
 
-    # accounting
-    entries_available = (self.leases[dev_name].entry_limit
-                       - self.leases[dev_name].entry_usage)
-    diff = 0
-    for hp4command in hp4commands:
-      if hp4command.command_type == 'table_add':
-        diff += 1
-      elif hp4command.command_type == 'table_delete':
-        diff -= 1
-    if diff > entries_available:
-      return 'Error - entries net increase(' + str(diff) \
-           + ') exceeds availability(' + str(entries_available) + ')'
-
-    #print("CHECKPOINT BRAVO")
-
-    # push hp4 rules, collect handles, update hp4-facing ruleset
     hp4_rule_keys = [] # list of (table, action, handle) tuples
-    for hp4command in hp4commands:
-      # return value should be handle for all commands
-      hp4handle = int(self.leases[dev_name].send_command(hp4command))
+
+    def get_table_action_rule(hp4command, hp4handle, dev_name):
       table = hp4command.attributes['table']
-      if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
-        action = hp4command.attributes['action']
-        if hp4command.command_type == 'table_add':
-          rule = p4rule.P4Rule(table, action,
-                               hp4command.attributes['mparams'],
-                               hp4command.attributes['aparams'])
-        else: # 'table_modify'
-          mparams = vdev.hp4_code_and_rules[(table, hp4handle)].mparams
-          rule = p4rule.P4Rule(table, action,
-                               mparams,
-                               hp4command.attributes['aparams'])
-        vdev.hp4rules[(table, hp4handle)] = rule
-        vdev.hp4_code_and_rules[(table, hp4handle)] = rule
-      else: # command_type == 'table_delete'
-        del vdev.hp4_code_and_rules[(table, hp4handle)]
-        del vdev.hp4rules[(table, hp4handle)]
-      # accounting
+      action = hp4command.attributes['action']
       if hp4command.command_type == 'table_add':
-        self.leases[dev_name].entry_usage += 1
-        hp4_rule_keys.append((table, action, hp4handle))
-      elif hp4command.command_type == 'table_modify':
-        hp4_rule_keys.append((table, action, hp4handle))
-      elif hp4command.command_type == 'table_delete':
-        self.leases[dev_name].entry_usage -= 1
+        rule = p4rule.P4Rule(table, action,
+                             hp4command.attributes['mparams'],
+                             hp4command.attributes['aparams'])
+      else: # 'table_modify'
+        if dev_name == 'none':
+          mparams = vdev.hp4rules[(table, hp4handle)].mparams
+        else:
+          mparams = vdev.hp4_code_and_rules[(table, hp4handle)].mparams
+        rule = p4rule.P4Rule(table, action,
+                             mparams,
+                             hp4command.attributes['aparams'])
+      return table, action, rule
 
-    #print("CHECKPOINT CHARLIE")
+    if dev_name == 'none':
+      for hp4command in hp4commands:
+        if hp4command.command_type == 'table_add':
+          hp4handle = vdev.assign_staged_hp4_handle(hp4command.attributes['table'])
+          table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
+          vdev.hp4rules[(table, hp4handle)] = rule
+          hp4_rule_keys.append((table, action, hp4handle))
+        elif hp4command.command_type == 'table_modify':
+          hp4handle = int(hp4command.attributes['handle'])
+          table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
+          vdev.hp4rules[(table, hp4handle)] = rule
+          hp4_rule_keys.append((table, action, hp4handle))
+        else: # command_type == 'table_delete'
+          table = hp4command.attributes['table']
+          hp4handle = int(hp4command.attributes['handle'])
+          del vdev.hp4rules[(table, hp4handle)]
 
-    # account for origin rule: handle, hp4 rules & hp4 handles
+    else:
+      # accounting
+      entries_available = (self.leases[dev_name].entry_limit
+                          - self.leases[dev_name].entry_usage)
+      diff = 0
+      for hp4command in hp4commands:
+        if hp4command.command_type == 'table_add':
+          diff += 1
+        elif hp4command.command_type == 'table_delete':
+          diff -= 1
+      if diff > entries_available:
+        return 'Error - entries net increase(' + str(diff) \
+             + ') exceeds availability(' + str(entries_available) + ')'
+
+      # push hp4 rules, collect handles, update hp4-facing ruleset
+      for hp4command in hp4commands:
+        # return value should be handle for all commands
+        hp4handle = int(self.leases[dev_name].send_command(hp4command))
+        table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
+        if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
+          vdev.hp4rules[(table, hp4handle)] = rule
+          vdev.hp4_code_and_rules[(table, hp4handle)] = rule
+          hp4_rule_keys.append((table, action, hp4handle))
+          if hp4command.command_type == 'table_add':
+            self.leases[dev_name].entry_usage += 1
+        else: # command_type == 'table_delete'
+          del vdev.hp4_code_and_rules[(table, hp4handle)]
+          del vdev.hp4rules[(table, hp4handle)]
+          self.leases[dev_name].entry_usage -= 1
+
+    # account for native rule: handle, hp4 rules & hp4 handles
     table = p4command.attributes['table']
     if p4command.command_type == 'table_add':
       # new Origin_to_HP4Map w/ new hp4_rule_keys list
@@ -475,25 +498,23 @@ class Slice():
                            p4command.attributes['aparams'])
       # TODO: redo this properly
       match_ID = int(hp4commands[0].attributes['aparams'][1])
-      vdev.origin_table_rules[(table, match_ID)] = \
+      vdev.nrules[(table, match_ID)] = \
                                          Interpretation(rule, match_ID, hp4_rule_keys)
 
     elif p4command.command_type == 'table_modify':
       # update interpretation origin rule
       match_ID = p4command.attributes['handle']
-      interpretation = vdev.origin_table_rules[(table, match_ID)]
+      interpretation = vdev.nrules[(table, match_ID)]
       rule = p4rule.P4Rule(table, p4command.attributes['action'],
-                           interpretation.origin_rule.mparams,
+                           interpretation.native_rule.mparams,
                            p4command.attributes['aparams'])
 
-      vdev.origin_table_rules[(table, match_ID)] = \
+      vdev.nrules[(table, match_ID)] = \
                                         Interpretation(rule, match_ID, hp4_rule_keys)
 
     elif p4command.command_type == 'table_delete':
       handle = p4command.attributes['handle']
-      del vdev.origin_table_rules[(table, handle)]
-
-    #print("CHECKPOINT DELTA")
+      del vdev.nrules[(table, handle)]
 
     return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
 

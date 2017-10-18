@@ -33,21 +33,21 @@ VirtualDevice::hp4_code_and_rules <-- 'hp4-facing'
 - used by Lease::remove
   - issue table_deletes
 
-VirtualDevice::origin_table_rules <-- 'user-facing'
+VirtualDevice::nrules <-- 'user-facing'
 - {(user-facing table (str), user-facing handle (int)): Interpretation}
 - Interpretation:
-  - origin_rule
-  - match_ID (syn. w/ origin_handle)
+  - native_rule
+  - match_ID (syn. w/ native_handle)
   - hp4_rule_keys:
     list of hp4-facing (table, action, handle) tuples
-CHANGE: need to restore original vision of origin_table_rules; hp4_rule_keys
+CHANGE: need to restore original vision of nrules; hp4_rule_keys
 was supposed to be keys looking up rules in hp4_code_and_rules
 - but don't remove 'action' member of hp4_rule_keys; it is needed by
   Interpreter.table_modify
 
-Whenever origin_table_rules is updated, hp4_code_and_rules should be also.
+Whenever nrules is updated, hp4_code_and_rules should be also.
 
-One entry in origin_table_rules corresponds to many entries in hp4_code_and_rules.
+One entry in nrules corresponds to many entries in hp4_code_and_rules.
 """
 
 class VirtualDevice():
@@ -70,17 +70,21 @@ class VirtualDevice():
       aparams = line.split(':')[2].split()
       self.hp4code.append(P4Rule(table, action, mparams, aparams))
 
+    """
     self.staged_hp4rules = {} # {(hp4-facing table (str), staged-hp4-facing handle (int)): P4Rule}
     self.staged_next_hp4_handle = {} # KEY: table (str)
                                      # VALUE: next staged-hp4-facing handle (int)
+    """
 
-    self.origin_table_rules = {} # KEY: (table (str), user-facing handle (int))
-                                 # VALUE: Interpretation
-    self.staged_next_origin_handle = {} # KEY: table (str)
+    self.nrules = {} # KEY: (table (str), user-facing handle / match ID (int))
+                     # VALUE: Interpretation
+    """
+    self.staged_next_native_handle = {} # KEY: table (str)
                                         # VALUE: next staged-user-facing handle (int)
 
-    self.staged_origin_table_rules = {} # KEY: (table (str), staged-user-facing handle (int))
-                                        # VALUE: Interpretation
+    self.staged_nrules = {} # KEY: (table (str), staged-user-facing handle (int))
+                            # VALUE: Interpretation
+    """
 
     self.hp4_code_and_rules = {} # KEY: (table (str), hp4-facing handle (int))
                                  # VALUE: P4Rule}
@@ -92,6 +96,8 @@ class VirtualDevice():
     self.mcast_grp_id = -1
     self.next_handle = {} # KEY: table (str)
                           # VALUE: next handle (int)
+    self.next_staged_hp4_handle = {} # KEY: table (str)
+                                     # VALUE: next handle (int)
 
   def str_hp4code(self):
     #ret = 'HP4 Code:\n'
@@ -119,20 +125,20 @@ class VirtualDevice():
     ret = self.name + '@' + self.dev_name + '\n'
     ret += indent + 'handle\trule\n'
     indent += '  '
-    sorted_rules = sorted(self.origin_table_rules.keys(),
+    sorted_rules = sorted(self.nrules.keys(),
                           key=lambda entry: entry[0] + str(entry[1]))
     for table, handle in sorted_rules:
-      interpretation = self.origin_table_rules[(table, handle)]
-      ret += indent + str(handle) + '\t\t' + str(interpretation.origin_rule) + '\n'
+      interpretation = self.nrules[(table, handle)]
+      ret += indent + str(handle) + '\t\t' + str(interpretation.native_rule) + '\n'
     return ret[:-1]
 
   def info(self):
     ret = self.name + '@' + self.dev_name + '\n'
     ret += self.program_path + '\n'
     ret += 'pushed (user-facing : hp4-facing): (' + len(self.hp4rules) + ' : ' \
-            + len(self.origin_table_rules) + ')\n'
+            + len(self.nrules) + ')\n'
     ret += 'staged (user-facing : hp4-facing): (' + len(self.staged_hp4rules) \
-            + ' : ' + len(self.staged_origin_table_rules) + ')'
+            + ' : ' + len(self.staged_nrules) + ')'
 
   """
   def __str__(self):
@@ -141,11 +147,11 @@ class VirtualDevice():
     ret += indent + 'vdev_ID: ' + str(self.virtual_device_ID) + '\n'
     ret += indent + 'handle\trule\n'
     indent += '  '
-    sorted_rules = sorted(self.origin_table_rules.keys(),
+    sorted_rules = sorted(self.nrules.keys(),
                           key=lambda entry: entry[0] + str(entry[1]))
     for table, handle in sorted_rules:
-      interpretation = self.origin_table_rules[(table, handle)]
-      ret += indent + str(handle) + '\t\t' + str(interpretation.origin_rule) + '\n'
+      interpretation = self.nrules[(table, handle)]
+      ret += indent + str(handle) + '\t\t' + str(interpretation.native_rule) + '\n'
     return ret[:-1] # remove trailing '\n'
   """
 
@@ -164,16 +170,18 @@ class VirtualDevice():
                                                  self.virtual_device_ID,
                                                  self.mcast_grp_id)
     else:
-      origin_table = p4command.attributes['table']
-      origin_handle = p4command.attributes['handle']
-      interpretation = self.origin_table_rules[(origin_table, origin_handle)]
+      native_table = p4command.attributes['table']
+      native_handle = p4command.attributes['handle']
+      interpretation = self.nrules[(native_table, native_handle)]
       if p4command.command_type == 'table_modify':
         p4commands = Interpreter.table_modify(self.guide,
                                               p4command,
                                               interpretation,
-                                              origin_handle,
+                                              native_handle,
                                               self.virtual_device_ID,
                                               self.mcast_grp_id)
+        print("breakpoint: VirtualDevice::interpret: table_modify")
+        code.interact(local=dict(globals(), **locals()))
       elif p4command.command_type == 'table_delete':
         p4commands = Interpreter.table_delete(self.guide, p4command, interpretation)
 
@@ -184,6 +192,13 @@ class VirtualDevice():
       self.next_handle[table] = 1
     handle = self.next_handle[table]
     self.next_handle[table] += 1
+    return handle
+
+  def assign_staged_hp4_handle(self, table):
+    if table not in self.next_staged_hp4_handle:
+      self.next_staged_hp4_handle[table] = -1
+    handle = self.next_staged_hp4_handle[table]
+    self.next_staged_hp4_handle[table] -= 1
     return handle
 
 class CompileError(Exception):

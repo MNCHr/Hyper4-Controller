@@ -1,11 +1,21 @@
 #!/bin/bash
 
-MININET=/dev/pts/1
-CONTROLLER=/dev/pts/2
-ADMIN=/dev/pts/5
-BMV2_CLI=/dev/pts/7
-SLICEMGR=/dev/pts/12
-TEST=/dev/pts/13
+declare -a windows
+i=0
+
+while read -r a; do \
+  windows[$i]='/dev/pts/'$a;
+  i=$((i+1));
+done < <(who | awk '{ print $2 }' | grep pts/ | awk 'BEGIN { FS="/"; } { print $2; }')
+
+echo ${windows[*]}
+
+MININET=${windows[0]}
+CONTROLLER=${windows[1]}
+ADMIN=${windows[2]}
+BMV2_CLI=${windows[3]}
+SLICEMGR=${windows[4]}
+TEST=${windows[5]}
 
 ttyecho -n $MININET ./run.sh --commands hp4commands.txt --scenario chain --topo ~/hp4-ctrl/tests/t05/topo.txt
 

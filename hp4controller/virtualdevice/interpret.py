@@ -217,11 +217,11 @@ class Interpreter(object):
     #  'aparams': [str]
     key = (p4command.attributes['table'], p4command.attributes['action'])
 
-    if p4command.attributes['action'] == interpretation.origin_rule.action:
+    if p4command.attributes['action'] == interpretation.native_rule.action:
       # update interpretation origin rule
-      interpretation.origin_rule = P4Rule(interpretation.origin_rule.table,
+      interpretation.native_rule = P4Rule(interpretation.native_rule.table,
                                           p4command.attributes['action'],
-                                          interpretation.origin_rule.mparams,
+                                          interpretation.native_rule.mparams,
                                           p4command.attributes['aparams'])
       # table_modifies
       # TODO: revise to be less 'hacky' - this quality arises from lack of separation
@@ -304,15 +304,15 @@ class Interpreter(object):
 
 class Interpretation():
   def __init__(self, rule, match_ID, hp4_rule_keys):
-    self.origin_rule = rule
+    self.native_rule = rule
     self.match_ID = match_ID # int
     self.hp4_rule_keys = hp4_rule_keys # [(table (str), action (str), handle (int))]
 
 class InterpretationGuide():
   def __init__(self, ig_path):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::parse_json
-    self.templates_match = {} # {(origin_table, origin_action): P4Command}
-    self.templates_prims = {} # {(origin_table, origin_action): [P4Command]}
+    self.templates_match = {} # {(native_table, native_action): P4Command}
+    self.templates_prims = {} # {(native_table, native_action): [P4Command]}
     with open(ig_path) as json_data:
       d = json.load(json_data)
       for hp4_command in d:

@@ -1,4 +1,4 @@
-create_virtual_device tests/hp4t_l2_switch.p4 bravo_l2
-lease bravo insert bravo_l2 0 etrue
-lease bravo config_egress 7 mcast filtered
-interpret_file bravo_l2 bmv2 tests/t05/t05_bravo_l2_entries
+vdev_create tests/hp4t_l2_switch.p4 bravo_l2
+lease_insert bravo bravo_l2 0 etrue
+lease_config_egress bravo 7 mcast filtered
+vdev_interpretf bravo_l2 bmv2 tests/t05/t05_bravo_l2_entries

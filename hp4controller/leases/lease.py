@@ -123,22 +123,11 @@ class Lease(object):
 
     self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
 
-  def handle_request(self, parameters, args):
-    command = parameters[0]
-    resp = ""
-    try:
-      resp = getattr(self, command)(parameters[1:], *args)
-    except AttributeError as e:
-      return "AttributeError(handle_request - " + command + "): " + str(e)
-    except Exception as e:
-      return "Unexpected error: " + str(e)
-    return resp
-
   def send_command(self, p4cmd):
     "Send command to associated device, return handle"
     return self.device.send_command(self.device.command_to_string(p4cmd))
 
-  def remove(self, parameters, vdev):
+  def lease_remove(self, parameters, vdev):
     "Remove virtual device from Lease (does not destroy virtual device)"
     vdev_name = parameters[0]
     num_entries = len(vdev.hp4_code_and_rules)
@@ -155,7 +144,7 @@ class Lease(object):
     # make lease forget about it (Lease's owning Slice still has it)
     del self.vdevs[vdev_name]
 
-  def config_egress(self, parameters):
+  def lease_config_egress(self, parameters):
     egress_spec = int(parameters[0])
     command_type = parameters[1]
     self.mcast_egress_specs[egress_spec] = filteredlookup[parameters[2]]
@@ -326,7 +315,7 @@ class Chain(Lease):
         handle = self.send_command(P4Command(command_type, attribs))
         src_vdev.t_egr_virtnet_handles[vegress] = handle
 
-  def replace(self, parameters, vdev, new_vdev):
+  def lease_replace(self, parameters, vdev, new_vdev):
     # parameters:
     # <old virtual device name> <new virtual device name> <egress mode>
     vdev_name = parameters[0]
@@ -362,7 +351,7 @@ class Chain(Lease):
     chain.insert(position, new_vdev_name)
     return 'Virtual device ' + vdev_name + ' replaced with ' + new_vdev_name
 
-  def insert(self, parameters, vdev):
+  def lease_insert(self, parameters, vdev):
     # parameters:
     # <virtual device name> <position> <egress handling mode>
     vdev_name = parameters[0]
@@ -403,7 +392,7 @@ class Chain(Lease):
     
     return 'Virtual Device ' + vdev_name + ' inserted at position ' + str(position)
 
-  def append(self, parameters, vdev):
+  def lease_append(self, parameters, vdev):
     # parameters:
     # <virtual device name> <egress handling mode>
 
@@ -411,7 +400,7 @@ class Chain(Lease):
 
     return self.insert(parameters, vdev)
 
-  def remove(self, parameters, vdev):
+  def lease_remove(self, parameters, vdev):
     vdev_name = parameters[0]
 
     # delete vdev's t_virtnet/t_egr_virtnet entries
@@ -462,8 +451,8 @@ class Chain(Lease):
 
     return 'Virtual device ' + vdev_name + ' removed'
 
-  def config_egress(self, parameters):
-    super(Chain, self).config_egress(parameters)
+  def lease_config_egress(self, parameters):
+    super(Chain, self).lease_config_egress(parameters)
     vegress = int(parameters[0])
     if len(self.vdev_chain) > 0:
       end_vdev_name = self.vdev_chain[-1]

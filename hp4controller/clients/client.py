@@ -83,7 +83,13 @@ class SliceManager(Client):
           + '<\'bmv2\' | \'agilio\'> [--stage|--stage_if_full] <file>')
 
   def do_vdev_interpretf(self, line):
-    resp = self.send_request(self.user + ' vdev_interpretf ' + line)
+    resp = ''
+    with open(line.split()[2]) as commands:
+      pre = ''
+      for command in commands:
+        newline = ' '.join(line.split()[0:2]) + ' ' + command
+        resp += pre + self.send_request(self.user + ' vdev_interpret ' + newline)
+        pre = '\n'
     print(resp)
 
   def do_vdev_stage_clear(self, line):
