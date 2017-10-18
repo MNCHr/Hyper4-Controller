@@ -65,3 +65,5 @@ echo "Next: add L3 router to alpha and bravo"
 read -n 1 -s
 
 ttyecho -n $SLICEMGR source tests/t05/t05_jupiter_3
+
+

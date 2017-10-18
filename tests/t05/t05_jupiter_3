@@ -2,3 +2,5 @@ vdev_create tests/simple_router/simple_router.p4 alpha_l3
 lease_insert alpha alpha_l3 1 etrue
 vdev_create tests/simple_router/simple_router.p4 bravo_l3
 lease_insert bravo bravo_l3 1 etrue
+vdev_interpretf alpha_l3 bmv2 tests/t05/t05_alpha_l3_entries
+vdev_interpretf bravo_l3 bmv2 tests/t05/t05_bravo_l3_entries

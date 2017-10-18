@@ -9,7 +9,7 @@ import code
 
 BUFFSIZE = 4096
 
-class Client(cmd.Cmd):
+class Client(cmd.Cmd, object):
   prompt = 'HP4$ '
   intro = 'HP4 Controller Client'
 

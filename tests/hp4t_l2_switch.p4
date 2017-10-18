@@ -40,6 +40,10 @@ action broadcast(mcast) {
   modify_field(intrinsic_metadata.mcast_grp, mcast);
 }
 
+// .hp4 ACTION_ID: 4
+action _no_op() {
+}
+
 table dmac {
   reads {
       ethernet.dstAddr : exact;
@@ -48,6 +52,7 @@ table dmac {
       forward;
       broadcast;
       _drop;
+      _no_op;
   }
   size : 512;
 }
