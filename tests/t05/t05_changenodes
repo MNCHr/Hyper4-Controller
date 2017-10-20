@@ -1,22 +1,6 @@
-py net.addSwitch('s2', sw_path = "/home/ubuntu/bmv2/targets/simple_switch/simple_switch", json_path = "/home/ubuntu/hp4-src/hp4/hp4.json", thrift_port = 22223, pcap_dump = False)
-py net.addHost('h4', ip = "10.2.0.104/24", mac = "00:04:00:00:00:04")
-py net.addHost('h5', ip = "10.2.0.105/24", mac = "00:04:00:00:00:05")
-py net.addHost('h6', ip = "10.2.0.106/24", mac = "00:04:00:00:00:06")
-py net.addLink('h4', 's2')
-py net.addLink('h5', 's2')
-py net.addLink('h6', 's2')
-px slink = net.addLink('s1', 's2')
-py s1.attach('s1-eth4') # slink.intf1
-py s2.start(net.controllers)
-py s1.cmd("nmcli dev disconnect iface s1-eth4")
-py s2.cmd("nmcli dev disconnect iface s2-eth1")
-py s2.cmd("nmcli dev disconnect iface s2-eth2")
-py s2.cmd("nmcli dev disconnect iface s2-eth3")
-py s2.cmd("nmcli dev disconnect iface s2-eth4")
-sh ./run_cli.sh 22223 < hp4commands.txt
-py h4.configDefault(defaultRoute=h4.defaultIntf())
-py h5.configDefault(defaultRoute=h5.defaultIntf())
-py h6.configDefault(defaultRoute=h6.defaultIntf())
+h4 ifconfig eth0 10.2.0.104/24
+h5 ifconfig eth0 10.2.0.105/24
+h6 ifconfig eth0 10.2.0.106/24
 s1 ifconfig s1-eth1 10.1.0.1
 s1 ifconfig s1-eth2 10.1.0.2
 s1 ifconfig s1-eth3 10.1.0.3

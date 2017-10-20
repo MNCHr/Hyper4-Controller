@@ -25,6 +25,7 @@ class Lease(object):
     vegress_val = 1
     self.egress_map = {} # {vegress_spec (int): egress_spec (int)}
     self.ingress_map = {} # {pport (int): virt_ingress_port (int)}
+    self.egress_map[0] = 0
     # note, following assumes port id == egress_spec
     for port in ports:
       self.egress_map[vegress_val] = port
@@ -254,7 +255,7 @@ class Chain(Lease):
       attribs = {'table': 't_virtnet',
                  'action': 'do_phys_fwd_only',
                  'mparams': [str(vdev_ID), str(vegress)],
-                 'aparams': [self.egress_map[vegress], str(UNFILTERED)]}
+                 'aparams': [str(self.egress_map[vegress]), str(UNFILTERED)]}
       handle = self.send_command(P4Command(command_type, attribs))
       vdev.t_virtnet_handles[vegress] = handle
 
