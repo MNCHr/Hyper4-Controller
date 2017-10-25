@@ -9,7 +9,8 @@ wget http://10.0.0.2:8000/hp4.json -O file.test --limit-rate=10k
 
 All switch chain changes are symmetrical once s2 is added.
 
-topo start: 1 switch, 3 hosts
+topo start: 2 switches, 6 hosts
+Comment: wanted to start with 1 switch, 3 hosts, but the bmv2 switches in the mininet simulation aren't passing traffic between interfaces (internally) when interfaces are added after startup.
 
 L2
 
