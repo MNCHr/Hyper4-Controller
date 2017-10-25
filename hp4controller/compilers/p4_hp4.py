@@ -388,14 +388,14 @@ class P4_to_HP4(HP4Compiler):
         print("ERROR: Not yet supported: startbytes(%i) and endbytes(%i) cross \
                boundaries"  % (sbytes, ebytes))
         exit()
-      if startbytes < self.seb:
-        if endbytes >= self.seb:
+      if startbytes < 20:
+        if endbytes >= 20:
           unsupported(startbytes, endbytes)
         else:
           self.pc_action[pc_state] = '[PARSE_SELECT_SEB]'
           self.tics_table_names[tics_pc_state] = 'tset_parse_select_SEB'
       else:
-        bound = self.seb + 10
+        bound = 30
         while bound <= 100:
           if startbytes < bound:
             if endbytes >= bound:
@@ -418,10 +418,11 @@ class P4_to_HP4(HP4Compiler):
       exit()
     # looking at a single criteria field is sufficient to determine the byte
     #  range for the inspection, which affects the size of the match
-    #  parameters string (20 bytes for SEB, 10 bytes for everything else)
+    #  parameters string (20 bytes for the first parse_select table, 10 bytes
+    #  for all others)
     mparams = []
     mparams_count = 10
-    if self.field_offsets[criteria_fields[0]] / 8 < self.seb:
+    if self.field_offsets[criteria_fields[0]] / 8 < 20:
       mparams_count = 20
     for i in range(mparams_count):
       mparams.append(MatchParam())
@@ -1332,7 +1333,7 @@ def parse_args(args):
   parser.add_argument('-m', '--mt_output', help='path for match template output',
                     type=str, action="store", default='output.hp4mt')
   parser.add_argument('-s', '--seb', help='set standard extracted bytes',
-                    type=int, action="store", default=20)
+                    type=int, action="store", default=64)
   return parser.parse_args(args)
 
 def main():
