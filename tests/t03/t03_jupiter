@@ -1,9 +1,9 @@
-create_virtual_device tests/arp_proxy.p4 arp1
-lease alpha insert arp1 0 etrue
-create_virtual_device tests/arp_proxy.p4 arp2
-lease bravo insert arp2 0 etrue
-create_virtual_device tests/arp_proxy.p4 arp3
-lease charlie insert arp3 0 etrue
-interpret_file arp1 bmv2 tests/t03/t03_arp_entries_s1
-interpret_file arp2 bmv2 tests/t03/t03_arp_entries_s2
-interpret_file arp3 bmv2 tests/t03/t03_arp_entries_s3
+vdev_create tests/arp_proxy.p4 arp1
+lease_insert alpha arp1 0 etrue
+vdev_create tests/arp_proxy.p4 arp2
+lease_insert bravo arp2 0 etrue
+vdev_create tests/arp_proxy.p4 arp3
+lease_insert charlie arp3 0 etrue
+vdev_interpretf arp1 bmv2 tests/t03/t03_arp_entries_s1
+vdev_interpretf arp2 bmv2 tests/t03/t03_arp_entries_s2
+vdev_interpretf arp3 bmv2 tests/t03/t03_arp_entries_s3
