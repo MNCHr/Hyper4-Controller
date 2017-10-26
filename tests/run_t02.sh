@@ -1,11 +1,10 @@
 #!/bin/bash
 
-MININET=/dev/pts/1
-CONTROLLER=/dev/pts/2
-ADMIN=/dev/pts/5
-BMV2_CLI=/dev/pts/7
-SLICEMGR=/dev/pts/12
-TEST=/dev/pts/13
+MININET="$(cat /tmp/pts_mininet)"
+CONTROLLER="$(cat /tmp/pts_controller)"
+ADMIN="$(cat /tmp/pts_admin)"
+BMV2_CLI="$(cat /tmp/pts_bmv2_cli)"
+SLICEMGR="$(cat /tmp/pts_slice_manager)"
 
 ttyecho -n $MININET ./run.sh --commands hp4commands.txt --topo ~/hp4-ctrl/tests/t02/topo.txt
 
