@@ -662,11 +662,11 @@ class P4_to_HP4(HP4Compiler):
     for t in self.tics_list:
       if t.next_parse_state != 'ingress':
         if self.pc_bits_extracted[t.next_pc_state] > self.pc_bits_extracted[t.curr_pc_state]:
+          code.interact(local=dict(globals(), **locals()))
           t.action = "extract_more"
           bytes = int(math.ceil(self.pc_bits_extracted[t.next_pc_state] / 8.0))
           t.action_params = [str(bytes), str(t.next_pc_state), str(t.priority)]
         else:
-          code.interact(local=dict(globals(), **locals()))
           t.action = "set_next_action"
           if t.next_pc_state in self.tics_table_names:
             next_action = "[" + self.tics_table_names[1].split('tset_')[1].upper() + "]"
@@ -1377,7 +1377,7 @@ def parse_args(args):
   parser.add_argument('-m', '--mt_output', help='path for match template output',
                     type=str, action="store", default='output.hp4mt')
   parser.add_argument('-s', '--seb', help='set standard extracted bytes',
-                    type=int, action="store", default=64)
+                    type=int, action="store", default=40)
   return parser.parse_args(args)
 
 def main():
