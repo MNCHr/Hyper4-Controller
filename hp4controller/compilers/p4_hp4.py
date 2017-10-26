@@ -421,19 +421,17 @@ class P4_to_HP4(HP4Compiler):
     #  parameters string (20 bytes for the first parse_select table, 10 bytes
     #  for all others)
 
-    if self.field_offsets[criteria_fields[0]] / 8 < 60:
-      mparams = self.fill_tics_match_params_under60(criteria_fields, values)
-    elif self.field_offsets[criteria_fields[0]] / 8 < 70:
-      mparams = self.fill_tics_match_params_60_69(criteria_fields, values)
+    if self.field_offsets[criteria_fields[0]] / 8 < 40:
+      mparams = self.fill_tics_match_params_under40(criteria_fields, values)
     else:
-      mparams = self.fill_tics_match_params_70_99(criteria_fields, values)
+      mparams = self.fill_tics_match_params_40_99(criteria_fields, values)
 
     ret = ['[vdev ID]', str(pc_state)]
     for mparam in mparams:
       ret.append(str(mparam))
     return ret
 
-  def fill_tics_match_params_under60(self, criteria_fields, values):
+  def fill_tics_match_params_under40(self, criteria_fields, values):
     mparam = MatchParam()
     for i in range(len(criteria_fields)):
       if values[i][0] != 'value' and values[i][0] != 'default':
@@ -447,13 +445,13 @@ class P4_to_HP4(HP4Compiler):
       mask = 0
       if values[i][0] == 'value':
         value = values[i][1]
-        mask = 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        mask = 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000
         pos = fo
         while pos < fieldend:
-          bit = 0x80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 >> pos
+          bit = 0x80000000000000000000000000000000000000000000000000000000000000000000000000000000 >> pos
           mask = mask | bit
           pos += 1
-        val = value << (512 - fieldend)
+        val = value << (320 - fieldend)
       mparam.mask = mparam.mask | mask
       mparam.value = mparam.value | val
     return [mparam]
