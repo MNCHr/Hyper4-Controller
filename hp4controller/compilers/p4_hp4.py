@@ -662,7 +662,7 @@ class P4_to_HP4(HP4Compiler):
     for t in self.tics_list:
       if t.next_parse_state != 'ingress':
         if self.pc_bits_extracted[t.next_pc_state] > self.pc_bits_extracted[t.curr_pc_state]:
-          code.interact(local=dict(globals(), **locals()))
+          # code.interact(local=dict(globals(), **locals()))
           t.action = "extract_more"
           bytes = int(math.ceil(self.pc_bits_extracted[t.next_pc_state] / 8.0))
           t.action_params = [str(bytes), str(t.next_pc_state), str(t.priority)]
