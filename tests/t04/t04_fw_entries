@@ -1,0 +1,8 @@
+table_add fwd a_fwd 1 => 2
+table_add fwd a_fwd 2 => 1
+table_add is_l4_valid l4_is_valid 1 =>
+table_add is_l4_valid _no_op 0 =>
+table_add fw_src _drop 4444 =>
+table_set_default fw_src _no_op
+table_add fw_dst _drop 5555 =>
+table_set_default fw_dst _no_op
