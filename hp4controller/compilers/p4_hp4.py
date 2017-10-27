@@ -342,7 +342,15 @@ class P4_to_HP4(HP4Compiler):
         self.field_offsets[call[1].name + '.' + field.name] = self.offset
         self.offset += field.width # advance current offset
         numbits += field.width
-    self.pc_bits_extracted[pc_state] = numbits
+    if numbits > self.seb * 8:
+      self.pc_bits_extracted[pc_state] = numbits
+    else:
+      self.pc_bits_extracted[pc_state] = self.seb * 8
+    """
+    if numbits == 272:
+      print("checkpoint in process_parse_state")
+      code.interact(local=dict(globals(), **locals()))
+    """
     if parse_state.return_statement[RETURN_TYPE] == 'immediate':
       if parse_state.return_statement[NEXT_PARSE_STATE] == 'ingress':
         self.pc_action[pc_state] = '[PROCEED]'
@@ -601,7 +609,15 @@ class P4_to_HP4(HP4Compiler):
             self.pc_to_preceding_pcs[pc_state] = self.pc_to_preceding_pcs[curr_pc_state] + [curr_pc_state]
 
             # TODO: verify this line is correct; does it account for 'current'?
-            self.pc_bits_extracted[pc_state] = self.offset
+            if self.offset > self.seb * 8:
+              self.pc_bits_extracted[pc_state] = self.offset
+            else:
+              self.pc_bits_extracted[pc_state] = self.seb * 8
+            """
+            if self.offset == 272:
+              print("checkpoint in walk_parse_tree")
+              code.interact(local=dict(globals(), **locals()))
+            """
             next_states.append(next_state)
             t.next_pc_state = pc_state
           else:
@@ -624,7 +640,6 @@ class P4_to_HP4(HP4Compiler):
 
   def gen_tset_parse_control_entries(self):
     self.walk_parse_tree(self.h.p4_parse_states['start'], 0)
-
     for key in self.pc_action.keys():
       # special handling for pc_state 0
       if key == 0:
@@ -662,14 +677,13 @@ class P4_to_HP4(HP4Compiler):
     for t in self.tics_list:
       if t.next_parse_state != 'ingress':
         if self.pc_bits_extracted[t.next_pc_state] > self.pc_bits_extracted[t.curr_pc_state]:
-          # code.interact(local=dict(globals(), **locals()))
           t.action = "extract_more"
           bytes = int(math.ceil(self.pc_bits_extracted[t.next_pc_state] / 8.0))
           t.action_params = [str(bytes), str(t.next_pc_state), str(t.priority)]
         else:
           t.action = "set_next_action"
           if t.next_pc_state in self.tics_table_names:
-            next_action = "[" + self.tics_table_names[1].split('tset_')[1].upper() + "]"
+            next_action = "[" + self.tics_table_names[t.next_pc_state].split('tset_')[1].upper() + "]"
           else:
             next_action = "[PROCEED]"
           t.action_params = [next_action, str(t.next_pc_state), str(t.priority)]
