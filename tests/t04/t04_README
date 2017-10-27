@@ -36,5 +36,7 @@ WINDOW - TEST
 ----- END HP4
 
 ----- NATIVE
+cd ~/p4-projects/projects/firewall2
+./run.sh --commands /home/ubuntu/hp4-ctrl/tests/t04/t04_fw_entries --topo ~/hp4-ctrl/tests/t04/topo.txt
 
 ----- END NATIVE
