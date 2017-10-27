@@ -133,12 +133,13 @@ class VirtualDevice():
     return ret[:-1]
 
   def info(self):
-    ret = self.name + '@' + self.dev_name + '\n'
+    ret = self.name + '(ID: ' + str(self.virtual_device_ID) + ')@' + self.dev_name + '\n'
     ret += self.program_path + '\n'
-    ret += 'pushed (user-facing : hp4-facing): (' + len(self.hp4rules) + ' : ' \
-            + len(self.nrules) + ')\n'
-    ret += 'staged (user-facing : hp4-facing): (' + len(self.staged_hp4rules) \
-            + ' : ' + len(self.staged_nrules) + ')'
+    ret += 'pushed (user-facing : hp4-facing): (' + str(len(self.nrules)) + ' : ' \
+            + str(len(self.hp4rules)) + ')\n'
+    #ret += 'staged (user-facing : hp4-facing): (' + str(len(self.staged_hp4rules)) \
+    #        + ' : ' + str(len(self.staged_nrules)) + ')'
+    return ret
 
   """
   def __str__(self):

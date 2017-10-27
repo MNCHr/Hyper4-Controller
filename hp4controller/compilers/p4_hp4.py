@@ -342,7 +342,10 @@ class P4_to_HP4(HP4Compiler):
         self.field_offsets[call[1].name + '.' + field.name] = self.offset
         self.offset += field.width # advance current offset
         numbits += field.width
-    self.pc_bits_extracted[pc_state] = numbits
+    if numbits > self.seb * 8:
+      self.pc_bits_extracted[pc_state] = numbits
+    else:
+      self.pc_bits_extracted[pc_state] = self.seb * 8
     if parse_state.return_statement[RETURN_TYPE] == 'immediate':
       if parse_state.return_statement[NEXT_PARSE_STATE] == 'ingress':
         self.pc_action[pc_state] = '[PROCEED]'
@@ -388,14 +391,14 @@ class P4_to_HP4(HP4Compiler):
         print("ERROR: Not yet supported: startbytes(%i) and endbytes(%i) cross \
                boundaries"  % (sbytes, ebytes))
         exit()
-      if startbytes < self.seb:
-        if endbytes >= self.seb:
+      if startbytes < 20:
+        if endbytes >= 20:
           unsupported(startbytes, endbytes)
         else:
           self.pc_action[pc_state] = '[PARSE_SELECT_SEB]'
           self.tics_table_names[tics_pc_state] = 'tset_parse_select_SEB'
       else:
-        bound = self.seb + 10
+        bound = 30
         while bound <= 100:
           if startbytes < bound:
             if endbytes >= bound:
@@ -561,7 +564,10 @@ class P4_to_HP4(HP4Compiler):
             self.pc_to_preceding_pcs[pc_state] = self.pc_to_preceding_pcs[curr_pc_state] + [curr_pc_state]
 
             # TODO: verify this line is correct; does it account for 'current'?
-            self.pc_bits_extracted[pc_state] = self.offset
+            if self.offset > self.seb * 8:
+              self.pc_bits_extracted[pc_state] = self.offset
+            else:
+              self.pc_bits_extracted[pc_state] = self.seb * 8
             next_states.append(next_state)
             t.next_pc_state = pc_state
           else:
@@ -626,8 +632,12 @@ class P4_to_HP4(HP4Compiler):
           bytes = int(math.ceil(self.pc_bits_extracted[t.next_pc_state] / 8.0))
           t.action_params = [str(bytes), str(t.next_pc_state), str(t.priority)]
         else:
-          print("TODO: support direct jump to new parse node without extracting more")
-          exit()
+          t.action = "set_next_action"
+          if t.next_pc_state in self.tics_table_names:
+            next_action = "[" + self.tics_table_names[t.next_pc_state].split('tset_')[1].upper() + "]"
+          else:
+            next_action = "[PROCEED]"
+          t.action_params = [next_action, str(t.next_pc_state), str(t.priority)]
       self.commands.append(t)
 
   def gen_tset_pipeline_config_entries(self):
