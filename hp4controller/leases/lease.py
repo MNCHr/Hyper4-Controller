@@ -83,9 +83,14 @@ class Lease(object):
 
     rulesets = {'code': vdev.hp4code, 'rules': hp4rules}
 
+    # print("Checkpoint ALPHA")
+
     for ruleset in rulesets:
       for rule in rulesets[ruleset]:
         try:
+          #if vdev_name == 'alpha_fw' and rule.table == 't_mod_11':
+          #  print("load_virtual_device " + vdev_name + "; " + rule.table + ":" + rule.action)
+          #  code.interact(local=dict(globals(), **locals()))
           table = rule.table
           command_type = 'table_add'
           action = rule.action
@@ -94,6 +99,7 @@ class Lease(object):
           if egress_mode == 'efalse':
             if ('t_mod_' in table) and ('mod_stdmeta_egressspec' in rule.action):
               action = '_no_op'
+              aparams = aparams[-1]
 
           elif egress_mode == 'econd':
             if (table == 'tset_pipeline_config'):
@@ -113,6 +119,7 @@ class Lease(object):
           vdev.hp4_code_and_rules[(table, handle)] = rule
           if ruleset == 'rules':
             vdev.hp4rules[(table, handle)] = rule
+          # print("Checkpoint BRAVO") 
           
         except AddRuleError as e:
           # remove all entries already added
@@ -122,6 +129,7 @@ class Lease(object):
             del vdev.hp4_code_and_rules[(table, handle)]
           raise LoadError('Lease::insert: ' + str(e))
 
+    # print("Checkpoint CHARLIE")
     self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
 
   def send_command(self, p4cmd):
