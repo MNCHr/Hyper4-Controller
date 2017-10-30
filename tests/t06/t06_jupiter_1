@@ -1,0 +1,4 @@
+vdev_create tests/simple_router/simple_router.p4 router
+lease_insert alpha router 0 etrue
+lease_config_egress alpha 5 mcast filtered
+vdev_interpretf switch bmv2 tests/t01/t01_switch_entries

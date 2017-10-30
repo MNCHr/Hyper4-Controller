@@ -1,0 +1,8 @@
+vdev_create tests/simple_router/simple_router.p4 r1
+vdev_create tests/simple_router/simple_router.p4 r2
+lease_insert alpha r1 1 etrue
+lease_config_egress alpha 5 mcast filtered
+lease_insert bravo r2 0 etrue
+lease_config_egress bravo 5 mcast filtered
+vdev_interpretf r1 bmv2 tests/t02/t02_router1_entries
+vdev_interpretf r2 bmv2 tests/t02/t02_router2_entries
