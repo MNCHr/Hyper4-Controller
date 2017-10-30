@@ -1,0 +1,16 @@
+interpret(slice, vdev_name, style, vdev_command_str)
+- convert vdev_command_str to p4command
+- get list of hp4 commands from interpreting p4command
+  - hp4commands = vdev.interpret(p4command)
+- is vdev on a physical device?
+  - no:
+    - synthesize staged handle for each hp4 command
+    - track the (table, synth_handle): rule for each hp4 command
+      - vdev.hp4rules[(table, hp4handle)] = rule
+  - yes:
+    - verify lease has capacity to accept list of hp4 commands
+    - push each hp4 command to phys device and collect handle
+    - track the (table, handle): rule for each hp4 command, update lease capacity
+      - vdev.hp4rules[(table, hp4handle)] = rule
+      - vdev.hp4_code_and_rules[(table, hp4handle)] = rule
+- update native ruleset

@@ -60,7 +60,6 @@ class Controller(object):
       return "Denied; command not available to " + requester
 
     resp = ""
-
     if requester == 'admin':
       try:
         resp = getattr(self, command)(parameters)

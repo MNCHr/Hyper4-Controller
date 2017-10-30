@@ -1,0 +1,73 @@
+action do_phys_fwd_only(spec) {
+  modify_field(standard_metadata.egress_spec, spec);
+}
+
+action do_phys_mcast(mcast_grp) {
+  modify_field(intrinsic_metadata.mcast_grp, mcast_grp);
+}
+
+action do_virt_fwd() {
+  modify_field(standard_metadata.egress_spec, standard_metadata.ingress_port);
+  modify_field(meta_ctrl.virt_fwd_flag, 1);
+}
+
+table t_virtnet {
+  reads {
+    meta_ctrl.vdev_ID : exact;
+    meta_ctrl.virt_egress_spec : exact;
+  }
+  actions {
+    a_drop;
+    do_phys_fwd_only;
+    do_phys_mcast;
+    do_virt_fwd;
+  }
+}
+
+control egress {
+  if(meta_ctrl.virt_fwd_flag == 1) {
+    apply(t_egr_virtnet); // recirculate, maybe clone_e2e
+  }
+  // ...
+}
+
+action vfwd(vdev_ID, vingress) {
+  modify_field(meta_ctrl.next_vdev_ID, vdev_ID);
+  modify_field(meta_ctrl.virt_ingress_port, vingress);
+  recirculate(fl_recirc);
+}
+
+action vmcast(vdev_ID, vingress) {
+  modify_field(meta_ctrl.next_vdev_ID, vdev_ID);
+  modify_field(meta_ctrl.virt_ingress_port, vingress);
+  modify_field(meta_ctrl.virt_egress_spec, meta_ctrl.virt_egress_spec + 1);
+  recirculate(fl_recirc);
+  clone_egress_pkt_to_egress(standard_metadata.egress_port, fl_clone);
+}
+
+action vmcast_phys(vdev_ID, vingress, phys_spec) {
+  modify_field(meta_ctrl.next_vdev_ID, vdev_ID);
+  modify_field(meta_ctrl.virt_ingress_port, vingress);
+  modify_field(meta_ctrl.virt_egress_spec, meta_ctrl.virt_egress_spec + 1);
+  recirculate(fl_recirc);
+  clone_egress_pkt_to_egress(phys_spec, fl_clone);
+}
+
+action pmcast(phys_spec) {
+  modify_field(meta_ctrl.virt_egress_spec, meta_ctrl.virt_egress_spec + 1);
+  clone_egress_pkt_to_egress(phys_spec, fl_clone);
+}
+
+table t_egr_virtnet {
+  reads {
+    meta_ctrl.vdev_ID : exact;
+    meta_ctrl.virt_egress_spec : exact;
+  }
+  actions {
+    vfwd;
+    vmcast;
+    vmcast_phys;
+    pmcast;
+    a_drop;
+  }
+}
