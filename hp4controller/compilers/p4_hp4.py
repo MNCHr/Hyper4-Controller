@@ -421,18 +421,58 @@ class P4_to_HP4(HP4Compiler):
       exit()
     # looking at a single criteria field is sufficient to determine the byte
     #  range for the inspection, which affects the size of the match
-    #  parameters string (20 bytes for SEB, 10 bytes for everything else)
-    mparams = []
-    mparams_count = 10
-    if self.field_offsets[criteria_fields[0]] / 8 < self.seb:
-      mparams_count = 20
-    for i in range(mparams_count):
-      mparams.append(MatchParam())
 
+    #  parameters string (20 bytes for the first parse_select table, 10 bytes
+    #  for all others)
+    mparams = []
+    if self.field_offsets[criteria_fields[0]] / 8 < 40:
+      mparams = self.fill_tics_match_params_under40(criteria_fields, values)
+    else:
+      mparams = self.fill_tics_match_params_40_99(criteria_fields, values)
+
+    ret = ['[vdev ID]', str(pc_state)]
+    for mparam in mparams:
+      ret.append(str(mparam))
+    return ret
+
+  def fill_tics_match_params_under40(self, criteria_fields, values):
+    mparam = MatchParam()
     for i in range(len(criteria_fields)):
       if values[i][0] != 'value' and values[i][0] != 'default':
         print("Not yet supported: type %s in case entry" % values[i][0])
         exit()
+      fo = self.field_offsets[criteria_fields[i]]
+      width = self.h.p4_fields[criteria_fields[i]].width
+      fieldend = fo + width
+      value = 0
+      val = 0
+      mask = 0
+      if values[i][0] == 'value':
+        value = values[i][1]
+        mask = 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000
+        pos = fo
+        while pos < fieldend:
+          bit = 0x80000000000000000000000000000000000000000000000000000000000000000000000000000000 >> pos
+          mask = mask | bit
+          pos += 1
+        val = value << (320 - fieldend)
+      mparam.mask = mparam.mask | mask
+      mparam.value = mparam.value | val
+    return [mparam]
+
+  def fill_tics_match_params_60_69(self, criteria_fields, values):
+    """
+    mparams = []
+    for i in range(6):
+      mparams[i] = MatchParam()
+    """
+    print("Not yet implemented: fill_tics_match_params_60_69")
+    exit()
+
+  def fill_tics_match_params_70_99(self, criteria_fields, values):
+    print("Not yet implemented: fill_tics_match_params_70_99")
+    exit()
+    """
       fo = self.field_offsets[criteria_fields[i]]
       j = (fo / 8) % len(mparams)
       width = self.h.p4_fields[criteria_fields[i]].width
@@ -471,6 +511,7 @@ class P4_to_HP4(HP4Compiler):
     for mparam in mparams:
       ret.append(str(mparam))
     return ret
+    """
 
   def walk_ingress_pipeline(self, curr_table):
     """ populate table_to_trep and action_to_arep data structures """
@@ -568,6 +609,7 @@ class P4_to_HP4(HP4Compiler):
               self.pc_bits_extracted[pc_state] = self.offset
             else:
               self.pc_bits_extracted[pc_state] = self.seb * 8
+
             next_states.append(next_state)
             t.next_pc_state = pc_state
           else:
@@ -590,7 +632,6 @@ class P4_to_HP4(HP4Compiler):
 
   def gen_tset_parse_control_entries(self):
     self.walk_parse_tree(self.h.p4_parse_states['start'], 0)
-
     for key in self.pc_action.keys():
       # special handling for pc_state 0
       if key == 0:
@@ -1342,7 +1383,7 @@ def parse_args(args):
   parser.add_argument('-m', '--mt_output', help='path for match template output',
                     type=str, action="store", default='output.hp4mt')
   parser.add_argument('-s', '--seb', help='set standard extracted bytes',
-                    type=int, action="store", default=20)
+                    type=int, action="store", default=40)
   return parser.parse_args(args)
 
 def main():

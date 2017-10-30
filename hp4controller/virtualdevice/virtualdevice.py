@@ -311,7 +311,7 @@ class VirtualDeviceFactory():
         try:
           out_path = program_path.split('.p4')[0] + '.hp4t'
           mt_out_path = program_path.split('.p4')[0] + '.hp4mt'
-          seb = 20
+          seb = 40
           self.compiled_programs[program_path] = \
              self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, seb)
         except CompileError as e:

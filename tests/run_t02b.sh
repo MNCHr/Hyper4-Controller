@@ -21,11 +21,6 @@ read -n 1 -s
 ttyecho -n $ADMIN ./client --debug --startup tests/t02/t02_admin admin
 ttyecho -n $SLICEMGR ./client --debug jupiter
 
-echo "Next: add firewall"
-read -n 1 -s
-
-ttyecho -n $SLICEMGR source /home/ubuntu/hp4-ctrl/tests/t02/t02b_add_firewall
-
 echo "Next: create and configure L3 router virtual devices"
 read -n 1 -s
 
@@ -36,3 +31,8 @@ echo "Next: pairpings"
 read -n 1 -s
 
 ttyecho -n $MININET source /home/ubuntu/hp4-ctrl/tests/t02/t02_pairpings
+
+echo "Next: add firewall"
+read -n 1 -s
+
+ttyecho -n $SLICEMGR source /home/ubuntu/hp4-ctrl/tests/t02/t02b_add_firewall
