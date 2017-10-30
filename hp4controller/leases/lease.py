@@ -41,7 +41,7 @@ class Lease(object):
     for vdev_name in self.vdevs.keys():
       vdev = self.vdevs[vdev_name]
       vdev.dev_name = 'none'
-      self.remove([vdev_name], vdev)
+      self.lease_remove([vdev_name], vdev)
 
     # delete rules for tset_context
     for port in self.assignments.keys():
@@ -447,7 +447,7 @@ class Chain(Lease):
       else:
         self.vdev2p(leftvdev)
           
-    super(Chain, self).remove(parameters, vdev)
+    super(Chain, self).lease_remove(parameters, vdev)
     chain.remove(vdev_name)
 
     return 'Virtual device ' + vdev_name + ' removed'

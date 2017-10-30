@@ -400,8 +400,10 @@ class Slice():
     vdev = self.vdevs[vdev_name]
     if vdev.dev_name != 'none':
       lease = self.leases[vdev.dev_name]
-      lease.remove(parameters, vdev)
-
+      lease.lease_remove(parameters, vdev)
+    del self.vdevs[vdev_name]
+    return 'Virtual device ' + vdev_name + ' destroyed'
+      
   def vdev_interpret(self, parameters):
     # parameters:
     # <slice name> <virtual device> <style: 'bmv2' | 'agilio'> <command>
