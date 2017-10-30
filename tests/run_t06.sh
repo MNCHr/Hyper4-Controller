@@ -25,3 +25,8 @@ echo "Next: create and configure L3 routers"
 read -n 1 -s
 
 ttyecho -n $SLICEMGR ./client --debug --startup tests/t06/t06_jupiter_1 jupiter
+
+echo "Next: create and configure firewalls"
+read -n 1 -s
+
+ttyecho -n $SLICEMGR source /home/ubuntu/hp4-ctrl/tests/t06/t06_jupiter_2
