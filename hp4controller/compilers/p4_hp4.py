@@ -198,7 +198,7 @@ class DAG_Topo_Sorter():
 
 class Table_Rep():
   def __init__(self, stage, match_type, source_type, field_name):
-    self.stage = stage
+    self.stage = stage # int
     self.match_type = match_type
     self.source_type = source_type
     self.field_name = field_name
@@ -857,30 +857,29 @@ class P4_to_HP4(HP4Compiler):
           match_params.append(mp)
 
       # need a distinct template entry for every possible action
-      for action in table.next_.keys():
-        if aname == 'init_program_state':
-          # action_ID
-          aparams = [str(self.action_ID[action])]
-          # match_ID
-          aparams.append('[match ID]')
-          # next_table
-          if table.next_[action] == None:
-            aparams.append('[DONE]')
-          else:
-            aparams.append(self.table_to_trep[table.next_[action]].table_type())
-          # primitive
-          if len(action.call_sequence) == 0:
-            aparams.append(primitive_ID['no_op'])
-          else:
-            aparams.append(primitive_ID[action.call_sequence[0][0].name])
-          # primitive_subtype
-          if len(action.call_sequence) > 0:
-            aparams.append(self.get_prim_subtype(action.call_sequence[0]))
-          else:
-            aparams.append('0')
+      for action in table.actions:
+        # action_ID
+        aparams = [str(self.action_ID[action])]
+        # match_ID
+        aparams.append('[match ID]')
+        # next_table
+        if 'hit' in table.next_:
+          aparams.append(self.table_to_trep[table.next_['hit']].table_type())
+        elif table.next_[action] == None:
+          aparams.append('[DONE]')
         else:
-          print("ERROR: unexpected action: %s" % aname)
-          exit()
+          aparams.append(self.table_to_trep[table.next_[action]].table_type())
+        # primitive
+        if len(action.call_sequence) == 0:
+          aparams.append(primitive_ID['no_op'])
+        else:
+          aparams.append(primitive_ID[action.call_sequence[0][0].name])
+        # primitive_subtype
+        if len(action.call_sequence) > 0:
+          aparams.append(self.get_prim_subtype(action.call_sequence[0]))
+        else:
+          aparams.append('0')
+
         # add match priority if ternary match is involved
         if isternary:
           aparams.append('[PRIORITY]')
@@ -965,7 +964,10 @@ class P4_to_HP4(HP4Compiler):
           us_tname = 'tstg' + str(stage) + '1' + '_update_state'
           us_aname = 'finish_action'
           us_aparams = []
-          next_table = self.h.p4_tables[table_name].next_[action]
+          if 'hit' in self.h.p4_tables[table_name].next_:
+            next_table = self.h.p4_tables[table_name].next_['hit']
+          else:
+            next_table = self.h.p4_tables[table_name].next_[action]
           if next_table == None:
             us_aparams.append('0')
           else:
@@ -1229,6 +1231,64 @@ class P4_to_HP4(HP4Compiler):
 
     return aparams
 
+  def get_table_from_cs(self, control_statement) {
+    if type(control_statement) == p4_hlir.hlir.p4_tables.p4_table:
+      return control_statement
+    elif type(control_statement) == tuple:
+      return control_statement[0]
+    else:
+      print("Error (get_table_from_cs): unsupported control statement type: " \
+            + str(type(control_statement))
+      exit()
+  }
+
+  def walk_control_flow(self, curr_level, curr_cs, table) {
+    # TODO: complete implementation; concerned about proper way to recurse
+    for control_statement in curr_level:
+      if type(control_statement) == p4_hlir.hlir.p4_tables.p4_table:
+        # apply_table_call
+        if control_statement == table:
+          return get_table_from_cs(curr_level[curr_level.index(control_statement) + 1])
+      elif type(control_statement) == tuple:
+        # apply_and_select_block
+        if control_statement[0] == table:
+          return get_table_from_cs(curr_level[curr_level.index(control_statement) + 1])
+        else:
+          for case in control_statement[1]:
+            self.walk_control_flow(case[1], case[1][0], table)
+      else:
+        print("Error: unsupported call_sequence entry type: " + str(type(entry)))
+        exit()
+  }
+
+  def gen_tmiss_entries(self):
+    for table_name in self.h.p4_tables:
+      table = self.h.p4_tables[table_name]
+      stage = self.table_to_trep[table].stage # int
+      us_tname = 'tstg' + str(stage) + '1' + '_update_state'
+      us_aname = 'finish_action'
+      us_aparams = []
+
+      # identify next_table so we can look up stage for aparams[0]
+      #   aparams[0]: 'next_stage' parameter in finish_action (stages.p4/p4t)
+      if 'miss' in table.next_:
+        next_table = table.next_['miss']
+      else:
+        ingress = self.h.p4_control_flows['ingress']
+        next_table = self.walk_control_flow(ingress.call_sequence, ingress.call_sequence[0], table)
+
+      if next_table == None:
+        us_aparams.append('0')
+      else:
+        us_aparams.append(str(self.table_to_trep[next_table].stage))
+
+      self.commands.append(HP4_Command("table_add",
+                                            us_tname,
+                                            us_aname,
+                                            us_mparams,
+                                            us_aparams))
+      
+
   def gen_t_checksum_entries(self):
     """ detect and handle ipv4 checksum """
     cf_none_types = 0
@@ -1326,6 +1386,8 @@ class P4_to_HP4(HP4Compiler):
     self.gen_tset_pipeline_config_entries()
     self.gen_tX_templates()
     self.gen_action_entries()
+    code.interact(local=dict(globals(), **locals()))
+    # self.gen_tmiss_entries()
     self.gen_t_checksum_entries()
     self.gen_t_resize_pr_entries()
 
@@ -1390,6 +1452,7 @@ def main():
   args = parse_args(sys.argv[1:])
   hp4c = P4_to_HP4()
   hp4c.compile_to_hp4(args.input, args.output, args.mt_output, args.seb)
+  #code.interact(local=dict(globals(), **locals()))
 
 if __name__ == '__main__':
   main()

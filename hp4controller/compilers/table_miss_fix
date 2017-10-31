@@ -1,0 +1,66 @@
+The question:
+
+How to handle table misses?
+
+Can we handle this by setting the default action of tstgXY_update_state to finish_action?
+Will the default action interfere with the correct emulation of all virtual devices sharing the tstgXY_update_state table?
+- finish_action requires the next_stage as a parameter.  The logical value to supply is X + 1 where 'X' is the value in tstgXY_update_state.
+  - Can X + 1 sometimes be incorrect? Yes.
+    - apply_and_select_blocks affect table reference sequence, and the p4c_hp4 compiler maps every table to a unique stage.
+
+Instead of setting a default action, we can have the compiler generate a rule for tstgXY_update_state:
+  mparams:
+    vdev_ID: [VDEV ID]
+    action_ID: 0
+  action: finish_action
+  aparams:
+    next_stage: compiler determines:
+      if 'miss' construct present:
+        use the stage corresponding to the table identified in the 'miss' construct
+      else:
+        use h.p4_control_flows['ingress'].call_sequence
+          call_sequence is a list in which each member is either a table reference, or a tuple, the first member of which is a table reference, and the second member is a list where each member represents an action_case.  Find the subject table in the call_sequence; the target table is the next one at the same level in the call_sequence.  This target table is the lookup for the stage to pass as the value for finish_action's next_stage parameter.
+
+Implementation:
+  existing code that generates tsgtXY_update_state entries: gen_action_entries
+  background:
+    action_to_arep:
+      member of: P4_to_HP4
+      type: {p4_action: Action_Rep}
+        Action_Rep:
+          stages (set (ints))
+          tables ({stage (int): table_name (str)})
+          call_sequence ([(prim_type (str), prim_subtype (str of int))])
+      initialized: compile_to_hp4
+      populated by walk_ingress_pipeline
+
+  new method: gen_tmiss_entries
+    for table_name in h.p4_tables:
+      table = h.p4_tables[table_name]
+      if 'miss' in table.next_:
+        next_table = table.next_['miss']
+        # ... get stage associated with next_table
+      else:
+        ingress = h.p4_control_flows['ingress']
+        for entry in ingress.call_sequence:
+          if type(entry) == p4_hlir.hlir.p4_tables.p4_table:
+            
+          elif type(entry) == tuple:
+
+          else:
+            print("Error: unsupported call_sequence entry type: " + str(type(entry)))
+
+>>> h.p4_tables['fwd'].next_
+OrderedDict([(p4_action.a_fwd, p4_table.bogus1)])
+>>> h.p4_tables['bogus1'].next_
+{'miss': p4_table.bogus2, 'hit': p4_table.is_l4_valid}
+>>> h.p4_tables['bogus2'].next_
+OrderedDict([(p4_action._no_op, p4_table.is_l4_valid)])
+>>> h.p4_tables['is_l4_valid'].next_
+OrderedDict([(p4_action.l4_is_valid, p4_table.fw_src), (p4_action._no_op, None)])
+>>> h.p4_tables['fw_src'].next_
+OrderedDict([(p4_action._drop, None), (p4_action._no_op, p4_table.fw_dst)])
+>>> h.p4_tables['fw_dst'].next_
+OrderedDict([(p4_action._drop, None), (p4_action._no_op, None)])
+
+
