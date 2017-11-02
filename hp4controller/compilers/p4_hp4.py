@@ -4,6 +4,7 @@ from compiler import HP4Compiler, CodeRepresentation
 from p4_hlir.main import HLIR
 import p4_hlir
 from p4_hlir.hlir.p4_core import p4_enum
+from p4_hlir.hlir.p4_tables import p4_table
 from collections import OrderedDict
 import argparse
 import code
@@ -1231,35 +1232,45 @@ class P4_to_HP4(HP4Compiler):
 
     return aparams
 
-  def get_table_from_cs(self, control_statement) {
+  def get_table_from_cs(self, control_statement):
     if type(control_statement) == p4_hlir.hlir.p4_tables.p4_table:
       return control_statement
     elif type(control_statement) == tuple:
       return control_statement[0]
     else:
       print("Error (get_table_from_cs): unsupported control statement type: " \
-            + str(type(control_statement))
+            + str(type(control_statement)))
       exit()
-  }
 
-  def walk_control_flow(self, curr_level, curr_cs, table) {
-    # TODO: complete implementation; concerned about proper way to recurse
-    for control_statement in curr_level:
-      if type(control_statement) == p4_hlir.hlir.p4_tables.p4_table:
+  def walk_control_block(self, control_block, table):
+    for control_statement in control_block:
+      cs_idx = control_block.index(control_statement)
+      if type(control_statement) == p4_table:
         # apply_table_call
         if control_statement == table:
-          return get_table_from_cs(curr_level[curr_level.index(control_statement) + 1])
+          if cs_idx == len(control_block) - 1:
+            return True, None
+          return True, self.get_table_from_cs(control_block[cs_idx + 1])
       elif type(control_statement) == tuple:
         # apply_and_select_block
         if control_statement[0] == table:
-          return get_table_from_cs(curr_level[curr_level.index(control_statement) + 1])
+          if cs_idx == len(control_block) - 1:
+            return True, None
+          return True, self.get_table_from_cs(control_block[cs_idx + 1])
         else:
           for case in control_statement[1]:
-            self.walk_control_flow(case[1], case[1][0], table)
+            found, next_table = self.walk_control_block(case[1], table)
+            if found:
+              if next_table != None:
+                return True, next_table
+              elif cs_idx < len(control_block) - 1:
+                return True, self.get_table_from_cs(control_block[cs_idx + 1])
+              else:
+                return True, None
       else:
         print("Error: unsupported call_sequence entry type: " + str(type(entry)))
         exit()
-  }
+    return False, None
 
   def gen_tmiss_entries(self):
     for table_name in self.h.p4_tables:
@@ -1267,6 +1278,7 @@ class P4_to_HP4(HP4Compiler):
       stage = self.table_to_trep[table].stage # int
       us_tname = 'tstg' + str(stage) + '1' + '_update_state'
       us_aname = 'finish_action'
+      us_mparams = ['[vdev ID]', '0']
       us_aparams = []
 
       # identify next_table so we can look up stage for aparams[0]
@@ -1275,7 +1287,7 @@ class P4_to_HP4(HP4Compiler):
         next_table = table.next_['miss']
       else:
         ingress = self.h.p4_control_flows['ingress']
-        next_table = self.walk_control_flow(ingress.call_sequence, ingress.call_sequence[0], table)
+        found, next_table = self.walk_control_block(ingress.call_sequence, table)
 
       if next_table == None:
         us_aparams.append('0')
@@ -1287,7 +1299,6 @@ class P4_to_HP4(HP4Compiler):
                                             us_aname,
                                             us_mparams,
                                             us_aparams))
-      
 
   def gen_t_checksum_entries(self):
     """ detect and handle ipv4 checksum """
@@ -1386,8 +1397,7 @@ class P4_to_HP4(HP4Compiler):
     self.gen_tset_pipeline_config_entries()
     self.gen_tX_templates()
     self.gen_action_entries()
-    code.interact(local=dict(globals(), **locals()))
-    # self.gen_tmiss_entries()
+    self.gen_tmiss_entries()
     self.gen_t_checksum_entries()
     self.gen_t_resize_pr_entries()
 
