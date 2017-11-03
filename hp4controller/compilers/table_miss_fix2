@@ -2,25 +2,29 @@ table miss still not handled correctly: a table miss in match.p4 means no init_p
 
 Fixes:
 - HP4
-  -- match.p4t::init_program_state:
+  -- [DONE] match.p4t::init_program_state:
      - add next_stage parameter to update meta_ctrl.next_stage
      - remove:
          modify_field(meta_ctrl.stage_state, CONTINUE);
-  -- stages.p4t::stageX:
+  -- [DONE] stages.p4t::stageX:
      - change conditional to
          if(meta_primitve_state.action_ID != 0) {
-  -- stages.p4t::finish_action:
+  -- [DONE] stages.p4t::finish_action:
      - change to
          action finish_action() {
            modify_field(meta_primitive_state.action_ID, 0);
          }
-  -- headers.p4t::meta_ctrl_t:
+  -- [DONE] headers.p4t::meta_ctrl_t:
      - remove:
          stage_state
-  -- match.p4t:: all reads blocks, all tables:
+  -- [DONE] defines.p4t:
+     - remove:
+       #define COMPLETE
+       #define CONTINUE
+  -- [DONE] match.p4t:: all reads blocks, all tables:
      - change match type to 'ternary' for all non-vdev_ID match fields
 - p4_hp4.py:
-  -- update to support tX_[field_type]_[match_type] - init_program_state entries with added next_stage parameter
+  -- update to support tX_[field_type]_[match_type] - init_program_state entries with added next_stage parameter: 3rd param, or element [2] in array notation
   -- update to support tX_[field_type]_[match_type] entries where all non-vdev_ID match fields are subjected to ternary matching
   -- update tstgXY_update_state - finish_action entries (no aparam)
   -- generate default* entries for all match tables:
