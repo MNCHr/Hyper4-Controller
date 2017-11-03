@@ -24,10 +24,11 @@ Fixes:
   -- [DONE] match.p4t:: all reads blocks, all tables:
      - change match type to 'ternary' for all non-vdev_ID match fields
 - p4_hp4.py:
-  -- update to support tX_[field_type]_[match_type] - init_program_state entries with added next_stage parameter: 3rd param, or element [2] in array notation
-  -- update to support tX_[field_type]_[match_type] entries where all non-vdev_ID match fields are subjected to ternary matching
-  -- update tstgXY_update_state - finish_action entries (no aparam)
-  -- generate default* entries for all match tables:
+  -- [DONE] update to support tX_[field_type]_[match_type] - init_program_state entries with added next_stage parameter: 3rd param, or element [2] in array notation
+  -- [DONE] update to support tX_[field_type]_[match_type] entries where all non-vdev_ID match fields are subjected to ternary matching
+  -- [DONE] update tstgXY_update_state - finish_action entries (no aparam)
+     - update gen_tmiss_entries
+  -- [DONE] generate default* entries for all match tables:
      init_program_state
      - action_ID: 0
      - match_ID: 0

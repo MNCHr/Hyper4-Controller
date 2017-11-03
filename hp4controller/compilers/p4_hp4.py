@@ -268,7 +268,8 @@ class Table_Rep():
 class Action_Rep():
   def __init__(self):
     self.stages = set()
-    self.tables = {}
+    self.tables = {} # {stage (int) : table_name (str)}
+    self.next = {} # {table_name (str) : (next_stage (int), next_table_code (int))}
     self.call_sequence = []
 
 
@@ -822,7 +823,6 @@ class P4_to_HP4(HP4Compiler):
   def gen_tX_templates(self):
     self.walk_ingress_pipeline(self.h.p4_ingress_ptr.keys()[0])
     for table in self.table_to_trep:
-      isternary = False
       tname = str(self.table_to_trep[table])
       aname = 'init_program_state'
       match_params = ['[vdev ID]']
@@ -833,7 +833,6 @@ class P4_to_HP4(HP4Compiler):
       if len(table.match_fields) == 1:      
         if table.match_fields[0][1].value == 'P4_MATCH_VALID':
           mp = '[valid]&&&'
-          isternary = True
           # self.vbits[(level, header_instance)]
           hinst = table.match_fields[0][0]
           for key in self.vbits.keys():
@@ -852,9 +851,10 @@ class P4_to_HP4(HP4Compiler):
             if field.instance.metadata:
               maskwidth = 32
             mp += '&&&' + self.gen_bitmask(field.width,
-                                               self.field_offsets[str(field)],
-                                               maskwidth)
-            isternary = True
+                                           self.field_offsets[str(field)],
+                                           maskwidth)
+          else:
+            mp += '&&&' + self.gen_bitmask(field.width, 0, field.width)
           match_params.append(mp)
 
       # need a distinct template entry for every possible action
@@ -863,13 +863,18 @@ class P4_to_HP4(HP4Compiler):
         aparams = [str(self.action_ID[action])]
         # match_ID
         aparams.append('[match ID]')
-        # next_table
+        # next stage, next_table
         if 'hit' in table.next_:
-          aparams.append(self.table_to_trep[table.next_['hit']].table_type())
+          next_table_trep = self.table_to_trep[table.next_['hit']]
+          aparams.append(str(next_table_trep.stage))
+          aparams.append(next_table_trep.table_type())
         elif table.next_[action] == None:
+          aparams.append('0')
           aparams.append('[DONE]')
         else:
-          aparams.append(self.table_to_trep[table.next_[action]].table_type())
+          next_table_trep = self.table_to_trep[table.next_[action]]
+          aparams.append(str(next_table_trep.stage))
+          aparams.append(next_table_trep.table_type())
         # primitive
         if len(action.call_sequence) == 0:
           aparams.append(primitive_ID['no_op'])
@@ -881,9 +886,8 @@ class P4_to_HP4(HP4Compiler):
         else:
           aparams.append('0')
 
-        # add match priority if ternary match is involved
-        if isternary:
-          aparams.append('[PRIORITY]')
+        # all matches are ternary, requiring priority
+        aparams.append('[PRIORITY]')
         self.command_templates.append(HP4_Match_Command(table.name,
                                           action.name,
                                           "table_add",
@@ -965,14 +969,6 @@ class P4_to_HP4(HP4Compiler):
           us_tname = 'tstg' + str(stage) + '1' + '_update_state'
           us_aname = 'finish_action'
           us_aparams = []
-          if 'hit' in self.h.p4_tables[table_name].next_:
-            next_table = self.h.p4_tables[table_name].next_['hit']
-          else:
-            next_table = self.h.p4_tables[table_name].next_[action]
-          if next_table == None:
-            us_aparams.append('0')
-          else:
-            us_aparams.append(str(self.table_to_trep[next_table].stage))
           us_mparams = ['[vdev ID]']
           us_mparams.append(str(self.action_ID[action]))
           self.commands.append(HP4_Command("table_add",
@@ -992,12 +988,6 @@ class P4_to_HP4(HP4Compiler):
           us_aparams = []
           if rank == len(action.call_sequence):
             us_aname = 'finish_action'
-            # aparams for finish_action: next_stage
-            next_table = self.h.p4_tables[table_name].next_[action]
-            if next_table == None:
-              us_aparams.append('0')
-            else:
-              us_aparams.append(str(self.table_to_trep[next_table].stage))
           else:
             # aparams for update_state: primitive_type, primitive_subtype
             next_call = action.call_sequence[idx + 1]
@@ -1274,13 +1264,14 @@ class P4_to_HP4(HP4Compiler):
 
   def gen_tmiss_entries(self):
     for table_name in self.h.p4_tables:
-      table = self.h.p4_tables[table_name]
-      stage = self.table_to_trep[table].stage # int
-      us_tname = 'tstg' + str(stage) + '1' + '_update_state'
-      us_aname = 'finish_action'
-      us_mparams = ['[vdev ID]', '0']
-      us_aparams = []
 
+      table = self.h.p4_tables[table_name]
+      trep = self.table_to_trep[table]
+      tname = trep.name
+      stage = trep.stage # int
+      aname = 'init_program_state'
+      mparams = ['[vdev ID]', '0&&&0']
+                 
       # identify next_table so we can look up stage for aparams[0]
       #   aparams[0]: 'next_stage' parameter in finish_action (stages.p4/p4t)
       if 'miss' in table.next_:
@@ -1290,15 +1281,25 @@ class P4_to_HP4(HP4Compiler):
         found, next_table = self.walk_control_block(ingress.call_sequence, table)
 
       if next_table == None:
-        us_aparams.append('0')
+        next_stage = '0'
+        next_table_type = '0'
       else:
-        us_aparams.append(str(self.table_to_trep[next_table].stage))
+        next_stage = str(self.table_to_trep[next_table].stage)
+        next_table_type = self.table_to_trep[next_table].table_type()
+
+      aparams = ['0', # action_ID
+                 '0', # match_ID
+                 next_stage,
+                 next_table_type,
+                 '0', # primitive
+                 '0', # primitive_subtype
+                 str(MAX_PRIORITY)]
 
       self.commands.append(HP4_Command("table_add",
-                                            us_tname,
-                                            us_aname,
-                                            us_mparams,
-                                            us_aparams))
+                                            tname,
+                                            aname,
+                                            mparams,
+                                            aparams))
 
   def gen_t_checksum_entries(self):
     """ detect and handle ipv4 checksum """
