@@ -1,0 +1,34 @@
+table miss still not handled correctly: a table miss in match.p4 means no init_program_state, which means no setting the next_table
+
+Fixes:
+- HP4
+  -- match.p4t::init_program_state:
+     - add next_stage parameter to update meta_ctrl.next_stage
+     - remove:
+         modify_field(meta_ctrl.stage_state, CONTINUE);
+  -- stages.p4t::stageX:
+     - change conditional to
+         if(meta_primitve_state.action_ID != 0) {
+  -- stages.p4t::finish_action:
+     - change to
+         action finish_action() {
+           modify_field(meta_primitive_state.action_ID, 0);
+         }
+  -- headers.p4t::meta_ctrl_t:
+     - remove:
+         stage_state
+  -- match.p4t:: all reads blocks, all tables:
+     - change match type to 'ternary' for all non-vdev_ID match fields
+- p4_hp4.py:
+  -- update to support tX_[field_type]_[match_type] - init_program_state entries with added next_stage parameter
+  -- update to support tX_[field_type]_[match_type] entries where all non-vdev_ID match fields are subjected to ternary matching
+  -- update tstgXY_update_state - finish_action entries (no aparam)
+  -- generate default* entries for all match tables:
+     init_program_state
+     - action_ID: 0
+     - match_ID: 0
+     - next_stage: by lookup using process used in gen_tmiss_entries
+     - next_table: by lookup using process used in gen_tmiss_entries
+     - primitive: 0
+     - primitive_subtype: 0
+     *default: 0&&&0 as the match spec, MAX_PRIORITY as the priority
