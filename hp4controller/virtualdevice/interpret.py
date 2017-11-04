@@ -48,40 +48,46 @@ primitive_types = {'[MODIFY_FIELD]':'0',
 
 class Interpreter(object):
   @staticmethod
-  def table_set_default(guide, p4command, match_ID, vdev_ID, mcast_grp_id):
+  def table_set_default(guide, p4command, mrule_handle, hp4_rule_keys, vdev_ID, mcast_grp_id):
     p4commands = []
     rule = P4Rule(p4command.attributes['table'],
                   p4command.attributes['action'],
                   [],
                   p4command.attributes['aparams'])
     key = (rule.table, rule.action)
+
     mrule = copy.deepcopy(guide.templates[key]['match'])
-    mrule_match_params = mrule.attributes['mparams']
-    for i in range(len(mrule_match_params)):
-      if mrule_match_params[i] == '[vdev ID]':
-        mrule_match_params[i] = str(vdev_ID)
-      elif ('[val]' in mrule_match_params[i]) or ('[valid]' in mrule_match_params[i]):
-        if '&&&' in mrule_match_params[i]:
-          mrule_match_params[i] = '0&&&0' # 'don't care'
-        else:
-          raise InterpretError('Not yet supported: table_set_default for ' \
-                               + mrule_match_params[i] + '(' + rule.table + ')')
+
+    mrule.command_type = 'table_modify'
+    mrule.attributes['handle'] = mrule_handle
 
     ## action parameters
     mrule_action_params = mrule.attributes['aparams']
     for i in range(len(mrule_action_params)):
       if mrule_action_params[i] == '[match ID]':
-        mrule_action_params[i] = str(match_ID)
+        mrule_action_params[i] = '0'
       elif mrule_action_params[i] == '[PRIORITY]':
-        mrule_action_params[i] = str(MAX_PRIORITY)
+        mrule_action_params[i] = ''
       elif mrule_action_params[i] in match_types:
         mrule_action_params[i] = match_types[mrule_action_params[i]]
       elif mrule_action_params[i] in primitive_types:
         mrule_action_params[i] = primitive_types[mrule_action_params[i]]
 
     p4commands.append(mrule)
-
+    
     # handle the primitives rules
+    #   delete existing rules
+    #   add new rules
+
+    #   delete existing rules
+    for table, action, handle in hp4_rule_keys:
+      # delete everything but the match rule
+      if table != mrule.attributes['table']:
+        attribs = {'table': table,
+                   'handle': handle}
+        p4commands.append(P4Command('table_delete', attribs))
+
+    #   add new rules
     for entry in guide.templates[key]['primitives']:
       arule = copy.deepcopy(entry)
       ## match parameters
@@ -91,7 +97,7 @@ class Interpreter(object):
           arule_match_params[i] = str(vdev_ID)
         elif '[match ID]' in arule_match_params[i]:
           arule_match_params[i] = arule_match_params[i].replace('[match ID]',
-                                                                 str(match_ID))
+                                                                 '0')
       ## action parameters
       arule_action_params = arule.attributes['aparams']
       for i in range(len(arule_action_params)):
@@ -294,9 +300,9 @@ class Interpreter(object):
     return p4commands
 
   @staticmethod
-  def table_delete(guide, p4command, interpretation):
+  def table_delete(guide, p4command, hp4_rule_keys):
     p4commands = []
-    for table, action, handle in interpretation.hp4_rule_keys:
+    for table, action, handle in hp4_rule_keys:
       attribs = {'table': table,
                  'handle': handle}
       p4commands.append(P4Command('table_delete', attribs))

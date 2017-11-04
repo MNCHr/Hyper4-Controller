@@ -1,4 +1,6 @@
 from ..virtualdevice.virtualdevice import VirtualDevice
+from ..virtualdevice.p4rule import P4Rule
+from ..virtualdevice.interpret import Interpretation
 from ..p4command import P4Command
 from ..errors import AddRuleError, LoadError, VirtnetError
 
@@ -117,6 +119,24 @@ class Lease(object):
                      'aparams': aparams}
           handle = self.send_command(P4Command(command_type, attribs))
           vdev.hp4_code_and_rules[(table, handle)] = rule
+
+          # store handle for default rule for native match table
+          if action == 'init_program_state' and aparams[1] == '0':
+            for key in vdev.guide.templates_match:
+              if vdev.guide.templates_match[key].attributes['table'] == rule.table:
+                native_table = key[0]
+                vdev.hp4_handle_for_ndefault[native_table] = handle
+
+                init_default_rule = P4Rule(native_table, 'init_default',
+                                           [],
+                                           [])
+
+                hp4_rule_keys = [(rule.table, action, handle)]
+                vdev.nrules[(key[0], 0)] = Interpretation(init_default_rule,
+                                                          0,
+                                                          hp4_rule_keys)
+                break
+
           if ruleset == 'rules':
             vdev.hp4rules[(table, handle)] = rule
           # print("Checkpoint BRAVO") 

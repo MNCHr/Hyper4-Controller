@@ -66,7 +66,7 @@ class Controller(object):
       except AttributeError as e:
         return "AttributeError(handle_request - " + command + "): " + str(e)
       except Exception as e:
-        return "Unexpected error: " + str(e)
+        return "Unexpected error(" + command + "): " + str(e)
     elif command == 'vdev_create':
       resp = self.vdev_create(parameters)
     else:
@@ -290,7 +290,7 @@ class Slice():
         except AttributeError as e:
           return "AttributeError(handle_request - " + command + "): " + str(e)
         except Exception as e:
-          return "Unexpected error: " + str(e)
+          return "Unexpected error(" + command + "): " + str(e)
         return resp
     else:
       try:
@@ -298,7 +298,7 @@ class Slice():
       except AttributeError as e:
         return "AttributeError(handle_request - " + command + "): " + str(e)
       except Exception as e:
-        return "Unexpected error: " + str(e)
+        return "Unexpected error(" + command + "): " + str(e)
       return resp
 
   def slice_dump(self, parameters):
@@ -407,23 +407,28 @@ class Slice():
   def vdev_interpret(self, parameters):
     # parameters:
     # <slice name> <virtual device> <style: 'bmv2' | 'agilio'> <command>
-    print(parameters)
     vdev_name = parameters[0]
     style = parameters[1]
+
+    # reformat & sanity check
     vdev_command_str = ' '.join(parameters[2:])
     if style == 'bmv2':
-      p4command = device.Bmv2_SSwitch.string_to_command(vdev_command_str)
+      native_command = device.Bmv2_SSwitch.string_to_command(vdev_command_str)
     elif style == 'agilio':
-      p4command = device.Agilio.string_to_command(vdev_command_str)
+      native_command = device.Agilio.string_to_command(vdev_command_str)
     else:
       return 'Error - ' + style + ' not one of (\'bmv2\', \'agilio\')'
     if vdev_name not in self.vdevs:
       return 'Error - ' + vdev_name + ' not a recognized virtual device'
     vdev = self.vdevs[vdev_name]
 
-    hp4commands = vdev.interpret(p4command)
+    # intepret
+    hp4commands = vdev.interpret(native_command)
+
+    # destination
     dev_name = vdev.dev_name
 
+    # prepare to track changes to ruleset
     hp4_rule_keys = [] # list of (table, action, handle) tuples
 
     def get_table_action_rule(hp4command, hp4handle, dev_name):
@@ -444,6 +449,7 @@ class Slice():
       return table, action, rule
 
     if dev_name == 'none':
+      # gather changes to ruleset
       for hp4command in hp4commands:
         if hp4command.command_type == 'table_add':
           hp4handle = vdev.assign_staged_hp4_handle(hp4command.attributes['table'])
@@ -470,13 +476,17 @@ class Slice():
           diff += 1
         elif hp4command.command_type == 'table_delete':
           diff -= 1
+      # abort if insufficient capacity
       if diff > entries_available:
         return 'Error - entries net increase(' + str(diff) \
              + ') exceeds availability(' + str(entries_available) + ')'
 
-      # push hp4 rules, collect handles, update hp4-facing ruleset
+      # push hp4 rules, collect handles, gather changes to ruleset
       for hp4command in hp4commands:
         # return value should be handle for all commands
+        if native_command.attributes['table'] == 'send_frame':
+          print("Slice::interpret, send_frame")
+          code.interact(local=dict(globals(), **locals()))
         hp4handle = int(self.leases[dev_name].send_command(hp4command))
         table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
         if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
@@ -490,31 +500,41 @@ class Slice():
           del vdev.hp4rules[(table, hp4handle)]
           self.leases[dev_name].entry_usage -= 1
 
-    # account for native rule: handle, hp4 rules & hp4 handles
-    table = p4command.attributes['table']
-    if p4command.command_type == 'table_add':
+    print("CHECKPOINT: BB")
+
+    # record changes to ruleset
+    table = native_command.attributes['table']
+    if native_command.command_type == 'table_add':
       # new Origin_to_HP4Map w/ new hp4_rule_keys list
-      rule = p4rule.P4Rule(table, p4command.attributes['action'],
-                           p4command.attributes['mparams'],
-                           p4command.attributes['aparams'])
-      # TODO: redo this properly
+      rule = p4rule.P4Rule(table, native_command.attributes['action'],
+                           native_command.attributes['mparams'],
+                           native_command.attributes['aparams'])
+
       match_ID = int(hp4commands[0].attributes['aparams'][1])
       vdev.nrules[(table, match_ID)] = \
                                          Interpretation(rule, match_ID, hp4_rule_keys)
 
-    elif p4command.command_type == 'table_modify':
+    elif native_command.command_type == 'table_modify':
       # update interpretation origin rule
-      match_ID = p4command.attributes['handle']
+      match_ID = native_command.attributes['handle']
       interpretation = vdev.nrules[(table, match_ID)]
-      rule = p4rule.P4Rule(table, p4command.attributes['action'],
+      rule = p4rule.P4Rule(table, native_command.attributes['action'],
                            interpretation.native_rule.mparams,
-                           p4command.attributes['aparams'])
+                           native_command.attributes['aparams'])
 
       vdev.nrules[(table, match_ID)] = \
                                         Interpretation(rule, match_ID, hp4_rule_keys)
 
-    elif p4command.command_type == 'table_delete':
-      handle = p4command.attributes['handle']
+    elif native_command.command_type == 'table_set_default':
+      match_ID = 0
+      rule = p4rule.P4Rule(table, native_command.attributes['action'],
+                           [],
+                           native_command.attributes['aparams'])
+      vdev.nrules[(table, match_ID)] = Interpretation(rule, match_ID, hp4_rule_keys)
+      print("CHECKPOINT: CC")
+
+    elif native_command.command_type == 'table_delete':
+      handle = native_command.attributes['handle']
       del vdev.nrules[(table, handle)]
 
     return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name

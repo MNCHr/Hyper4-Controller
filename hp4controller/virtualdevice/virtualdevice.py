@@ -88,6 +88,8 @@ class VirtualDevice():
 
     self.hp4_code_and_rules = {} # KEY: (table (str), hp4-facing handle (int))
                                  # VALUE: P4Rule}
+    self.hp4_handle_for_ndefault = {} # KEY: native table (str)
+                                      # VALUE: hp4-facing handle (int)
     self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                 # VALUE: hp4-facing handle (int)
     self.t_egr_virtnet_handles = {} # KEY: vegress_spec (int)
@@ -159,20 +161,28 @@ class VirtualDevice():
   def interpret(self, p4command):
     # key method: ~/hp4-src/p4c-hp4/controller.py::DPMUServer::translate
     p4commands = []
-    table = p4command.attributes['table']
+    native_table = p4command.attributes['table']
 
     if p4command.command_type == 'table_add':
-      match_ID = self.assign_handle(table)
+      match_ID = self.assign_handle(native_table)
       p4commands = Interpreter.table_add(self.guide, p4command, match_ID,
                                          self.virtual_device_ID, self.mcast_grp_id)
     elif p4command.command_type == 'table_set_default':
-      match_ID = self.assign_handle(table)
-      p4commands = Interpreter.table_set_default(self.guide, p4command, match_ID,
+      #print("breakpoint: VirtualDevice::interpret: table_set_default")
+      #code.interact(local=dict(globals(), **locals()))
+      handle = self.hp4_handle_for_ndefault[native_table]
+      interpretation = self.nrules[(native_table, 0)]
+      p4commands = Interpreter.table_set_default(self.guide,
+                                                 p4command,
+                                                 handle,
+                                                 interpretation.hp4_rule_keys,
                                                  self.virtual_device_ID,
                                                  self.mcast_grp_id)
     else:
-      native_table = p4command.attributes['table']
       native_handle = p4command.attributes['handle']
+      if native_handle == 0:
+        print("Error(VirtualDevice::interpret) - table_modify / table_delete using native handle 0")
+        exit()
       interpretation = self.nrules[(native_table, native_handle)]
       if p4command.command_type == 'table_modify':
         p4commands = Interpreter.table_modify(self.guide,
@@ -181,10 +191,10 @@ class VirtualDevice():
                                               native_handle,
                                               self.virtual_device_ID,
                                               self.mcast_grp_id)
-        print("breakpoint: VirtualDevice::interpret: table_modify")
-        code.interact(local=dict(globals(), **locals()))
       elif p4command.command_type == 'table_delete':
-        p4commands = Interpreter.table_delete(self.guide, p4command, interpretation)
+        p4commands = Interpreter.table_delete(self.guide,
+                                              p4command,
+                                              interpretation.hp4_rule_keys)
 
     return p4commands
 

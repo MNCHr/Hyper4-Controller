@@ -6,7 +6,7 @@ table_add ipv4_lpm set_nhop 0x0A010067 => 0x0A010067 3
 table_add ipv4_lpm set_nhop 0x0A020068 => 0x0A000002 4
 table_add ipv4_lpm set_nhop 0x0A020069 => 0x0A000002 4
 table_add ipv4_lpm set_nhop 0x0A02006A => 0x0A000002 4
-table_set_default ipv4_lpm _no_op =>
+table_set_default ipv4_lpm _no_op
 table_add forward set_dmac 0x0A010065 => 0x000400000001
 table_add forward set_dmac 0x0A010066 => 0x000400000002
 table_add forward set_dmac 0x0A010067 => 0x000400000003

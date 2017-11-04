@@ -1,0 +1,78 @@
+Objective: understand how the match_ID parameter is used
+
+ match_ID == native_handle
+
+ an attribute of Interpretation class
+
+ VirtualDevice::interpret(p4command)
+ - if p4command.command_type == table_add:
+     match_ID = self.assign_handle(table)
+ - if p4command.command_type == table_set_default:
+     match_ID = self.assign_handle(table) # is this right? should be 0...
+ - in either case, corresponding table_add / table_set_default method
+   called in Interpreter class with match_ID as a parameter, which replaces
+   '[match ID]' in both the match rule and all primitive rules
+ VirtualDevice::assign_handle(table):
+ - if table is not yet being tracked by self.next_handle, initialize an entry
+   for it in self.next_handle, with a starting handle of 1
+ - set the return value to what is stored in self.next_handle[table], increment
+   the stored value, return the return value
+
+=====
+
+table_set_default:
+
+The problem:
+- Lease::load_virtual_device loads the rules in the .hp4t into HyPer4, which include
+  default rules for tX match tables
+- When a user issues 'table_set_default' for interpretation, we need to do a table_modify
+  on the tX match table corresponding to the native table in the interpretation request
+- Such a table_modify command requires the handle
+- This means we must be able to store and retrieve the handles for the default rules for the tX tables, which won't necessarily be 0, because of multiple vdevs per device.
+- When a table_set_default command is interpreted, we must delete any existing primitive-related rules before generating new ones.
+
+1. STORE AND RETRIEVE TX MATCH TABLE DEFAULT RULE HANDLES
+
+  Lease::load_virtual_device stores hp4 handles for every hp4 rule in vdev.hp4_code_and_rules
+  -- how to identify a rule unambiguously as a default rule for a tX table?
+     -- action: init_program_state
+     -- aparams[1] (match_ID): 0
+  -- how to identify the native table associated with the hp4 table?
+
+     We do a reverse lookup using the VirtualDevice::guide, which is instantiated at time of creation.
+
+     vdev.guide.templates_match: {(ntable, naction) : P4Command}
+
+     The naction element should not matter for this purpose.  Every P4Command retrieved from vdev.guide.templates_match using the same ntable should have the same value for P4Command.attributes['table'], regardless of naction.
+
+      vdev.guide.templates_match[(ntable, naction)].attributes['table']
+
+  This is stored in VirtualDevice::hp4_handle_for_ndefault ({native table (str) : handle (int)}).
+
+  When does vdev.nrules get populated with the initial default interpretation?
+
+    vdev.nrules[(table, match_ID)]
+
+  Trace:
+    Slice::vdev_interpret ->
+      VirtualDevice::interpret ->
+        Interpreter::table_set_default
+    
+2. DELETE TX PRIMITIVE-RELATED RULES BEFORE GENERATING NEW ONES
+
+  Pass vdev.hp4_rule_keys to Interpreter::table_set_default
+
+
+
+
+
+nrules:
+- stores Interpretation associated with native table, match_ID
+- initialized at VirtualDevice creation time
+- written with a user-issued table_add, table_modify, table_set_default
+- read during VirtualDevice::interpret during user-issued table_set_default, table_modify, table_delete
+- read at end of Slice::vdev_interpret during user-issued table_modify to supply match parameters for updated native rule
+- deleted during user-issued table_delete
+
+Need to verify that:
+  vdev.nrules[(native_table, native_handle=0)].rule isn't used

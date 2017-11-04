@@ -103,6 +103,8 @@ class Bmv2_SSwitch(Device):
       return handle
 
     elif cmd_str_rep.split()[0] == 'table_modify':
+      #print("Bmv2_SSwitch::send_command, table_modify")
+      #code.interact(local=dict(globals(), **locals()))
       try:
         self.do_table_modify(cmd_str_rep.split('table_modify ')[1])
         handle = cmd_str_rep.split('table_modify ')[1].split()[2]
@@ -181,7 +183,7 @@ class Bmv2_SSwitch(Device):
     elif cmd.command_type == 'table_modify':
       command_str += ' ' + cmd.attributes['action']
       command_str += ' ' + str(cmd.attributes['handle'])
-      command_str += ' => ' + ' '.join(cmd.attributes['aparams'])
+      command_str += ' ' + ' '.join(cmd.attributes['aparams'])
     elif cmd.command_type == 'table_delete':
       command_str += ' ' + str(cmd.attributes['handle'])
     elif cmd.command_type == 'table_set_default':
