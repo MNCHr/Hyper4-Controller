@@ -860,7 +860,7 @@ class P4_to_HP4(HP4Compiler):
             mp += '&&&' + self.gen_bitmask(field.width,
                                            self.field_offsets[str(field)],
                                            maskwidth)
-          elif field.name != 'egress_spec':
+          elif field.name != 'egress_spec' and field.name != 'ingress_port':
             mp += '&&&' + hex((1 << field.width) - 1)
           else: # egress_spec... rep'd by virt_egress_spec, which is 8 bits
             mp += '&&&0xFF'

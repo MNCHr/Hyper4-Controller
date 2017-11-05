@@ -103,9 +103,11 @@ class Bmv2_SSwitch(Device):
       return handle
 
     elif cmd_str_rep.split()[0] == 'table_modify':
-      #print("Bmv2_SSwitch::send_command, table_modify")
-      #code.interact(local=dict(globals(), **locals()))
+      #if cmd_str_rep.split()[1] == 't_virtnet':
+      #  print("Bmv2_SSwitch::send_command, table_modify")
+      #  code.interact(local=dict(globals(), **locals()))
       try:
+        
         self.do_table_modify(cmd_str_rep.split('table_modify ')[1])
         handle = cmd_str_rep.split('table_modify ')[1].split()[2]
       except ModRuleError as e:
@@ -162,6 +164,12 @@ class Bmv2_SSwitch(Device):
 
   def do_table_modify(self, rule_mod):
     "rule_mod: \'<table name> <action> <handle> <[aparams]>\'"
+
+    # Bug in current version of bmv2/tools/run_CLI.sh:
+    #  if no aparams, crashes unless '=>' present on the end
+    if len(rule_mod.split()) == 3:
+      rule_mod += ' =>'
+
     with Capturing() as output:
       try:
         self.rta.do_table_modify(rule_mod)
