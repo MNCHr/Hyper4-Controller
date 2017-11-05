@@ -820,6 +820,13 @@ class P4_to_HP4(HP4Compiler):
     #  bytes_written += 1
     return mask
 
+  def gen_bitmask2(self, fieldwidth, offset, maskwidthbits):
+    mask = '0x'
+    bits_written = offset
+    bits_left = fieldwidth
+    while bits_left > 0:
+      bit = 0b10000000 >> offset
+
   def gen_tX_templates(self):
     self.walk_ingress_pipeline(self.h.p4_ingress_ptr.keys()[0])
     for table in self.table_to_trep:
@@ -853,8 +860,10 @@ class P4_to_HP4(HP4Compiler):
             mp += '&&&' + self.gen_bitmask(field.width,
                                            self.field_offsets[str(field)],
                                            maskwidth)
-          else:
-            mp += '&&&' + self.gen_bitmask(field.width, 0, field.width)
+          elif field.name != 'egress_spec':
+            mp += '&&&' + hex((1 << field.width) - 1)
+          else: # egress_spec... rep'd by virt_egress_spec, which is 8 bits
+            mp += '&&&0xFF'
           match_params.append(mp)
 
       # need a distinct template entry for every possible action
