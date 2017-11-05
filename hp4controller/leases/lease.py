@@ -117,6 +117,11 @@ class Lease(object):
                      'action': action,
                      'mparams': rule.mparams,
                      'aparams': aparams}
+
+          if table == 't2_matchless':
+            print("load_virtual_device " + vdev_name + "; t2_matchless")
+            code.interact(local=dict(globals(), **locals()))
+
           handle = self.send_command(P4Command(command_type, attribs))
           vdev.hp4_code_and_rules[(table, handle)] = rule
 

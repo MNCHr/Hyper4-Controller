@@ -484,9 +484,6 @@ class Slice():
       # push hp4 rules, collect handles, gather changes to ruleset
       for hp4command in hp4commands:
         # return value should be handle for all commands
-        if native_command.attributes['table'] == 'send_frame':
-          print("Slice::interpret, send_frame")
-          code.interact(local=dict(globals(), **locals()))
         hp4handle = int(self.leases[dev_name].send_command(hp4command))
         table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
         if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':

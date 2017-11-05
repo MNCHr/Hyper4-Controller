@@ -1279,7 +1279,9 @@ class P4_to_HP4(HP4Compiler):
       tname = trep.name
       stage = trep.stage # int
       aname = 'init_program_state'
-      mparams = ['[vdev ID]', '0&&&0']
+      mparams = ['[vdev ID]']
+      if 'matchless' not in tname:
+        mparams.append('0&&&0')
                  
       # identify next_table so we can look up stage for aparams[0]
       #   aparams[0]: 'next_stage' parameter in finish_action (stages.p4/p4t)
@@ -1301,8 +1303,10 @@ class P4_to_HP4(HP4Compiler):
                  next_stage,
                  next_table_type,
                  '0', # primitive
-                 '0', # primitive_subtype
-                 str(MAX_PRIORITY)]
+                 '0'] # primitive_subtype
+
+      if 'matchless' not in tname:
+        aparams.append(str(MAX_PRIORITY))
 
       self.commands.append(HP4_Command("table_add",
                                             tname,
