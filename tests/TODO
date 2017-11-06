@@ -1,0 +1,41 @@
+TASKS:
+- Revise firewall2.p4
+
+- Test dropless version of t06 (configure fw before inserting into the chain)
+
+- Test: t05
+Goal: produce evaluation of service chains
+- see t05; chain evolution:
+  TOPOLOGY:
+  2 switches
+  6 hosts
+  s1 s2
+  h1 s1
+  h2 s1
+  h3 s1
+  h4 s2
+  h5 s2
+  h6 s2
+  SLICE 1: h1, h2, h4, h5
+  Functionality mirrored on s1, s2
+  - switch
+  - switch -> router
+  - switch
+  - switch -> arp proxy
+  - arp proxy
+  - arp proxy -> switch
+  - arp proxy -> switch -> router
+  - arp proxy -> switch -> router -> firewall
+  - arp proxy -> switch -> firewall
+  - switch -> firewall
+  - firewall
+  SLICE 2: h3, h6
+  Functionality mirrored on s1, s2
+  - switch
+- show no packets dropped as we make changes to the chain (except when they should be)
+- show bandwidth impact, single slice
+- show latency impact, single slice
+- show bandwidth impact, neighbor slice
+- show latency impact, single slice
+
+- Test each client function

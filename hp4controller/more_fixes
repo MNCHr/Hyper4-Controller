@@ -76,3 +76,6 @@ nrules:
 
 Need to verify that:
   vdev.nrules[(native_table, native_handle=0)].rule isn't used
+  Need to inspect:
+  - Interpreter::table_modify - use of interpretation parameter
+  - Interpreter::table_delete - use of interpretation parameter

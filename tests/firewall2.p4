@@ -114,25 +114,8 @@ table fw_dst {
   }
 }
 
-table bogus1 {
-  actions {
-    _no_op;
-  }
-}
-
-table bogus2 {
-  actions {
-    _no_op;
-  }
-}
-
 control ingress {
   apply(fwd);
-  apply(bogus1) {
-    miss {
-      apply(bogus2);
-    }
-  }
   apply(is_l4_valid) {
     l4_is_valid {
       apply(fw_src) {
