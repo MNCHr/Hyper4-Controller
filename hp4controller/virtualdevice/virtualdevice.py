@@ -61,6 +61,8 @@ class VirtualDevice():
     # onto a device
     self.hp4code = []  # representation of .p4
     self.hp4rules = {} # {(hp4-facing table (str), hp4-facing handle (int)): P4Rule}
+    self.nrules = {} # KEY: (table (str), user-facing handle / match ID (int))
+                     # VALUE: Interpretation
     # object_code format:
     #  <table> <action> :<mparams>:<aparams
     for line in hp4code:
@@ -70,26 +72,23 @@ class VirtualDevice():
       aparams = line.split(':')[2].split()
       self.hp4code.append(P4Rule(table, action, mparams, aparams))
 
-    """
-    self.staged_hp4rules = {} # {(hp4-facing table (str), staged-hp4-facing handle (int)): P4Rule}
-    self.staged_next_hp4_handle = {} # KEY: table (str)
-                                     # VALUE: next staged-hp4-facing handle (int)
-    """
+      # store handle for default rule for native match table
+      if action == 'init_program_state' and aparams[1] == '0':
+        for key in self.guide.templates_match:
+          if self.guide.templates_match[key].attributes['table'] == table:
+            native_table = key[0]
+            init_default_rule = P4Rule(native_table, 'init_default',
+                                       [],
+                                       [])
 
-    self.nrules = {} # KEY: (table (str), user-facing handle / match ID (int))
-                     # VALUE: Interpretation
-    """
-    self.staged_next_native_handle = {} # KEY: table (str)
-                                        # VALUE: next staged-user-facing handle (int)
-
-    self.staged_nrules = {} # KEY: (table (str), staged-user-facing handle (int))
-                            # VALUE: Interpretation
-    """
+            hp4_rule_keys = [(table, action, 0)]
+            self.nrules[(native_table, 0)] = Interpretation(init_default_rule,
+                                                            0,
+                                                            hp4_rule_keys)
+            break
 
     self.hp4_code_and_rules = {} # KEY: (table (str), hp4-facing handle (int))
                                  # VALUE: P4Rule}
-    self.hp4_handle_for_ndefault = {} # KEY: native table (str)
-                                      # VALUE: hp4-facing handle (int)
     self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                 # VALUE: hp4-facing handle (int)
     self.t_egr_virtnet_handles = {} # KEY: vegress_spec (int)
@@ -170,12 +169,14 @@ class VirtualDevice():
     elif p4command.command_type == 'table_set_default':
       #print("breakpoint: VirtualDevice::interpret: table_set_default")
       #code.interact(local=dict(globals(), **locals()))
-      handle = self.hp4_handle_for_ndefault[native_table]
-      interpretation = self.nrules[(native_table, 0)]
+
+      hp4_rule_keys = self.nrules[(native_table, 0)].hp4_rule_keys
+      _, _, handle = hp4_rule_keys[0]
+
       p4commands = Interpreter.table_set_default(self.guide,
                                                  p4command,
                                                  handle,
-                                                 interpretation.hp4_rule_keys,
+                                                 hp4_rule_keys,
                                                  self.virtual_device_ID,
                                                  self.mcast_grp_id)
     else:

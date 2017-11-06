@@ -61,6 +61,16 @@ class Interpreter(object):
     mrule.command_type = 'table_modify'
     mrule.attributes['handle'] = mrule_handle
 
+    ## match parameters
+    mrule_match_params = mrule.attributes['mparams']
+
+    for i in range(len(mrule_match_params)):
+      if mrule_match_params[i] == '[vdev ID]':
+        mrule_match_params[i] = str(vdev_ID)
+
+      if '[val]' in mrule_match_params[i]:
+        mrule_match_params[i] = '0&&&0'
+
     ## action parameters
     mrule_action_params = mrule.attributes['aparams']
     for i in range(len(mrule_action_params)):

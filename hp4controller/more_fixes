@@ -62,10 +62,6 @@ The problem:
 
   Pass vdev.hp4_rule_keys to Interpreter::table_set_default
 
-
-
-
-
 nrules:
 - stores Interpretation associated with native table, match_ID
 - initialized at VirtualDevice creation time
@@ -79,3 +75,18 @@ Need to verify that:
   Need to inspect:
   - Interpreter::table_modify - use of interpretation parameter
   - Interpreter::table_delete - use of interpretation parameter
+
+VirtualDevice::hp4_handle_for_ndefault initialization when device == 'none'?
+
+  This attribute, hp4_handle_for_ndefault, is used to retrieve the hp4 handle for the
+  default rule for hp4's table corresponding to the supplied native table.
+
+  This handle is supplied as a parameter to Interpreter::table_set_default.  The parameter
+  is set as the 'handle' attribute of the match rule so we can do a table_modify.
+
+  When there is no device, there is no table_modify to do.  Instead, we need to replace
+  the relevant line in VirtualDevice::hp4code.
+
+  We also have a problem with nrules - VirtualDevice::interpret retrieves nrules[(native_table, 0)], an Interpretation object, from which it extracts hp4_rule_keys.  This attribute is passed as a parameter to Interpreter.table_set_default so that deletes may be issued for existing primitive-related rules.  Before the virtualdevice is loaded, there is no such entry in nrules.
+
+

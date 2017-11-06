@@ -1,6 +1,4 @@
 TASKS:
-- Revise firewall2.p4
-
 - Test dropless version of t06 (configure fw before inserting into the chain)
 
 - Test: t05

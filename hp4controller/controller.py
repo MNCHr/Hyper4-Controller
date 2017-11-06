@@ -449,22 +449,41 @@ class Slice():
       return table, action, rule
 
     if dev_name == 'none':
-      # gather changes to ruleset
-      for hp4command in hp4commands:
-        if hp4command.command_type == 'table_add':
-          hp4handle = vdev.assign_staged_hp4_handle(hp4command.attributes['table'])
-          table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
-          vdev.hp4rules[(table, hp4handle)] = rule
-          hp4_rule_keys.append((table, action, hp4handle))
-        elif hp4command.command_type == 'table_modify':
-          hp4handle = int(hp4command.attributes['handle'])
-          table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
-          vdev.hp4rules[(table, hp4handle)] = rule
-          hp4_rule_keys.append((table, action, hp4handle))
-        else: # command_type == 'table_delete'
-          table = hp4command.attributes['table']
-          hp4handle = int(hp4command.attributes['handle'])
-          del vdev.hp4rules[(table, hp4handle)]
+      if native_command.command_type == 'table_set_default':
+        # replace line in vdev.hp4_code
+        if len(hp4commands) != 1:
+          print("Slice::interpret: Unexpected length of hp4commands (" \
+                + str(len(hp4commands)) + ")")
+          exit()
+
+        newrule = hp4commands[0]
+        for rule in vdev.hp4code:
+          if rule.table == newrule.attributes['table']:
+            # replace 1st six elements, or all init_program_state parameters:
+            #   action_ID, match_ID, next_stage, next_table, primitive,
+            #   primitive_subtype
+            # seventh element == priority, which should remain the same
+            for i in range(6):
+              rule.aparams[i] = newrule.attributes['aparams'][i]
+            break
+  
+      else:
+        # gather changes to ruleset
+        for hp4command in hp4commands:
+          if hp4command.command_type == 'table_add':
+            hp4handle = vdev.assign_staged_hp4_handle(hp4command.attributes['table'])
+            table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
+            vdev.hp4rules[(table, hp4handle)] = rule
+            hp4_rule_keys.append((table, action, hp4handle))
+          elif hp4command.command_type == 'table_modify':
+            hp4handle = int(hp4command.attributes['handle'])
+            table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
+            vdev.hp4rules[(table, hp4handle)] = rule
+            hp4_rule_keys.append((table, action, hp4handle))
+          else: # command_type == 'table_delete'
+            table = hp4command.attributes['table']
+            hp4handle = int(hp4command.attributes['handle'])
+            del vdev.hp4rules[(table, hp4handle)]
 
     else:
       # accounting

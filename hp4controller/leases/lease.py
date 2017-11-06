@@ -85,14 +85,9 @@ class Lease(object):
 
     rulesets = {'code': vdev.hp4code, 'rules': hp4rules}
 
-    # print("Checkpoint ALPHA")
-
     for ruleset in rulesets:
       for rule in rulesets[ruleset]:
         try:
-          #if vdev_name == 'alpha_fw' and rule.table == 't_mod_11':
-          #  print("load_virtual_device " + vdev_name + "; " + rule.table + ":" + rule.action)
-          #  code.interact(local=dict(globals(), **locals()))
           table = rule.table
           command_type = 'table_add'
           action = rule.action
@@ -118,33 +113,30 @@ class Lease(object):
                      'mparams': rule.mparams,
                      'aparams': aparams}
 
-          if table == 't2_matchless':
-            print("load_virtual_device " + vdev_name + "; t2_matchless")
-            code.interact(local=dict(globals(), **locals()))
-
           handle = self.send_command(P4Command(command_type, attribs))
           vdev.hp4_code_and_rules[(table, handle)] = rule
 
+          """
+          This block has been moved to VirtualDevice::__init__
           # store handle for default rule for native match table
           if action == 'init_program_state' and aparams[1] == '0':
             for key in vdev.guide.templates_match:
               if vdev.guide.templates_match[key].attributes['table'] == rule.table:
                 native_table = key[0]
-                vdev.hp4_handle_for_ndefault[native_table] = handle
 
                 init_default_rule = P4Rule(native_table, 'init_default',
                                            [],
                                            [])
 
                 hp4_rule_keys = [(rule.table, action, handle)]
-                vdev.nrules[(key[0], 0)] = Interpretation(init_default_rule,
+                vdev.nrules[(native_table, 0)] = Interpretation(init_default_rule,
                                                           0,
                                                           hp4_rule_keys)
                 break
+          """
 
           if ruleset == 'rules':
             vdev.hp4rules[(table, handle)] = rule
-          # print("Checkpoint BRAVO") 
           
         except AddRuleError as e:
           # remove all entries already added
@@ -154,7 +146,6 @@ class Lease(object):
             del vdev.hp4_code_and_rules[(table, handle)]
           raise LoadError('Lease::insert: ' + str(e))
 
-    # print("Checkpoint CHARLIE")
     self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
 
   def send_command(self, p4cmd):
