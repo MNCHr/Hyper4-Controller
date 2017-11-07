@@ -1,9 +1,10 @@
 switches 2
-hosts 6
+hosts 7
 h1 s1
 h2 s1
 h3 s1
-h4 s2
-h5 s2
+h4 s1
+h5 s1
 h6 s2
+h7 s2
 s1 s2

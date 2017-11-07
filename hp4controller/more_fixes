@@ -89,4 +89,6 @@ VirtualDevice::hp4_handle_for_ndefault initialization when device == 'none'?
 
   We also have a problem with nrules - VirtualDevice::interpret retrieves nrules[(native_table, 0)], an Interpretation object, from which it extracts hp4_rule_keys.  This attribute is passed as a parameter to Interpreter.table_set_default so that deletes may be issued for existing primitive-related rules.  Before the virtualdevice is loaded, there is no such entry in nrules.
 
+  Observation: hp4_handle_for_ndefault doesn't have any information not already contained in nrules.  To be fixed another time...
 
+  

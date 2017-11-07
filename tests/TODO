@@ -1,5 +1,4 @@
 TASKS:
-- Test dropless version of t06 (configure fw before inserting into the chain)
 
 - Test: t05
 Goal: produce evaluation of service chains
@@ -37,3 +36,5 @@ Goal: produce evaluation of service chains
 - show latency impact, single slice
 
 - Test each client function
+
+- [DONE] Test dropless version of t06 (configure fw before inserting into the chain)
