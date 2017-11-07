@@ -1,0 +1,11 @@
+vdev_create tests/arp_proxy.p4 alpha_ap
+vdev_interpretf alpha_ap bmv2 tests/t05/t05_alpha_ap_entries
+vdev_create tests/arp_proxy.p4 bravo_ap
+vdev_interpretf bravo_ap bmv2 tests/t05/t05_bravo_ap_entries
+vdev_interpret alpha_l2 bmv2 table_add dmac forward 0x000400000006 => 4
+vdev_interpret alpha_l2 bmv2 table_add dmac forward 0x000400000007 => 4
+vdev_interpret bravo_l2 bmv2 table_add dmac forward 0x000400000001 => 3
+vdev_interpret bravo_l2 bmv2 table_add dmac forward 0x000400000002 => 3
+vdev_interpret bravo_l2 bmv2 table_add dmac forward 0x000400000003 => 3
+lease_insert alpha alpha_ap 1 etrue
+lease_insert bravo bravo_ap 1 etrue
