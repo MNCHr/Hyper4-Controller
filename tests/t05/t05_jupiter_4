@@ -1,0 +1,3 @@
+vdev_create tests/firewall2.p4 alpha_fw
+vdev_interpretf alpha_fw bmv2 tests/t05/t05_fw_entries
+lease_insert alpha alpha_fw 3 efalse

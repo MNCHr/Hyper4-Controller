@@ -73,3 +73,64 @@ ttyecho -n $MININET source /home/ubuntu/hp4-ctrl/tests/t05/t05_changenodes2
 
 echo "Next: try pings.  Expected connectivity domains: (h1 h2 h3 h6 h7)"
 $pause
+
+echo "Next: remove switch"
+$pause
+
+ttyecho -n $SLICEMGR lease_remove alpha alpha_l2
+ttyecho -n $SLICEMGR lease_remove bravo bravo_l2
+
+echo "Next: add switch to end of chain"
+$pause
+
+ttyecho -n $SLICEMGR lease_insert alpha alpha_l2 1 econd
+ttyecho -n $SLICEMGR lease_insert bravo bravo_l2 1 econd
+
+echo "Next: try pings.  Expected connectivity domain: (h1 h2 h3 h6 h7)"
+$pause
+
+echo "Next: restore previous host network configurations (e.g., netmask back to /24)"
+$pause
+
+ttyecho -n $MININET source /home/ubuntu/hp4-ctrl/tests/t05/t05_changenodes3
+
+echo "Next: add router to end of chain"
+$pause
+
+ttyecho -n $SLICEMGR lease_insert alpha alpha_l3 2 etrue
+ttyecho -n $SLICEMGR lease_insert bravo bravo_l3 2 etrue
+
+echo "Next: try pings.  Expected connectivity domain: (h1 h2 h3 h6 h7)"
+$pause
+
+echo "Next: add firewall to end of alpha chain"
+$pause
+
+ttyecho -n $SLICEMGR source tests/t05/t05_jupiter_4
+
+echo "Next: try iperf between two hosts; ports 4444, 5555 blocked; other not blocked"
+$pause
+
+echo "Next: remove routers"
+$pause
+
+ttyecho -n $SLICEMGR lease_remove alpha alpha_l3
+ttyecho -n $SLICEMGR lease_remove bravo bravo_l3
+
+echo "Next: try h1 <-> h2, should still work"
+$pause
+
+echo "Next: remove arp proxies from alpha and bravo"
+$pause
+
+ttyecho -n $SLICEMGR lease_remove alpha alpha_ap
+ttyecho -n $SLICEMGR lease_remove bravo bravo_ap
+
+echo "Next: try h1 <-> h2, should still work"
+$pause
+
+echo "Next: remove switch"
+$pause
+
+ttyecho -n $SLICEMGR lease_remove alpha alpha_l2
+ttyecho -n $SLICEMGR lease_remove bravo bravo_l2
