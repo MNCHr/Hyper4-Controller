@@ -1,0 +1,12 @@
+T05
+
+Run 1:
+- After creating/provisioning jupiter slice and starting xterms for all hosts:
+
+    [h1 xterm:] echo 3; sleep 1; echo 2; sleep 1; echo 1; sleep 1; ping -f 10.1.0.102
+    [test window:] at the end of h1's countdown, hit a key
+
+Run 2:
+- Same as previous, but this time, after 'update topology', add:
+
+    [h3 xterm:] ping -f 10.2.0.106
