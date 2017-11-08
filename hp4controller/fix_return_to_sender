@@ -1,0 +1,58 @@
+The problem:
+  After a virtual forward, the virt_ingress_port is updated to a value specific to a virtual device, but
+  if that virtual device wants to 'return to sender', our instinct (and the current code's approach) is to
+  set the egress_spec to the ingress port, but this is incorrect.
+
+This P4 code:
+  modify_field(standard_metadata.egress_spec, standard_metadata.ingress_port); // hp4-ctrl/tests/arp_proxy.p4
+
+gets translated into:
+  action mod_stdmeta_egressspec_stdmeta_ingressport() { // hp4/p4src/includes/modify_field.p4
+    modify_field(meta_ctrl.virt_egress_spec, meta_ctrl.virt_ingress_port);
+  }
+
+When we do a virtual forward:
+  table t_virtnet { // hp4/p4src/hp4.p4
+    reads {
+      meta_ctrl.vdev_ID : exact;
+      meta_ctrl.virt_egress_spec : exact;
+    }
+    actions {
+      a_drop;
+      do_phys_fwd_only;
+      do_bmv2_mcast;
+      do_virt_fwd;
+    }
+  }
+
+The controller should maintain a map that allows multiple virt_ingress_port values to map to the
+same physical port.  A virtual device will be associated with one subset of virt_ingress_port
+values.  t_virtnet entries issued/revoked at time of chain manipulation should take into
+account the t_virtnet entry subset specific to the virtual device that is the subject of the
+operation.
+
+Example
+Lease: jupiter@alpha
+  ports								1 2 3 6
+  assignments         {1:5, 2:5, 3:5, 6:5} #{pport : vdev_ID}
+  assignment_handles  {1:?, 2:?, 3:?, 6:?} #{pport : tset_context rule handle}
+  egress_map          {1:1, 2:2, 3:3, 4:6} #{vegress_spec : egress_spec}
+  ingress_map         {1:1, 2:2, 3:3, 6:4} #{pport : virt_ingress_port}
+
+Chain:
+  p2vdev - uses ingress_map to generate tset_context entries for every port in assignments
+  vdev2p - uses egress_map to generate t_virtnet:do_phys_fwd_only entries
+
+This suggests we just need to add more entries to egress_map.  But which ones?
+In vdev2vdev, vingress is set to len(self.ports) + dest_vdev_ID.  A single value.
+This makes it impossible to recover the original physical ingress port.
+
+Solution: modify hp4:
+  modify_field.p4: mod_stdmeta_egressspec_stdmeta_ingressport:
+  - modify_field(meta_ctrl.virt_egress_spec, meta_ctrl.virt_ingress_port);
+  + modify_field(meta_ctrl.virt_egress_spec, meta_ctrl.orig_virt_ingress_port);
+  setup.p4: a_set_context:
+  + modify_field(meta_ctrl.orig_virt_ingress_port, vingress);
+
+This approach requires special handling when using HP4 for virtual network compositions - can't just return to sender, instead, must explicitly forward (to achieve 'return to sender'
+behavior).
