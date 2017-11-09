@@ -10,3 +10,16 @@ Run 2:
 - Same as previous, but this time, after 'update topology', add:
 
     [h3 xterm:] ping -f 10.2.0.106
+
+Run 3:
+- Same as previous, except instead of ping -f, we do this:
+
+    [h1 xterm:] echo 3; sleep 1; echo 2; sleep 1; echo 1; sleep 1; iperf -c 10.1.0.102
+    [test window:]
+
+Run 4:
+- Same as previous, but this time, after 'update topology', add:
+
+    [h3 xterm:] ping -f 10.2.0.106
+
+Runs 5, 6: do like runs 2 and 4 but on the saturn slice set up l2 switch and do iperf (5) and ping -f (6); make sure to tcpdump on correct interface
