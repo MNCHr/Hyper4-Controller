@@ -18,7 +18,16 @@ $pause
 
 ttyecho -n $ADMIN ./client --debug --startup tests/t05/t05_admin_1 admin
 
-echo "Next: manual xterm h1 h2 h3 h6 h7, start test_tcpdump.sh, h1 ping -f 10.1.0.102 / iperf"
+echo "Next: MANUAL xterm h1 h2 h3 h4 h5 h6, start test_tcpdump.sh"
+echo "~/hp4-ctrl/tests$ sudo ./test_tcpdump.sh -t 05 -r 01:04|05:06 -s 1 -i 1|4"
+echo "r 2,4,6: [h6 xterm]# iperf -s -i 1"
+echo "r 2,4,6: [h3 xterm]# iperf -c 10.2.0.106 DO NOT HIT ENTER YET"
+echo "r 1,2: [h1 xterm]# ./h1ping.sh"
+echo "r 3,4: [h2 xterm]# iperf -s"
+echo "r 3,4: [h1 xterm]# ./h1iperf.sh"
+echo "r 5: [h4 xterm]# ./h4ping.sh"
+echo "r 6: [h5 xterm]# iperf -s"
+echo "r 6: [h4 xterm]# ./hp4iperf.sh"
 $pause
 
 echo "Next: create and configure L2 switch virtual devices"

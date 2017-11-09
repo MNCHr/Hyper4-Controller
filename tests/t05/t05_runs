@@ -1,25 +1,26 @@
 T05
 
 Run 1:
-- After creating/provisioning jupiter slice and starting xterms for all hosts:
+- After creating/provisioning jupiter slice and starting xterms:
 
-    [h1 xterm:] echo 3; sleep 1; echo 2; sleep 1; echo 1; sleep 1; ping -f 10.1.0.102
-    [test window:] at the end of h1's countdown, hit a key
+    [h1 xterm]# h1ping.sh
+    [test window]$ <at the end of h1's countdown, hit a key>
 
 Run 2:
-- Same as previous, but this time, after 'update topology', add:
+- Same as previous, but this time, after jupiter and xterms are ready:
 
-    [h3 xterm:] ping -f 10.2.0.106
+    [h6 xterm]# iperf -s -i 1
+    [h3 xterm]# iperf -c 10.2.0.106 BUT DO NOT HIT ENTER YET
+    
+- After 'update topology', wait for countdown to hit enter in h3 xterm
 
 Run 3:
-- Same as previous, except instead of ping -f, we do this:
+- Same as Run 1, except instead of h1ping.sh, we do this:
 
-    [h1 xterm:] echo 3; sleep 1; echo 2; sleep 1; echo 1; sleep 1; iperf -c 10.1.0.102
-    [test window:]
+    [h1 xterm]# h1iperf.sh
+    [test window]$ <at the end of h1's countdown, hit a key>
 
 Run 4:
-- Same as previous, but this time, after 'update topology', add:
-
-    [h3 xterm:] ping -f 10.2.0.106
+- Same as Run 2, but h1iperf.sh instead of h1ping.sh
 
 Runs 5, 6: do like runs 2 and 4 but on the saturn slice set up l2 switch and do iperf (5) and ping -f (6); make sure to tcpdump on correct interface
