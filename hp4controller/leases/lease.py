@@ -292,15 +292,6 @@ class Chain(Lease):
     # t_egr_virtnet src -> dest
     if len(src_vdev.t_virtnet_handles) > 0:
       # table_modify
-      for vegress in src_vdev.t_virtnet_handles:
-        # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
-                                      # VALUE: hp4-facing handle (int)
-        command_type = 'table_modify'
-        attribs = {'table': 't_virtnet',
-                   'action': 'do_virt_fwd',
-                   'handle': str(src_vdev.t_virtnet_handles[vegress]),
-                   'aparams': []}
-        self.send_command(P4Command(command_type, attribs))
       if len(src_vdev.t_egr_virtnet_handles) > 0:
         # table_modify
         for vegress in src_vdev.t_virtnet_handles:
@@ -320,25 +311,37 @@ class Chain(Lease):
                      'aparams': [str(dest_vdev_ID), vingress]}
           handle = self.send_command(P4Command(command_type, attribs))
           src_vdev.t_egr_virtnet_handles[vegress] = handle
+
+      for vegress in src_vdev.t_virtnet_handles:
+        # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
+                                      # VALUE: hp4-facing handle (int)
+        command_type = 'table_modify'
+        attribs = {'table': 't_virtnet',
+                   'action': 'do_virt_fwd',
+                   'handle': str(src_vdev.t_virtnet_handles[vegress]),
+                   'aparams': []}
+        self.send_command(P4Command(command_type, attribs))
         
     else:
       # table_add
       if len(src_vdev.t_egr_virtnet_handles) > 0:
         raise VirtnetError('vdev2vdev: t_egr_virtnet has entries when t_virtnet doesn\'t')
+
+      command_type = 'table_add'
       for vegress in self.egress_map:
-        command_type = 'table_add'
-        attribs = {'table': 't_virtnet',
-                   'action': 'do_virt_fwd',
-                   'mparams': [str(src_vdev_ID), str(vegress)],
-                   'aparams': []}
-        handle = self.send_command(P4Command(command_type, attribs))
-        src_vdev.t_virtnet_handles[vegress] = handle
         attribs = {'table': 't_egr_virtnet',
                    'action': 'vfwd',
                    'mparams': [str(src_vdev_ID), str(vegress)],
                    'aparams': [str(dest_vdev_ID), vingress]}
         handle = self.send_command(P4Command(command_type, attribs))
         src_vdev.t_egr_virtnet_handles[vegress] = handle
+      for vegress in self.egress_map:
+        attribs = {'table': 't_virtnet',
+                   'action': 'do_virt_fwd',
+                   'mparams': [str(src_vdev_ID), str(vegress)],
+                   'aparams': []}
+        handle = self.send_command(P4Command(command_type, attribs))
+        src_vdev.t_virtnet_handles[vegress] = handle
 
   def lease_replace(self, parameters, vdev, new_vdev):
     # parameters:
@@ -428,20 +431,6 @@ class Chain(Lease):
   def lease_remove(self, parameters, vdev):
     vdev_name = parameters[0]
 
-    # delete vdev's t_virtnet/t_egr_virtnet entries
-    for vegress in vdev.t_virtnet_handles.keys():
-      handle = vdev.t_virtnet_handles[vegress]
-      attribs = {'table': 't_virtnet',
-                 'handle': str(handle)}
-      self.send_command(P4Command('table_delete', attribs))
-      del vdev.t_virtnet_handles[vegress]
-    for vegress in vdev.t_egr_virtnet_handles.keys():
-      handle = vdev.t_egr_virtnet_handles[vegress]
-      attribs = {'table': 't_egr_virtnet',
-                 'handle': str(handle)}
-      self.send_command(P4Command('table_delete', attribs))
-      del vdev.t_egr_virtnet_handles[vegress]
-
     chain = self.vdev_chain
     position = chain.index(vdev_name)
 
@@ -470,6 +459,21 @@ class Chain(Lease):
         self.vdev2vdev(leftvdev, rightvdev)
       else:
         self.vdev2p(leftvdev)
+
+    # delete vdev's t_virtnet/t_egr_virtnet entries
+    for vegress in vdev.t_virtnet_handles.keys():
+      handle = vdev.t_virtnet_handles[vegress]
+      attribs = {'table': 't_virtnet',
+                 'handle': str(handle)}
+      self.send_command(P4Command('table_delete', attribs))
+      del vdev.t_virtnet_handles[vegress]
+    for vegress in vdev.t_egr_virtnet_handles.keys():
+      handle = vdev.t_egr_virtnet_handles[vegress]
+      attribs = {'table': 't_egr_virtnet',
+                 'handle': str(handle)}
+      self.send_command(P4Command('table_delete', attribs))
+      del vdev.t_egr_virtnet_handles[vegress]
+
           
     super(Chain, self).lease_remove(parameters, vdev)
     chain.remove(vdev_name)
