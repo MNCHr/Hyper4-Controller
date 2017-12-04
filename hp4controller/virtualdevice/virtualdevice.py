@@ -250,7 +250,6 @@ class VirtualDeviceFactory():
     sr['[MATCHLESS]'] = '99'
     sr['[COMPLETE]'] = '1'
     sr['[CONTINUE]'] = '2'
-    sr['[MODIFY_FIELD]'] = '0'
     sr['[ADD_HEADER]'] = '1'
     sr['[COPY_HEADER]'] = '2'
     sr['[REMOVE_HEADER]'] = '3'
@@ -271,6 +270,7 @@ class VirtualDeviceFactory():
     sr['[CLONE_EGRESS_EGRESS]'] = '18'
     sr['[MULTICAST]'] = '19'
     sr['[MATH_ON_FIELD]'] = '20'
+    sr['[MODIFY_FIELD]'] = '21'
 
     found_sr = False
 
@@ -323,8 +323,9 @@ class VirtualDeviceFactory():
           out_path = program_path.split('.p4')[0] + '.hp4t'
           mt_out_path = program_path.split('.p4')[0] + '.hp4mt'
           seb = 40
+          # TODO: replace the '9' (max primitives / action for which HP4 is configured
           self.compiled_programs[program_path] = \
-             self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, seb)
+             self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, seb, 9)
         except CompileError as e:
           return "Compile Error: " + str(e)
       else:

@@ -884,18 +884,28 @@ class P4_to_HP4(HP4Compiler):
           next_table_trep = self.table_to_trep[table.next_[action]]
           aparams.append(str(next_table_trep.stage))
           aparams.append(next_table_trep.table_type())
-        # primitive
+        # primitives
+        idx = 0
+        for call in action.call_sequence:
+          prim_type = primitive_ID[call[0].name]
+          prim_subtype = self.get_prim_subtype(call)
+          aparams.append(prim_type)
+          aparams.append(prim_subtype)
+          idx += 1
+
         if len(action.call_sequence) == 0:
           aparams.append(primitive_ID['no_op'])
-        else:
-          aparams.append(primitive_ID[action.call_sequence[0][0].name])
-        # primitive_subtype
-        if len(action.call_sequence) > 0:
-          aparams.append(self.get_prim_subtype(action.call_sequence[0]))
-        else:
+          # subtype
+          aparams.append('0')
+          idx = 1
+
+        # zeros for remaining type / subtype parameters of init_program_state
+        for i in range(idx, self.numprimitives):
+          aparams.append('0')
           aparams.append('0')
 
         # all matches are ternary, requiring priority
+        # TODO: except matchless?
         aparams.append('[PRIORITY]')
         self.command_templates.append(HP4_Match_Command(table.name,
                                           action.name,
@@ -974,39 +984,13 @@ class P4_to_HP4(HP4Compiler):
     for action in self.action_to_arep:
       for stage in self.action_to_arep[action].stages:
         table_name = self.action_to_arep[action].tables[stage]
-        if len(action.call_sequence) == 0:
-          us_tname = 'tstg' + str(stage) + '1' + '_update_state'
-          us_aname = 'finish_action'
-          us_aparams = []
-          us_mparams = ['[vdev ID]']
-          us_mparams.append(str(self.action_ID[action]))
-          self.commands.append(HP4_Command("table_add",
-                                            us_tname,
-                                            us_aname,
-                                            us_mparams,
-                                            us_aparams))
         for p4_call in action.call_sequence:
           istemplate = False
           idx = action.call_sequence.index(p4_call)
           call = self.action_to_arep[action].call_sequence[idx]
           rank = idx + 1
           tname = 't_' + primitive_tnames[call[0]] + '_' + str(stage) + str(rank)
-          # us: update state
-          us_tname = 'tstg' + str(stage) + str(rank) + '_update_state'
-          us_aname = 'update_state'
-          us_aparams = []
-          if rank == len(action.call_sequence):
-            us_aname = 'finish_action'
-          else:
-            # aparams for update_state: primitive_type, primitive_subtype
-            next_call = action.call_sequence[idx + 1]
-            next_prim_type = primitive_ID[next_call[0].name]
-            next_prim_subtype = self.get_prim_subtype(next_call)
-            us_aparams.append(next_prim_type)
-            us_aparams.append(next_prim_subtype)
 
-          us_mparams = ['[vdev ID]']
-          us_mparams.append(str(self.action_ID[action]))
           if call[0] == 'modify_field':
             aname = mf_prim_subtype_action[call[1]]
           elif call[0] == 'add_to_field':
@@ -1058,11 +1042,6 @@ class P4_to_HP4(HP4Compiler):
                                          aname,
                                          mparams,
                                          aparams))
-          self.commands.append(HP4_Command("table_add",
-                                us_tname,
-                                us_aname,
-                                us_mparams,
-                                us_aparams))
 
   # focus: mod, drop, math
   def gen_action_aparams(self, p4_call, call):
@@ -1301,9 +1280,12 @@ class P4_to_HP4(HP4Compiler):
       aparams = ['0', # action_ID
                  '0', # match_ID
                  next_stage,
-                 next_table_type,
-                 '0', # primitive
-                 '0'] # primitive_subtype
+                 next_table_type]
+      
+      # zeros for remaining type / subtype parameters of init_program_state
+      for i in range(self.numprimitives):
+        aparams.append('0')
+        aparams.append('0')
 
       if 'matchless' not in tname:
         aparams.append(str(MAX_PRIORITY))
@@ -1415,11 +1397,12 @@ class P4_to_HP4(HP4Compiler):
     self.gen_t_checksum_entries()
     self.gen_t_resize_pr_entries()
 
-  def compile_to_hp4(self, program_path, out_path, mt_out_path, seb):
+  def compile_to_hp4(self, program_path, out_path, mt_out_path, seb, numprimitives):
     self.program_path = program_path
     self.out_path = out_path
     self.mt_out_path = mt_out_path
     self.seb = seb
+    self.numprimitives = numprimitives
     self.h = HLIR(program_path)
     self.h.build()
     if len(self.h.p4_ingress_ptr) > 1:
@@ -1470,12 +1453,16 @@ def parse_args(args):
                     type=str, action="store", default='output.hp4mt')
   parser.add_argument('-s', '--seb', help='set standard extracted bytes',
                     type=int, action="store", default=40)
+  parser.add_argument('--numprimitives', help='maximum number of primitives \
+                       for which HyPer4 is configured',
+                      type=int, action="store", default=9)
+
   return parser.parse_args(args)
 
 def main():
   args = parse_args(sys.argv[1:])
   hp4c = P4_to_HP4()
-  hp4c.compile_to_hp4(args.input, args.output, args.mt_output, args.seb)
+  hp4c.compile_to_hp4(args.input, args.output, args.mt_output, args.seb, args.numprimitives)
   #code.interact(local=dict(globals(), **locals()))
 
 if __name__ == '__main__':
