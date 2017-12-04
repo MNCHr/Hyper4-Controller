@@ -10,7 +10,7 @@ Run 2:
 - Same as previous, but this time, after jupiter and xterms are ready:
 
     [h6 xterm]# iperf -s -i 1
-    [h3 xterm]# iperf -c 10.2.0.106 BUT DO NOT HIT ENTER YET
+    [h3 xterm]# iperf -c 10.2.0.106 -t 15 BUT DO NOT HIT ENTER YET
     
 - After 'update topology', wait for countdown to hit enter in h3 xterm
 
@@ -24,3 +24,20 @@ Run 4:
 - Same as Run 2, but h1iperf.sh instead of h1ping.sh
 
 Runs 5, 6: do like runs 2 and 4 but on the saturn slice set up l2 switch and do iperf (5) and ping -f (6); make sure to tcpdump on correct interface
+
+Figure zones:
+1:  L2 switches created/configured
+2:  hosts reconfigured
+2.5: h3 -> h6 iperf starts
+3:  l3 router added
+4:  routers removed
+4.5: h3 -> h6 iperf stops
+5:  arp proxy, hosts reconfigured
+6:  switch removed
+7:  switch added again (to end)
+8:  hosts reconfigured
+9:  router added
+10: firewall added
+11: routers removed
+12: arp proxies removed
+13: switches removed

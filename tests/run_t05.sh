@@ -7,6 +7,7 @@ CONTROLLER="$(cat /tmp/pts_controller)"
 ADMIN="$(cat /tmp/pts_admin)"
 BMV2_CLI="$(cat /tmp/pts_bmv2_cli)"
 SLICEMGR="$(cat /tmp/pts_slice_manager)"
+SLICEMGRSATURN="$(cat /tmp/pts_slice_manager_saturn)"
 
 ttyecho -n $MININET ./run.sh --commands hp4commands.txt --scenario chain --topo ~/hp4-ctrl/tests/t05/topo.txt
 
@@ -21,11 +22,13 @@ ttyecho -n $ADMIN ./client --debug --startup tests/t05/t05_admin_1 admin
 echo "Next: MANUAL xterm h1 h2 h3 h4 h5 h6, start test_tcpdump.sh"
 echo "~/hp4-ctrl/tests$ sudo ./test_tcpdump.sh -t 05 -r 01:04|05:06 -s 1 -i 1|4"
 echo "r 2,4,6: [h6 xterm]# iperf -s -i 1"
-echo "r 2,4,6: [h3 xterm]# iperf -c 10.2.0.106 DO NOT HIT ENTER YET"
+echo "r 2,4,6: [h3 xterm]# iperf -c 10.2.0.106 -t 15 DO NOT HIT ENTER YET"
 echo "r 1,2: [h1 xterm]# ./h1ping.sh"
 echo "r 3,4: [h2 xterm]# iperf -s"
 echo "r 3,4: [h1 xterm]# ./h1iperf.sh"
 echo "r 5: [h4 xterm]# ./h4ping.sh"
+echo "r 6: mininet> h4 ifconfig eth0 10.3.0.104/24"
+echo "r 6: mininet> h5 ifconfig eth0 10.3.0.105/24"
 echo "r 6: [h5 xterm]# iperf -s"
 echo "r 6: [h4 xterm]# ./hp4iperf.sh"
 $pause
@@ -35,6 +38,7 @@ echo "Next: create and configure L2 switch virtual devices"
 sleep 5
 
 ttyecho -n $SLICEMGR ./client --debug --startup tests/t05/t05_jupiter_1 jupiter
+ttyecho -n $SLICEMGRSATURN ./client --debug --startup tests/t05/t05_saturn saturn
 # t = 5
 
 echo "Next: update topology"
@@ -47,7 +51,7 @@ ttyecho -n $MININET source /home/ubuntu/hp4-ctrl/tests/t05/t05_changenodes
 #echo "Next: try pings. Expected connectivity domains: (h1 h2 h3), (h6 h7)"
 #$pause
 
-echo "Next: manually start pings h3 -> h6: ping 10.2.0.106"
+echo "Next: manually start iperf h3 -> h6: iperf -c 10.2.0.106 -t 15"
 #$pause
 echo 5; sleep 1; echo 4; sleep 1; echo 3; sleep 1; echo 2; sleep 1; echo 1; sleep 1
 echo "GO"

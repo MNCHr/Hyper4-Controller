@@ -38,10 +38,10 @@ done
 suffix=1
 for i in `seq 1 $SWITCHES`;
 do
-  for j in `seq 1 $IFACES`;
+  for j in `seq $IFACES $IFACES`;
   do
     fname=t${TEST}"/t"${TEST}"_s"${i}"_eth"${j}"_run_"${RUN}".dump"
-    tcpdump -i s$i"-eth"$j -n -s 0 -w $fname &
+    tcpdump -i s$i"-eth"$j -n -s 50 -w $fname &
     var="PID_$suffix"
     declare "$var"=$!
     ((suffix++))
@@ -55,7 +55,7 @@ read -n 1 -s
 suffix=1
 for i in `seq 1 $SWITCHES`;
 do
-  for j in `seq 1 $IFACES`;
+  for j in `seq $IFACES $IFACES`;
   do
     echo s$i"-eth"$j
     var="PID_$suffix"

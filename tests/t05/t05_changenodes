@@ -1,5 +1,3 @@
-h4 ifconfig eth0 10.3.0.104/24
-h5 ifconfig eth0 10.3.0.105/24
 h6 ifconfig eth0 10.2.0.106/24
 h7 ifconfig eth0 10.2.0.107/24
 s1 ifconfig s1-eth1 10.1.0.1

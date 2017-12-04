@@ -1,0 +1,4 @@
+vdev_create tests/hp4t_l2_switch.p4 salpha_l2
+lease_insert alpha salpha_l2 0 etrue
+lease_config_egress alpha 8 mcast filtered
+vdev_interpretf salpha_l2 bmv2 tests/t05/t05_salpha_l2_entries
