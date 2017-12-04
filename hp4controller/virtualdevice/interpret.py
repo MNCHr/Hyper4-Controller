@@ -24,8 +24,7 @@ match_types = {'[DONE]':'0',
                '[EXTRACTED_TERNARY]':'10',
                '[MATCHLESS]':'99'}
 
-primitive_types = {'[MODIFY_FIELD]':'0',
-									 '[ADD_HEADER]':'1',
+primitive_types = {'[ADD_HEADER]':'1',
 									 '[COPY_HEADER]':'2',
 									 '[REMOVE_HEADER]':'3',
 									 '[MODIFY_FIELD_WITH_HBO]':'4',
@@ -44,7 +43,8 @@ primitive_types = {'[MODIFY_FIELD]':'0',
 									 '[CLONE_INGRESS_EGRESS]':'17',
 									 '[CLONE_EGRESS_EGRESS]':'18',
 									 '[MULTICAST]':'19',
-									 '[MATH_ON_FIELD]':'20'}
+									 '[MATH_ON_FIELD]':'20',
+                   '[MODIFY_FIELD]':'21'}
 
 class Interpreter(object):
   @staticmethod

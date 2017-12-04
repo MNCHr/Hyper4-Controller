@@ -15,7 +15,7 @@ read -n 1 -s
 
 ttyecho -n $ADMIN ./client --debug --startup tests/t04/t04_admin admin
 
-echo "Next: create and configure arp proxy virtual devices"
+echo "Next: create and configure firewall virtual device"
 read -n 1 -s
 
 ttyecho -n $SLICEMGR ./client --debug --startup tests/t04/t04_jupiter jupiter
