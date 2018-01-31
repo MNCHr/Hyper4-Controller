@@ -46,7 +46,7 @@ class Controller(object):
 
   def handle_request(self, request):
     "Handle a request"
-    if len(request) < 2:
+    if len(request.split()) < 2:
       return "Request format: <slice name | admin> <command> [parameter list]"
     requester = request.split()[0]
     command = request.split()[1]
