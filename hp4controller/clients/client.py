@@ -13,12 +13,12 @@ class Client(cmd.Cmd, object):
   prompt = 'HP4$ '
   intro = 'HP4 Controller Client'
 
-  def __init__(self, args):
+  def __init__(self, user='admin', ip='localhost', port=33333, debug=False, **kwargs):
     cmd.Cmd.__init__(self)
-    self.user = args.user
-    self.host = args.ip
-    self.port = args.port
-    self.debug = args.debug
+    self.user = user
+    self.host = ip
+    self.port = port
+    self.debug = debug
 
   def send_request(self, request):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -300,9 +300,9 @@ class Administrator(Client):
 
 def client(args):
   if args.user == 'admin':
-    c = Administrator(args)
+    c = Administrator(**vars(args))
   else:
-    c = ChainSliceManager(args)
+    c = ChainSliceManager(**vars(args))
   if args.startup:
     with open(args.startup) as commands:
       for command in commands:
