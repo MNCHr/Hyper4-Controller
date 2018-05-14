@@ -1,8 +1,8 @@
-from ..p4command import P4Command
+from hp4controller.p4command import P4Command
 from p4rule import P4Rule
 from interpret import Interpretation, InterpretationGuide, Interpreter
-from ..compilers import p4_hp4
-from ..compilers.compiler import CodeRepresentation
+from hp4controller.compilers import p4_hp4
+from hp4controller.compilers.compiler import CodeRepresentation
 import re
 
 import code

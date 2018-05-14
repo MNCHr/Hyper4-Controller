@@ -20,6 +20,10 @@ class Client(cmd.Cmd, object):
     self.port = port
     self.debug = debug
 
+  def debug_print(self, s):
+    if self.debug:
+      print(s)
+
   def send_request(self, request):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((self.host, self.port))
@@ -31,7 +35,7 @@ class Client(cmd.Cmd, object):
   def do_slice_dump(self, line):
     "Display leases and virtual devices in a slice: slice_dump <slice>"
     resp = self.send_request(line + ' slice_dump')
-    print(resp)
+    self.debug_print(resp)
     
   def do_source(self, line):
     "Source a file: source <file>"
@@ -40,7 +44,7 @@ class Client(cmd.Cmd, object):
         self.cmdqueue.append(l)
 
   def do_EOF(self, line):
-    print
+    self.debug_print('')
     return True
 
 class SliceManager(Client):
@@ -48,27 +52,27 @@ class SliceManager(Client):
   def do_slice_dump(self, line):
     "Display leases and virtual devices in a slice: slice_dump"
     resp = super(SliceManager, self).do_slice_dump(self.user)
-    print(resp)
+    self.debug_print(resp)
     
   def do_vdev_create(self, line):
     "Create virtual device: vdev_create <p4_path> <vdev_name>"
     resp = self.send_request(self.user + ' vdev_create ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_vdev_destroy(self, line):
     "Destroy virtual device (remove AND delete): vdev_destroy <virtual device>"
     resp = self.send_request(self.user + ' vdev_destroy ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_vdev_dump(self, line):
     "Display all pushed entries in a vdev: vdev_dump <virtual device>"
     resp = self.send_request(self.user + ' vdev_dump ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_vdev_info(self, line):
     "Show info about a vdev: vdev_info <virtual device>"
     resp = self.send_request(self.user + ' vdev_info ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def help_vdev_interpret(self):
     print('Interpret API command: vdev_interpret <virtual device> ' \
@@ -76,7 +80,7 @@ class SliceManager(Client):
 
   def do_vdev_interpret(self, line):
     resp = self.send_request(self.user + ' vdev_interpret ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def help_vdev_interpretf(self):
     print('Interpret API commands in file: interpret_file <virtual device> ' \
@@ -90,27 +94,27 @@ class SliceManager(Client):
         newline = ' '.join(line.split()[0:2]) + ' ' + command
         resp += pre + self.send_request(self.user + ' vdev_interpret ' + newline)
         pre = '\n'
-    print(resp)
+    self.debug_print(resp)
 
   def do_vdev_stage_clear(self, line):
     "Clear staged entries: vdev_stage_clear <virtual device>"
     resp = self.send_request(self.user + ' vdev_stage_clear ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_vdev_stage_dump(self, line):
     "Display all staged entries in a vdev: vdev_stage_dump <virtual device>"
     resp = self.send_request(self.user + ' vdev_stage_dump ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_vdev_stage_flush(self, line):
     "Push all staged entries to physical device: vdev_stage_flush <virtual device>"
     resp = self.send_request(self.user + ' vdev_stage_flush ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_vdev_withdraw(self, line):
     "Stage pushed entries & pull virtual device: vdev_withdraw <virtual device>"
     resp = self.send_request(self.user + ' vdev_withdraw ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def help_lease_config_egress(self):
     print("Configure lease egress: lease_config_egress <device> " \
@@ -118,17 +122,17 @@ class SliceManager(Client):
 
   def do_lease_config_egress(self, line):
     resp = self.send_request(self.user + ' lease_config_egress ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_lease_dump(self, line):
     "Display vdev info for each resident vdev: lease_dump <device>"
     resp = self.send_request(self.user + ' lease_dump ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_lease_info(self, line):
     "Show info about a lease: lease_info <device>"
     resp = self.send_request(self.user + ' lease_info ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   """
   def do_lease(self, line):
@@ -224,7 +228,7 @@ class ChainSliceManager(SliceManager):
 
   def do_lease_append(self, line):
     resp = self.send_request(self.user + ' lease_append ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def help_lease_insert(self):
     print("Insert virtual device in chain: lease_insert <device> " \
@@ -232,7 +236,7 @@ class ChainSliceManager(SliceManager):
 
   def do_lease_insert(self, line):
     resp = self.send_request(self.user + ' lease_insert ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def help_lease_remove(self):
     print("Remove virtual device from chain: lease_remove <device> " \
@@ -240,7 +244,7 @@ class ChainSliceManager(SliceManager):
 
   def do_lease_remove(self, line):
     resp = self.send_request(self.user + ' lease_remove ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def help_lease_replace(self):
     print("Replace virtual device in chain: lease_replace <device> " \
@@ -248,7 +252,7 @@ class ChainSliceManager(SliceManager):
 
   def do_lease_replace(self, line):
     resp = self.send_request(self.user + ' lease_replace ' + line)
-    print(resp)
+    self.debug_print(resp)
 
 class Administrator(Client):
   prompt = 'HP4# '
@@ -259,44 +263,44 @@ class Administrator(Client):
      \r<# entries> <ports>
     """
     resp = self.send_request(self.user + ' create_device ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_list_devices(self, line):
     """List devices: list_devices
      \rtest
     """
     resp = self.send_request(self.user + ' list_devices ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_create_slice(self, line):
     "Create slice: create_slice <slice>"
     resp = self.send_request(self.user + ' create_slice ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_list_slices(self, line):
     "List slices: list_slices [-d for detail]"
     resp = self.send_request(self.user + ' list_slices ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_grant_lease(self, line):
     "Grant lease (slice access to a device): grant_lease <slice> <device> <entry limit> <comp subclass> <ports>"
     resp = self.send_request(self.user + ' grant_lease ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_revoke_lease(self, line):
     "Revoke lease: revoke_lease <slice> <device>"
     resp = self.send_request(self.user + ' revoke_lease ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_reset_device(self, line):
     "Reset a device: reset_device <device>"
     resp = self.send_request(self.user + ' reset_device ' + line)
-    print(resp)
+    self.debug_print(resp)
 
   def do_set_defaults(self, line):
     "Set device defaults: set_defaults <device>"
     resp = self.send_request(self.user + ' set_defaults ' + line)
-    print(resp)
+    self.debug_print(resp)
 
 def client(args):
   if args.user == 'admin':

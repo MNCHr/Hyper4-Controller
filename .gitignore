@@ -2,7 +2,7 @@
 *.hp4*
 *.*dump*
 drawing_board/
-build/
-include/
-local/
-lib/
+build
+include
+local
+lib

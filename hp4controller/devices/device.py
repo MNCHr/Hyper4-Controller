@@ -1,6 +1,6 @@
-from ..p4command import P4Command
-from ..virtualdevice.p4rule import P4Rule
-from ..errors import AddRuleError, ModRuleError, DeleteRuleError, MCastError
+from hp4controller.p4command import P4Command
+from hp4controller.virtualdevice.p4rule import P4Rule
+from hp4controller.errors import AddRuleError, ModRuleError, DeleteRuleError, MCastError
 
 from sswitch_CLI import SimpleSwitchAPI
 
@@ -31,6 +31,11 @@ class Device():
     self.ip = ip # management iface
     self.port = port # management iface
     self.next_mcast_grp_id = 1
+    self.debug = False
+
+  def debug_print(self, s):
+    if self.debug:
+      print(s)
 
   def assign_mcast_grp_id(self):
     ret = self.next_mcast_grp_id
@@ -118,7 +123,7 @@ class Bmv2_SSwitch(Device):
 
     elif cmd_str_rep.split()[0] == 'table_delete':
       try:
-        print(cmd_str_rep)
+        self.debug_print(cmd_str_rep)
         self.do_table_delete(cmd_str_rep.split('table_delete ' )[1])
         handle = cmd_str_rep.split()[2]
       except DeleteRuleError as e:
@@ -139,7 +144,7 @@ class Bmv2_SSwitch(Device):
       except:
         raise DeleteRuleError("table_delete raised an exception (rule: " + rule_identifier + ")")
     for out in output:
-      print(out)
+      self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
         raise DeleteRuleError(out)
 
@@ -156,7 +161,7 @@ class Bmv2_SSwitch(Device):
       except:
         raise AddRuleError("table_add raised an exception (rule: " + rule + ")")
     for out in output:
-      print(out)
+      self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
         raise AddRuleError(out)
       if 'Entry has been added' in out:
@@ -176,7 +181,7 @@ class Bmv2_SSwitch(Device):
       except:
         raise ModRuleError("table_modify raised an exception (rule_mod: " + rule_mod + ")")
     for out in output:
-      print(out)
+      self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
         raise ModRuleError(out)
 
@@ -233,7 +238,7 @@ class Bmv2_SSwitch(Device):
       except:
         raise MCastError("mc_mgrp_create raised an exception:" + str(sys.exc_info()[0]))
     for out in output:
-      print(out) 
+      self.debug_print(out) 
 
     # mc_node_create
     with Capturing() as output:
@@ -243,7 +248,7 @@ class Bmv2_SSwitch(Device):
         raise MCastError("mc_node_create raised an exception")
     node_handle = -1
     for out in output:
-      print(out)
+      self.debug_print(out)
       if 'was created with handle' in out:
         node_handle = int(out.split('handle ')[1])
     if node_handle == -1:
@@ -257,7 +262,7 @@ class Bmv2_SSwitch(Device):
       except:
         raise MCastError("mc_node_associate raised an exception")
     for out in output:
-      print(out)
+      self.debug_print(out)
 
     return node_handle
 
@@ -276,14 +281,14 @@ class Bmv2_SSwitch(Device):
       except:
         raise MCastError("mc_node_destroy raised an exception")
     for out in output:
-      print(out)
+      self.debug_print(out)
     with Capturing() as output:
       try:
         self.rta.do_mc_mgrp_destroy(str(mcast_grp_id))
       except:
         raise MCastError("mc_mgrp_destroy raised an exception")
     for out in output:
-      print(out)
+      self.debug_print(out)
 
 class Agilio(Device):
   @staticmethod

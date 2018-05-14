@@ -1,6 +1,6 @@
 import virtualdevice
-from ..p4command import P4Command
-from ..errors import InterpretError
+from hp4controller.p4command import P4Command
+from hp4controller.errors import InterpretError
 from p4rule import P4Rule
 
 import json

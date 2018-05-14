@@ -1,8 +1,8 @@
-from ..virtualdevice.virtualdevice import VirtualDevice
-from ..virtualdevice.p4rule import P4Rule
-from ..virtualdevice.interpret import Interpretation
-from ..p4command import P4Command
-from ..errors import AddRuleError, LoadError, VirtnetError
+from hp4controller.virtualdevice.virtualdevice import VirtualDevice
+from hp4controller.virtualdevice.p4rule import P4Rule
+from hp4controller.virtualdevice.interpret import Interpretation
+from hp4controller.p4command import P4Command
+from hp4controller.errors import AddRuleError, LoadError, VirtnetError
 
 import copy
 

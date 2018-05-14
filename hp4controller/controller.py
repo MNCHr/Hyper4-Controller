@@ -14,12 +14,24 @@ from p4command import P4Command
 import textwrap
 import leases.lease
 from errors import AddRuleError, ModRuleError, DeleteRuleError
+import signal
+import errno
 
 import code
 # code.interact(local=dict(globals(), **locals()))
 
-# TODO (Global): refactor to reduce degree of coupling
-#  methods reach too deep into other class dependency trees to accomplish tasks
+BUFFSIZE = 4096
+BACKLOG = 5
+
+# https://stackoverflow.com/questions/18499497/how-to-process-sigterm-signal-gracefully
+class GracefulKiller(object):
+  kill_now = False
+  def __init__(self):
+    signal.signal(signal.SIGINT, self.exit_gracefully)
+    signal.signal(signal.SIGTERM, self.exit_gracefully)
+  
+  def exit_gracefully(self, signum, frame):
+    self.kill_now = True
 
 class Controller(object):
   def __init__(self, args):
@@ -70,7 +82,7 @@ class Controller(object):
     elif command == 'vdev_create':
       resp = self.vdev_create(parameters)
     else:
-      print("SLICE TO HANDLE " + request)
+      self.dbugprint("SLICE TO HANDLE " + request)
       resp = self.slices[requester].handle_request(request.split()[1:])
 
     return resp
@@ -240,24 +252,37 @@ class Controller(object):
     serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     serversocket.bind((self.host, self.port))
-    serversocket.listen(5)
+    serversocket.listen(BACKLOG)
+
+    killer = GracefulKiller()
 
     while True:
       clientsocket = None
       try:
         clientsocket, addr = serversocket.accept()
         self.dbugprint("Got a connection from %s" % str(addr))
-        data = clientsocket.recv(4096)
+        data = clientsocket.recv(BUFFSIZE)
         self.dbugprint(data)
         response = self.handle_request(data)
         clientsocket.sendall(response)
         clientsocket.close()
       except KeyboardInterrupt:
-        if clientsocket:
-          clientsocket.close()
-        serversocket.close()
-        self.dbugprint("Keyboard Interrupt, sockets closed")
+        #if clientsocket:
+        #  clientsocket.close()
+        #serversocket.close()
+        #self.dbugprint("Keyboard Interrupt, sockets closed")
         break
+      except socket.error as (code, msg):
+        if code != errno.EINTR:
+          raise
+      if killer.kill_now:
+        self.dbugprint("GracefulKiller triggered")
+        break
+
+    if clientsocket:
+      clientsocket.close()
+      serversocket.close()
+      self.dbugprint("sockets closed")
 
   def dbugprint(self, msg):
     if self.debug:
@@ -516,7 +541,7 @@ class Slice():
           del vdev.hp4rules[(table, hp4handle)]
           self.leases[dev_name].entry_usage -= 1
 
-    print("CHECKPOINT: BB")
+    # print("CHECKPOINT: BB")
 
     # record changes to ruleset
     table = native_command.attributes['table']
@@ -547,7 +572,7 @@ class Slice():
                            [],
                            native_command.attributes['aparams'])
       vdev.nrules[(table, match_ID)] = Interpretation(rule, match_ID, hp4_rule_keys)
-      print("CHECKPOINT: CC")
+      # print("CHECKPOINT: CC")
 
     elif native_command.command_type == 'table_delete':
       handle = native_command.attributes['handle']
