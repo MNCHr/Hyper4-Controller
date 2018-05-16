@@ -137,7 +137,7 @@ class HP4_Command:
     ret += ' '.join(self.action_params)
     return ret
 
-class TICS(HP4_Command):
+class HP4_Parse_Select_Command(HP4_Command):
   def __init__(self):
     HP4_Command.__init__(self, '', '', '', [], [])
     self.curr_pc_state = 0
@@ -352,15 +352,15 @@ class P4_to_HP4(HP4Compiler):
       if parse_state.return_statement[NEXT_PARSE_STATE] == 'ingress':
         self.pc_action[pc_state] = '[PROCEED]'
     elif parse_state.return_statement[RETURN_TYPE] == 'select':
-      tics_pc_state = pc_state
-      if tics_pc_state == 0:
-        tics_pc_state += 1
+      parse_select_pc_state = pc_state
+      if parse_select_pc_state == 0:
+        parse_select_pc_state += 1
       # account for 'current' instances
       maxcurr = 0
       # identify range of bytes to examine
       startbytes = 100
       endbytes = 0
-      self.tics_match_offsets[tics_pc_state] = []
+      self.parse_select_match_offsets[parse_select_pc_state] = []
       for criteria in parse_state.return_statement[CRITERIA]:
         if isinstance(criteria, tuple): # tuple indicates use of 'current'
           # criteria[0]: start offset from current position
@@ -373,7 +373,7 @@ class P4_to_HP4(HP4Compiler):
         else: # single field
           offset_width = (self.field_offsets[criteria],
                           self.h.p4_fields[criteria].width)
-          self.tics_match_offsets[tics_pc_state].append(offset_width)
+          self.parse_select_match_offsets[parse_select_pc_state].append(offset_width)
           fieldstart = self.field_offsets[criteria] / 8
           fieldend = int(math.ceil((fieldstart * 8
                                     + self.h.p4_fields[criteria].width) / 8.0))
@@ -398,7 +398,7 @@ class P4_to_HP4(HP4Compiler):
           unsupported(startbytes, endbytes)
         else:
           self.pc_action[pc_state] = '[PARSE_SELECT_SEB]'
-          self.tics_table_names[tics_pc_state] = 'tset_parse_select_SEB'
+          self.parse_select_table_names[parse_select_pc_state] = 'tset_parse_select_SEB'
       else:
         bound = 30
         while bound <= 100:
@@ -408,7 +408,7 @@ class P4_to_HP4(HP4Compiler):
             else:
               namecore = 'parse_select_' + str(bound - 10) + '_' + str(bound - 1)
               self.pc_action[pc_state] = '[' + namecore.upper() + ']'
-              self.tics_table_names[tics_pc_state] = 'tset_' + namecore
+              self.parse_select_table_names[parse_select_pc_state] = 'tset_' + namecore
               break
           bound += 10
       if pc_state not in self.pc_action:
@@ -416,7 +416,7 @@ class P4_to_HP4(HP4Compiler):
                startbytes(%i) and endbytes(%i)" % (startbytes, endbytes))
         exit()
 
-  def fill_tics_match_params(self, criteria_fields, values, pc_state):
+  def fill_parse_select_match_params(self, criteria_fields, values, pc_state):
     if len(criteria_fields) != len(values):
       print("ERROR: criteria_fields(%i) not same length as values(%i)" \
             % (len(criteria_fields),len(values)))
@@ -427,17 +427,18 @@ class P4_to_HP4(HP4Compiler):
     #  parameters string (20 bytes for the first parse_select table, 10 bytes
     #  for all others)
     mparams = []
+    code.interact(local=dict(globals(), **locals()))
     if self.field_offsets[criteria_fields[0]] / 8 < 40:
-      mparams = self.fill_tics_match_params_under40(criteria_fields, values)
+      mparams = self.fill_parse_select_match_params_under40(criteria_fields, values)
     else:
-      mparams = self.fill_tics_match_params_40_99(criteria_fields, values)
+      mparams = self.fill_parse_select_match_params_40_99(criteria_fields, values)
 
     ret = ['[vdev ID]', str(pc_state)]
     for mparam in mparams:
       ret.append(str(mparam))
     return ret
 
-  def fill_tics_match_params_under40(self, criteria_fields, values):
+  def fill_parse_select_match_params_under40(self, criteria_fields, values):
     mparam = MatchParam()
     for i in range(len(criteria_fields)):
       if values[i][0] != 'value' and values[i][0] != 'default':
@@ -462,17 +463,17 @@ class P4_to_HP4(HP4Compiler):
       mparam.value = mparam.value | val
     return [mparam]
 
-  def fill_tics_match_params_60_69(self, criteria_fields, values):
+  def fill_parse_select_match_params_60_69(self, criteria_fields, values):
     """
     mparams = []
     for i in range(6):
       mparams[i] = MatchParam()
     """
-    print("Not yet implemented: fill_tics_match_params_60_69")
+    print("Not yet implemented: fill_parse_select_match_params_60_69")
     exit()
 
-  def fill_tics_match_params_70_99(self, criteria_fields, values):
-    print("Not yet implemented: fill_tics_match_params_70_99")
+  def fill_parse_select_match_params_70_99(self, criteria_fields, values):
+    print("Not yet implemented: fill_parse_select_match_params_70_99")
     exit()
     """
       fo = self.field_offsets[criteria_fields[i]]
@@ -584,11 +585,11 @@ class P4_to_HP4(HP4Compiler):
     elif parse_state.return_statement[RETURN_TYPE] == 'select':
       # return_statement[CASE_ENTRIES]: list of tuples (see case_entry below)
       for case_entry in parse_state.return_statement[CASE_ENTRIES]:
-        t = TICS()
+        t = HP4_Parse_Select_Command()
         t.command = "table_add"
         t.curr_pc_state = curr_pc_state
-        t.table = self.tics_table_names[curr_pc_state]
-        t.match_params = self.fill_tics_match_params(parse_state.return_statement[CRITERIA], case_entry[0], t.curr_pc_state)
+        t.table = self.parse_select_table_names[curr_pc_state]
+        t.match_params = self.fill_parse_select_match_params(parse_state.return_statement[CRITERIA], case_entry[0], t.curr_pc_state)
         if case_entry[0][0][0] == 'default':
           t.priority = MAX_PRIORITY
         # case_entry: (list of values, next parse_state)
@@ -621,7 +622,7 @@ class P4_to_HP4(HP4Compiler):
           t.next_pc_state = t.curr_pc_state
           t.action = 'set_next_action'
           t.action_params = ['[PROCEED]', str(t.next_pc_state), str(t.priority)]
-        self.tics_list.append(t)
+        self.parse_select_list.append(t)
     else:
       print("ERROR: Unknown directive in return statement: %s" \
             % parse_state.return_statement[0])
@@ -668,7 +669,7 @@ class P4_to_HP4(HP4Compiler):
                                          [self.pc_action[key], str(key)]))
 
   def gen_tset_parse_select_entries(self):
-    for t in self.tics_list:
+    for t in self.parse_select_list:
       if t.next_parse_state != 'ingress':
         if self.pc_bits_extracted[t.next_pc_state] > self.pc_bits_extracted[t.curr_pc_state]:
           t.action = "extract_more"
@@ -676,8 +677,8 @@ class P4_to_HP4(HP4Compiler):
           t.action_params = [str(bytes), str(t.next_pc_state), str(t.priority)]
         else:
           t.action = "set_next_action"
-          if t.next_pc_state in self.tics_table_names:
-            next_action = "[" + self.tics_table_names[t.next_pc_state].split('tset_')[1].upper() + "]"
+          if t.next_pc_state in self.parse_select_table_names:
+            next_action = "[" + self.parse_select_table_names[t.next_pc_state].split('tset_')[1].upper() + "]"
           else:
             next_action = "[PROCEED]"
           t.action_params = [next_action, str(t.next_pc_state), str(t.priority)]
@@ -1421,9 +1422,9 @@ class P4_to_HP4(HP4Compiler):
     self.pc_to_ps = {}
     self.pc_to_preceding_pcs = {}
     self.vbits = {}
-    self.tics_match_offsets = {}
-    self.tics_table_names = {}
-    self.tics_list = []
+    self.parse_select_match_offsets = {}
+    self.parse_select_table_names = {}
+    self.parse_select_list = []
     self.stage = 1
     self.table_to_trep = {}
     self.action_to_arep = {}
