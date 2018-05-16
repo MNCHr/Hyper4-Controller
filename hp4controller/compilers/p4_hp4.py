@@ -344,6 +344,7 @@ class P4_to_HP4(HP4Compiler):
         self.field_offsets[call[1].name + '.' + field.name] = self.offset
         self.offset += field.width # advance current offset
         numbits += field.width
+    code.interact(local=dict(globals(), **locals()))
     if numbits > self.seb * 8:
       self.pc_bits_extracted[pc_state] = numbits
     else:
@@ -382,7 +383,7 @@ class P4_to_HP4(HP4Compiler):
           if endbytes < fieldend:
             endbytes = fieldend
           
-      self.pc_bits_extracted[pc_state] += maxcurr
+      self.pc_bits_extracted[pc_state] += maxcurr # well hang on now really?
   
       # pc_action[pc_state] = 'parse_select_XX_YY'
       if startbytes >= endbytes:
@@ -427,8 +428,16 @@ class P4_to_HP4(HP4Compiler):
     #  parameters string (20 bytes for the first parse_select table, 10 bytes
     #  for all others)
     mparams = []
-    code.interact(local=dict(globals(), **locals()))
-    if self.field_offsets[criteria_fields[0]] / 8 < 40:
+    bitoffset = 0
+    if isinstance(criteria_fields[0], str):
+      # not 'current'
+      bitoffset = self.field_offsets[criteria_fields[0]]
+    elif isinstance(criteria_fields[0], tuple):
+      # using 'current'
+      bitoffset = criteria_fields[0][0]
+      if pc_state in self.pc_bits_extracted:
+        bitoffset += self.pc_bits_extracted[pc_state]
+    if bitoffset / 8 < 40:
       mparams = self.fill_parse_select_match_params_under40(criteria_fields, values)
     else:
       mparams = self.fill_parse_select_match_params_40_99(criteria_fields, values)
@@ -444,8 +453,14 @@ class P4_to_HP4(HP4Compiler):
       if values[i][0] != 'value' and values[i][0] != 'default':
         print("Not yet supported: type %s in case entry" % values[i][0])
         exit()
-      fo = self.field_offsets[criteria_fields[i]]
-      width = self.h.p4_fields[criteria_fields[i]].width
+      fo = 0
+      width = 0
+      if isinstance(criteria_fields[i], str): # not 'current' tuple
+        fo = self.field_offsets[criteria_fields[i]]
+        width = self.h.p4_fields[criteria_fields[i]].width
+      elif isinstance(criteria_fields[i], tuple): # 'current' tuple
+        fo = criteria_fields[i][0]
+        width = criteria_fields[i][1]
       fieldend = fo + width
       value = 0
       val = 0
@@ -1392,6 +1407,7 @@ class P4_to_HP4(HP4Compiler):
     self.gen_tset_parse_control_entries()
     self.gen_tset_parse_select_entries()
     self.gen_tset_pipeline_config_entries()
+    #code.interact(local=dict(globals(), **locals()))
     self.gen_tX_templates()
     self.gen_action_entries()
     self.gen_tmiss_entries()
