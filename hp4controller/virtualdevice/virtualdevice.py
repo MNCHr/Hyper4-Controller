@@ -216,6 +216,8 @@ class VirtualDevice():
 class CompileError(Exception):
   pass
 
+STANDARD_EXTRACTION = 40
+
 class VirtualDeviceFactory():
   def __init__(self):
     self.compiled_programs = {} # {program_path (str) : cr (hp4compiler.CodeRepresentation)}
@@ -228,7 +230,7 @@ class VirtualDeviceFactory():
     sr = {}
     sr['[vdev ID]'] = str(vdev_ID)
     sr['[PROCEED]'] = '0'
-    sr['[PARSE_SELECT_SEB]'] = '1'
+    sr['[PARSE_SELECT_00_19]'] = '1'
     sr['[PARSE_SELECT_20_29]'] = '2'
     sr['[PARSE_SELECT_30_39]'] = '3'
     sr['[PARSE_SELECT_40_49]'] = '4'
@@ -322,10 +324,10 @@ class VirtualDeviceFactory():
         try:
           out_path = program_path.split('.p4')[0] + '.hp4t'
           mt_out_path = program_path.split('.p4')[0] + '.hp4mt'
-          seb = 40
           # TODO: replace the '9' (max primitives / action for which HP4 is configured
           self.compiled_programs[program_path] = \
-             self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, seb, 9)
+             self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, 
+                                      STANDARD_EXTRACTION, 9)
         except CompileError as e:
           return "Compile Error: " + str(e)
       else:

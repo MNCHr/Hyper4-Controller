@@ -309,6 +309,17 @@ class P4_to_HP4(HP4Compiler):
         self.action_ID[action] = self.actionID
         self.actionID += 1
 
+  def update_parse_state_maps(self, parse_state, pc_state):
+    """ Track associations between parse states and parse control states """
+    if self.ps_to_pc.has_key(parse_state) is False:
+      self.ps_to_pc[parse_state] = set()
+    if pc_state == 0:
+      self.ps_to_pc[parse_state].add(1)
+      self.pc_to_ps[1] = parse_state
+    else:
+      self.ps_to_pc[parse_state].add(pc_state)
+      self.pc_to_ps[pc_state] = parse_state
+
   def process_parse_state(self, parse_state, pc_state):
     """ Analyze a parse control state
         - Examine associated parse state's calls
@@ -322,40 +333,47 @@ class P4_to_HP4(HP4Compiler):
           - Identify byte range XX-YY in return statements of type 'select',
             requiring tset_parse_select_XX_YY entries
     """
-    # track pc - ps membership
-    if self.ps_to_pc.has_key(parse_state) is False:
-      self.ps_to_pc[parse_state] = set()
-    if pc_state == 0:
-      self.ps_to_pc[parse_state].add(1)
-      self.pc_to_ps[1] = parse_state
-    else:
-      self.ps_to_pc[parse_state].add(pc_state)
-      self.pc_to_ps[pc_state] = parse_state
+    self.update_parse_state_maps(parse_state, pc_state)
 
-    numbits = self.offset
+    # numbits: Total number of bits that must have been extracted for hp4
+    #          to handle this pc state.
+    numbits = self.offset # measures how far into the packet we are already
+
+    # handle extract statements
     for call in parse_state.call_sequence:
       if call[0].value != 'extract':
         print("ERROR: unsupported call %s" % call[0].value)
         exit()
       # update field_offsets, numbits
-      # TODO: this code problematic; need to ensure we step through the
-      #       fields in order; use for i in range(len(call[1].fields))?
       for field in call[1].fields:
         self.field_offsets[call[1].name + '.' + field.name] = self.offset
-        self.offset += field.width # advance current offset
-        numbits += field.width
-    code.interact(local=dict(globals(), **locals()))
+        self.offset += field.width # advance offset
+        numbits += field.width     # update requirement
+
+    #code.interact(local=dict(globals(), **locals()))
+
+    # establish required number of bits for hp4 to handle the pc state
     if numbits > self.seb * 8:
       self.pc_bits_extracted[pc_state] = numbits
     else:
       self.pc_bits_extracted[pc_state] = self.seb * 8
+
+    # shouldn't we delay the preceding statements until we've processed
+    #  the return_statement?
+
     if parse_state.return_statement[RETURN_TYPE] == 'immediate':
       if parse_state.return_statement[NEXT_PARSE_STATE] == 'ingress':
         self.pc_action[pc_state] = '[PROCEED]'
     elif parse_state.return_statement[RETURN_TYPE] == 'select':
-      parse_select_pc_state = pc_state
-      if parse_select_pc_state == 0:
-        parse_select_pc_state += 1
+      # The parse_select_* tables follow parse_control and read the
+      #  pc_state.  Following parse_control, pc_state will == 1 if
+      #  the node is parse 'start'.  Track value of pc_state as
+      #  read by parse_select_* tables with parse_select_pc_state:
+      if pc_state == 0:
+        parse_select_pc_state = 1
+      else:
+        parse_select_pc_state = pc_state
+
       # account for 'current' instances
       maxcurr = 0
       # identify range of bytes to examine
@@ -366,7 +384,8 @@ class P4_to_HP4(HP4Compiler):
         if isinstance(criteria, tuple): # tuple indicates use of 'current'
           # criteria[0]: start offset from current position
           # criteria[1]: width of 'current' call
-          maxcurr = criteria[0] + criteria[1]
+          if maxcurr < criteria[0] + criteria[1]:
+            maxcurr = criteria[0] + criteria[1]
           if (startbytes * 8) > self.offset + criteria[0]:
             startbytes = (self.offset + criteria[0]) / 8
           if (endbytes * 8) < self.offset + maxcurr:
@@ -382,8 +401,13 @@ class P4_to_HP4(HP4Compiler):
             startbytes = fieldstart
           if endbytes < fieldend:
             endbytes = fieldend
-          
-      self.pc_bits_extracted[pc_state] += maxcurr # well hang on now really?
+
+      #print(str(parse_state) + ': maxcurr = ' + str(maxcurr) + '; offset = ' \
+      #    + str(self.offset))
+      #print('pc_bits_extracted[' + str(pc_state) + ']: ' \
+      #    + str(self.pc_bits_extracted[pc_state]))
+      #if (maxcurr + self.offset) > self.pc_bits_extracted[pc_state]:
+      #  self.pc_bits_extracted[pc_state] += maxcurr
   
       # pc_action[pc_state] = 'parse_select_XX_YY'
       if startbytes >= endbytes:
@@ -398,8 +422,8 @@ class P4_to_HP4(HP4Compiler):
         if endbytes >= 20:
           unsupported(startbytes, endbytes)
         else:
-          self.pc_action[pc_state] = '[PARSE_SELECT_SEB]'
-          self.parse_select_table_names[parse_select_pc_state] = 'tset_parse_select_SEB'
+          self.pc_action[pc_state] = '[PARSE_SELECT_00_19]'
+          self.parse_select_table_names[parse_select_pc_state] = 'tset_parse_select_00_19'
       else:
         bound = 30
         while bound <= 100:
@@ -407,9 +431,22 @@ class P4_to_HP4(HP4Compiler):
             if endbytes >= bound:
               unsupported(startbytes, endbytes)
             else:
-              namecore = 'parse_select_' + str(bound - 10) + '_' + str(bound - 1)
+              suffix = str(bound - 10) + '_' + str(bound - 1)
+              namecore = 'parse_select_' + suffix
               self.pc_action[pc_state] = '[' + namecore.upper() + ']'
               self.parse_select_table_names[parse_select_pc_state] = 'tset_' + namecore
+
+              # set the function that will handle match parameters for the
+              #  tset_parse_select_* table - under40 used when hp4's
+              #  ext_first.data field, 40B wide, covers the select criteria
+              #  - note the tset_parse_select_* tables 00_19, 20_29, and 30_39
+              #  all use ext_first.data
+              if bound <= 40:
+                self.fill_parse_select_mp_function[pc_state] = \
+                     getattr(self, 'fill_parse_select_match_params_under40')
+              else:
+                self.fill_parse_select_mp_function[pc_state] = \
+                     getattr(self, 'fill_parse_select_match_params_' + suffix)
               break
           bound += 10
       if pc_state not in self.pc_action:
@@ -437,10 +474,12 @@ class P4_to_HP4(HP4Compiler):
       bitoffset = criteria_fields[0][0]
       if pc_state in self.pc_bits_extracted:
         bitoffset += self.pc_bits_extracted[pc_state]
+    print('fill_parse_select_match_params')
+    code.interact(local=dict(globals(), **locals()))
     if bitoffset / 8 < 40:
       mparams = self.fill_parse_select_match_params_under40(criteria_fields, values)
     else:
-      mparams = self.fill_parse_select_match_params_40_99(criteria_fields, values)
+      mparams = self.fill_parse_select_mp_function[pc_state](criteria_fields, values)
 
     ret = ['[vdev ID]', str(pc_state)]
     for mparam in mparams:
@@ -478,24 +517,29 @@ class P4_to_HP4(HP4Compiler):
       mparam.value = mparam.value | val
     return [mparam]
 
-  def fill_parse_select_match_params_60_69(self, criteria_fields, values):
-    """
-    mparams = []
-    for i in range(6):
-      mparams[i] = MatchParam()
-    """
-    print("Not yet implemented: fill_parse_select_match_params_60_69")
-    exit()
-
-  def fill_parse_select_match_params_70_99(self, criteria_fields, values):
-    print("Not yet implemented: fill_parse_select_match_params_70_99")
-    exit()
-    """
+  # TODO: I realize now why there used to be a call to ..._40_99 - the implementation
+  #  doesn't change for each byte range from 40-49+ - go back and fix it in
+  #  process_parse_state
+  def fill_parse_select_match_params_40_49(self, criteria_fields, values):
+    # create our return value, a list of MatchParams for tset_parse_select_40_49
+    #  each initialized to '0&&&0' (value 0, mask 0 = don't care)
+    mparams = [MatchParam() for count in xrange(10)]
+    for i in range(len(criteria_fields)):
+      # get field offset
       fo = self.field_offsets[criteria_fields[i]]
+
+      # set index of starting match parameter
       j = (fo / 8) % len(mparams)
+
+      # get field width
       width = self.h.p4_fields[criteria_fields[i]].width
+
+      # set position of next bit after field
       fieldend = fo + width
+
+      # set index of ending match parameter
       end_j = (int(math.ceil(fieldend / 8.0)) - 1) % len(mparams)
+
       value = 0
       if values[i][0] == 'value':
         value = values[i][1]
@@ -517,18 +561,45 @@ class P4_to_HP4(HP4Compiler):
         mparams[j].mask = mparams[j].mask | mask
         mparams[j].value = mparams[j].value | val
         j += 1
-        advance = 8 - (fo % 8)
-        # advance fo
-        fo = fo + advance
-        # reduce width
-        width = width - advance
-        # change values[i]
-        if width > 0:
-          value = value % (1 << width)
-    ret = ['[vdev ID]', str(pc_state)]
-    for mparam in mparams:
-      ret.append(str(mparam))
-    return ret
+        if j <= end_j: # prepare for next iteration
+          advance = 8 - (fo % 8)
+          # advance fo
+          fo = fo + advance
+          # reduce width
+          width = width - advance
+          # change values[i]
+          if width > 0:
+            value = value % (1 << width)
+    return mparams
+
+  def fill_parse_select_match_params_50_59(self, criteria_fields, values):
+    pass
+
+  def fill_parse_select_match_params_60_69(self, criteria_fields, values):
+    """
+    mparams = []
+    for i in range(6):
+      mparams[i] = MatchParam()
+    """
+    print("Not yet implemented: fill_parse_select_match_params_60_69")
+    exit()
+
+  def fill_parse_select_match_params_70_79(self, criteria_fields, values):
+    pass
+
+  def fill_parse_select_match_params_80_89(self, criteria_fields, values):
+    pass
+
+  def fill_parse_select_match_params_90_99(self, criteria_fields, values):
+    pass
+
+  """
+  def fill_parse_select_match_params_70_99(self, criteria_fields, values):
+    print("Not yet implemented: fill_parse_select_match_params_70_99")
+    exit()
+  """
+    """
+
     """
 
   def walk_ingress_pipeline(self, curr_table):
@@ -623,10 +694,11 @@ class P4_to_HP4(HP4Compiler):
             self.pc_to_preceding_pcs[pc_state] = self.pc_to_preceding_pcs[curr_pc_state] + [curr_pc_state]
 
             # TODO: verify this line is correct; does it account for 'current'?
-            if self.offset > self.seb * 8:
-              self.pc_bits_extracted[pc_state] = self.offset
-            else:
-              self.pc_bits_extracted[pc_state] = self.seb * 8
+            # I think these lines are unnecessary - should be handled in process_parse_state
+            #if self.offset > self.seb * 8:
+            #  self.pc_bits_extracted[pc_state] = self.offset
+            #else:
+            #  self.pc_bits_extracted[pc_state] = self.seb * 8
 
             next_states.append(next_state)
             t.next_pc_state = pc_state
@@ -1407,7 +1479,7 @@ class P4_to_HP4(HP4Compiler):
     self.gen_tset_parse_control_entries()
     self.gen_tset_parse_select_entries()
     self.gen_tset_pipeline_config_entries()
-    #code.interact(local=dict(globals(), **locals()))
+    # code.interact(local=dict(globals(), **locals()))
     self.gen_tX_templates()
     self.gen_action_entries()
     self.gen_tmiss_entries()
@@ -1441,6 +1513,8 @@ class P4_to_HP4(HP4Compiler):
     self.parse_select_match_offsets = {}
     self.parse_select_table_names = {}
     self.parse_select_list = []
+    self.fill_parse_select_mp_function = {} # {pc_state :
+                                         #  fill_parse_select_* function}
     self.stage = 1
     self.table_to_trep = {}
     self.action_to_arep = {}
