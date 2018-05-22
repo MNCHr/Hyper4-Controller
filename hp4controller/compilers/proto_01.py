@@ -12,6 +12,7 @@ SEB = 320
 PS_RET_TYPE = 0
 PS_RET_CRITERIA = 1
 PS_RET_BRANCHES = 2
+PS_RET_IMM_STATE = 1
 PS_CALL_TYPE = 0
 PS_CALL_H_INST = 1
 PS_CURR_OFFSET = 0
@@ -23,9 +24,9 @@ VAL_VALUE = 1
 
 current_call = tuple
 
-#TODO: implement proper pc numbering; 0 = prior to start; 1 = ready for start
+# proper pc numbering: 0 = prior to start; 1 = ready for start
 
-next_pc_id = 0
+next_pc_id = 1
 
 def get_next_pc_id():
   global next_pc_id
@@ -73,6 +74,20 @@ def clr_traverse(pcs, h):
     else:
       raise Exception('Unsupported parse call: %s' % call[PS_CALL_TYPE])
 
+  def add_next(next_parse_state):
+    next_pcs_pcs_path = list(pcs.pcs_path)
+    next_pcs_pcs_path.append(pcs)
+    next_pcs_ps_path = list(pcs.ps_path)
+    next_pcs_ps_path.append(pcs.parse_state)
+    next_pcs = PC_State(hp4_bits_extracted = pcs.hp4_bits_extracted,
+                        p4_bits_extracted = pcs.p4_bits_extracted,
+                        ps_path = next_pcs_ps_path,
+                        pcs_path = next_pcs_pcs_path,
+                        pcs_id = get_next_pc_id(),
+                        parse_state = next_parse_state)
+    pcs.children.append(next_pcs)
+    return next_pcs
+
   if pcs.parse_state.return_statement[PS_RET_TYPE] == 'select':
     for criteria in pcs.parse_state.return_statement[PS_RET_CRITERIA]:
       if isinstance(criteria, current_call):
@@ -89,18 +104,24 @@ def clr_traverse(pcs, h):
         next_parse_state = h.p4_parse_states[branch[BRANCH_STATE]]
         if next_parse_state not in next_parse_states:
           next_parse_states.append(next_parse_state)
-          next_pcs_pcs_path = list(pcs.pcs_path)
-          next_pcs_pcs_path.append(pcs)
-          next_pcs_ps_path = list(pcs.ps_path)
-          next_pcs_ps_path.append(pcs.parse_state)
-          next_pcs = PC_State(hp4_bits_extracted = pcs.hp4_bits_extracted,
-                              p4_bits_extracted = pcs.p4_bits_extracted,
-                              ps_path = next_pcs_ps_path,
-                              pcs_path = next_pcs_pcs_path,
-                              pcs_id = get_next_pc_id(),
-                              parse_state = next_parse_state)
-          pcs.children.append(next_pcs)
+          next_pcs = add_next(next_parse_state)
           clr_traverse(next_pcs, h)
+  elif pcs.parse_state.return_statement[PS_RET_TYPE] == 'immediate':
+      next_parse_state_name = pcs.parse_state.return_statement[PS_RET_IMM_STATE]
+      if next_parse_state_name != 'ingress':
+        next_parse_state = h.p4_parse_states[next_parse_state_name]
+        next_pcs = add_next(next_parse_state)
+        clr_traverse(next_pcs, h)
+  else:
+    raise Exception('Unsupported return type: %s' % \
+                    pcs.parse_state.return_statement[PS_RET_TYPE])
+
+def launch_clr_traverse(pcs, h):
+  start_pcs = PC_State(pcs_path=[pcs],
+                       pcs_id=get_next_pc_id(),
+                       parse_state=pcs.parse_state)
+  pcs.children.append(start_pcs)
+  clr_traverse(start_pcs, h)
 
 def parse_args(args):
   parser = argparse.ArgumentParser(description='Recursive Parse Tree Processing')
@@ -111,8 +132,8 @@ def main():
   args = parse_args(sys.argv[1:])
   h = HLIR(args.input)
   h.build()
-  start_pcs = PC_State(pcs_id=get_next_pc_id(), parse_state=h.p4_parse_states['start'])
-  clr_traverse(start_pcs, h)
+  pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
+  launch_clr_traverse(pre_pcs, h)
   code.interact(local=dict(globals(), **locals()))
 
 if __name__ == '__main__':
