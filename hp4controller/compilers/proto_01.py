@@ -22,6 +22,9 @@ BRANCH_VALUES = 0
 BRANCH_STATE = 1
 VAL_TYPE = 0
 VAL_VALUE = 1
+MAX_BYTE = 100
+
+parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
 current_call = tuple
 
@@ -38,13 +41,13 @@ class HP4_Command(object):
   def __init__(self, command='table_add',
                      table='',
                      action='',
-                     mparams=[],
-                     aparams=[]):
+                     match_params=[],
+                     action_params=[]):
     self.command = command
     self.table = table
     self.action = action
-    self.match_params = mparams
-    self.action_params = aparams
+    self.match_params = match_params
+    self.action_params = action_params
   def __str__(self):
     """ assumes command is \'table_add\' """
     if self.command != 'table_add':
@@ -91,6 +94,8 @@ class PC_State(object):
     self.parse_state = parse_state
     self.children = []
     self.header_offsets = {} # header name (str) : hp4 bit offset (int)
+    for pcs in self.pcs_path:
+      self.header_offsets.update(pcs.header_offsets)
     self.select_criteria = [] # list of (offset, width) tuples, each
                               #  element corresponding to a criteria in the
                               #  select statement, representing the hp4 view
@@ -112,35 +117,82 @@ class PC_State(object):
       ret += child.parse_state.name + ' '
     return ret
 
+def get_parse_select_table_code(first_byte):
+  for i in range(len(parse_select_table_boundaries) - 1):
+    lowerbound = parse_select_table_boundaries[i]
+    upperbound = parse_select_table_boundaries[i+1]
+    if first_byte >= lowerbound and first_byte < upperbound:
+      ret = '[PARSE_SELECT_'
+      ret += '%02d_%02d]' % (lowerbound, upperbound - 1)
+      return ret
+  raise Exception("Did not find parse_select table; first_byte: %d" % first_byte)
+
+def get_pc_action(pcs):
+  select_first_byte = MAX_BYTE
+  for criteria in pcs.select_criteria:
+    select_first_byte = min(criteria[OFFSET] / 8, select_first_byte)
+  return get_parse_select_table_code(select_first_byte)
+
 def gen_pc_entry_start(pcs):
-  start_pcs = pcs.children[0]
+  """ Generate parse_control entries for pc 0/1:
+       We need an entry for pc 1 only if SEB is insufficient
+       to handle 'start', in which case the action for pc 0
+       must be extract_more
+  """
+  start_pcs = pcs.children[0] # pc 0 always has one child: pc 1
   mparams = ['[vdev ID]', str(pcs.pcs_id)]
   aparams = []
-  action = ''
+  act = 'set_next_action'
   if start_pcs.p4_bits_extracted > pcs.hp4_bits_extracted:
-    action = 'extract_more'
+    act = 'extract_more'
     aparams.append(str(start_pcs.p4_bits_extracted))
-    aparams.append(str(start_pcs.pcs_id))
   else:
-    action = 'set_next_action'
     if not start_pcs.children:
       aparams.append('[PROCEED]')
     else:
+      aparams.append(get_pc_action(start_pcs))
+
+  aparams.append(str(start_pcs.pcs_id))
 
   cmd = HP4_Command(command='table_add',
                     table='tset_parse_control',
-                    action='extract_more',
+                    action=act,
                     match_params=mparams,
                     action_params=aparams)
   return cmd
 
 def gen_parse_control_entries(pcs, commands=[]):
   if pcs.pcs_id == 0:
-    commands.append(gen_pc_entry_start(pcs))
-  if pcs.parse_state.return_statement[PS_RET_TYPE] == 'select':
-    for criteria in pcs.select_criteria:
-      #criteria[OFFSET]
-      pass
+    cmd = gen_pc_entry_start(pcs)
+    commands.append(cmd)
+    if cmd.action == 'extract_more':
+      commands = gen_parse_control_entries(pcs.children[0], commands)
+    else:
+      for child in pcs.children[0].children:
+        commands = gen_parse_control_entries(child, commands)
+      
+  else:
+    mparams = ['[vdev ID]', str(pcs.pcs_id)]
+    aparams = []
+    act = 'set_next_action'
+    if not pcs.children:
+      aparams.append('[PROCEED]')
+    else:
+      aparams.append(get_pc_action(pcs))
+    aparams.append(str(pcs.pcs_id))
+
+    cmd = HP4_Command(command='table_add',
+                      table='tset_parse_control',
+                      action=act,
+                      match_params=mparams,
+                      action_params=aparams)
+
+    commands.append(cmd)
+
+    for child in pcs.children:
+      commands = gen_parse_control_entries(child, commands)
+
+  return commands
 
 def process_parse_tree_clr(pcs, h):
   print(str(pcs.pcs_id) + ' [' + pcs.parse_state.name + ']')
