@@ -85,6 +85,7 @@ class PC_State(object):
                      pcs_path=[],
                      pcs_id=0,
                      parse_state=None,
+                     entry_table='tset_parse_control',
                      **kwargs):
     self.hp4_bits_extracted = hp4_bits_extracted
     self.p4_bits_extracted = p4_bits_extracted
@@ -92,6 +93,7 @@ class PC_State(object):
     self.pcs_path = pcs_path
     self.pcs_id = pcs_id
     self.parse_state = parse_state
+    self.entry_table = entry_table
     self.children = []
     self.header_offsets = {} # header name (str) : hp4 bit offset (int)
     for pcs in self.pcs_path:
@@ -186,6 +188,8 @@ def gen_parse_control_entries(pcs, commands=[]):
                       action=act,
                       match_params=mparams,
                       action_params=aparams)
+    print(cmd)
+    code.interact(local=dict(globals(), **locals()))
 
     commands.append(cmd)
 
@@ -307,6 +311,7 @@ def main():
   pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
   launch_process_parse_tree_clr(pre_pcs, h)
   consolidate_parse_tree_clr(pre_pcs, h)
+  commands = gen_parse_control_entries(pre_pcs)
   code.interact(local=dict(globals(), **locals()))
 
 if __name__ == '__main__':
