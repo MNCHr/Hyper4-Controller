@@ -190,8 +190,7 @@ def gen_parse_control_entries(pcs, commands=[]):
 
   return commands
 
-def process_parse_tree_clr(pcs, h):
-  print(str(pcs.pcs_id) + ' [' + pcs.parse_state.name + ']')
+def process_extract_statements(pcs):
   for call in pcs.parse_state.call_sequence:
     if call[PS_CALL_TYPE] == p4_hlir.hlir.p4_parser.parse_call.extract:
       pcs.header_offsets[call[PS_CALL_H_INST].name] = pcs.p4_bits_extracted
@@ -200,6 +199,10 @@ def process_parse_tree_clr(pcs, h):
         pcs.hp4_bits_extracted = pcs.p4_bits_extracted
     else:
       raise Exception('Unsupported parse call: %s' % call[PS_CALL_TYPE])
+
+def process_parse_tree_clr(pcs, h):
+  print(str(pcs.pcs_id) + ' [' + pcs.parse_state.name + ']')
+  process_extract_statements(pcs)
 
   def add_next(next_parse_state):
     next_pcs_pcs_path = list(pcs.pcs_path)
