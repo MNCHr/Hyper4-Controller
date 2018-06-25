@@ -85,7 +85,7 @@ class PC_State(object):
     self.pcs_path = pcs_path
     self.pcs_id = PC_State.newid()
     self.parse_state = parse_state
-    self.entry_table = entry_table
+    self.entry_table = entry_table # TODO: Delete if we don't need this
     self.children = []
     self.header_offsets = {} # header name (str) : hp4 bit offset (int)
     for pcs in self.pcs_path:
@@ -164,29 +164,47 @@ def gen_parse_control_entries(pcs, commands=[]):
     else:
       for child in pcs.children[0].children:
         commands = gen_parse_control_entries(child, commands)
-      
+  
   else:
-    mparams = ['[vdev ID]', str(pcs.pcs_id)]
-    aparams = []
-    act = 'set_next_action'
-    if not pcs.children:
-      aparams.append('[PROCEED]')
-    else:
-      aparams.append(get_pc_action(pcs))
-    aparams.append(str(pcs.pcs_id))
+    if pcs.pcs_path[-1].hp4_bits_extracted < pcs.hp4_bits_extracted:
+      mparams = ['[vdev ID]', str(pcs.pcs_id)]
+      aparams = []
+      act = 'set_next_action'
+      if not pcs.children:
+        aparams.append('[PROCEED]')
+      else:
+        aparams.append(get_pc_action(pcs))
+      aparams.append(str(pcs.pcs_id))
 
-    cmd = HP4_Command(command='table_add',
-                      table='tset_parse_control',
-                      action=act,
-                      match_params=mparams,
-                      action_params=aparams)
-    #print(cmd)
-    #code.interact(local=dict(globals(), **locals()))
+      cmd = HP4_Command(command='table_add',
+                        table='tset_parse_control',
+                        action=act,
+                        match_params=mparams,
+                        action_params=aparams)
 
-    commands.append(cmd)
+      commands.append(cmd)
 
     for child in pcs.children:
       commands = gen_parse_control_entries(child, commands)
+
+  return commands
+
+def gen_parse_select_entries(pcs, commands=[]):
+  parse_select_tables = []
+  # get start and end bytes, generate list of parse_select tables required
+  # TODO
+
+  for crit in pcs.select_criteria:
+  # establish in-order queue of select criteria, select values
+  #  - if any cross table boundaries, replace w/ two items
+  #    - 1) from criteria's first bit through last bit before boundary
+  #    - 2) remaining bits
+  # TODO
+
+  # for each parse_select table:
+  # - pop all queue items that belong to the table
+  # - generate table entry
+  # TODO
 
   return commands
 
