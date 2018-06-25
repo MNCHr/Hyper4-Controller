@@ -4,6 +4,7 @@ from p4_hlir.main import HLIR
 from p4_hlir.hlir.p4_parser import p4_parse_state
 import p4_hlir
 import argparse
+import itertools
 import code
 # code.interact(local=dict(globals(), **locals()))
 import sys
@@ -27,15 +28,6 @@ MAX_BYTE = 100
 parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
 current_call = tuple
-
-# pc numbering: 0 = prior to start; 1 = ready for start
-next_pc_id = 1
-
-def get_next_pc_id():
-  global next_pc_id
-  ret = next_pc_id
-  next_pc_id += 1
-  return ret
 
 class HP4_Command(object):
   def __init__(self, command='table_add',
@@ -79,11 +71,11 @@ class HP4_Match_Command(HP4_Command):
     self.source_action = source_action
 
 class PC_State(object):
+  newid = itertools.count().next
   def __init__(self, hp4_bits_extracted=SEB,
                      p4_bits_extracted=0,
                      ps_path=[],
                      pcs_path=[],
-                     pcs_id=0,
                      parse_state=None,
                      entry_table='tset_parse_control',
                      **kwargs):
@@ -91,7 +83,7 @@ class PC_State(object):
     self.p4_bits_extracted = p4_bits_extracted
     self.ps_path = ps_path
     self.pcs_path = pcs_path
-    self.pcs_id = pcs_id
+    self.pcs_id = PC_State.newid()
     self.parse_state = parse_state
     self.entry_table = entry_table
     self.children = []
@@ -188,8 +180,8 @@ def gen_parse_control_entries(pcs, commands=[]):
                       action=act,
                       match_params=mparams,
                       action_params=aparams)
-    print(cmd)
-    code.interact(local=dict(globals(), **locals()))
+    #print(cmd)
+    #code.interact(local=dict(globals(), **locals()))
 
     commands.append(cmd)
 
@@ -218,7 +210,6 @@ def process_parse_tree_clr(pcs, h):
                         p4_bits_extracted = pcs.p4_bits_extracted,
                         ps_path = next_pcs_ps_path,
                         pcs_path = next_pcs_pcs_path,
-                        pcs_id = get_next_pc_id(),
                         parse_state = next_parse_state)
     pcs.children.append(next_pcs)
     return next_pcs
@@ -292,9 +283,12 @@ def print_processed_parse_tree(pcs, level=0):
   for child in pcs.children:
     print_processed_parse_tree(child, level+1)
 
+def print_commands(commands):
+  for command in commands:
+    print(command)
+
 def launch_process_parse_tree_clr(pcs, h):
   start_pcs = PC_State(pcs_path=[pcs],
-                       pcs_id=get_next_pc_id(),
                        parse_state=pcs.parse_state)
   pcs.children.append(start_pcs)
   process_parse_tree_clr(start_pcs, h)
