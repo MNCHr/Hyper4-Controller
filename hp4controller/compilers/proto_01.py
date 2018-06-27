@@ -199,9 +199,12 @@ def get_new_val(val, width, offset, new_width):
   newval = newval >> (width - (offset + new_width))
   return newval
 
-def sort_branches(pcs):
+def sort_return_select(pcs):
   sorted_indices = sorted(range(len(pcs.select_criteria)),
                           key=pcs.select_criteria.__getitem__)
+  sorted_criteria = []
+  for i in sorted_indices:
+    sorted_criteria.append(pcs.select_criteria[i])
   sorted_branches = []
   default_branch = None
   for branch in pcs.parse_state.return_statement[PS_RET_BRANCHES]:
@@ -212,14 +215,7 @@ def sort_branches(pcs):
       sorted_branches.append((sorted_values, branch[BRANCH_STATE]))
     elif branch[BRANCH_VALUES][0][VAL_TYPE] == 'default':
       default_branch = branch
-  return sorted_indices, sorted_branches, default_branch
-
-def setup_select_revision(pcs, sorted_indices, i):
-  j = 0
-  crit = pcs.select_criteria[sorted_indices[i]] # (OFFSET, WIDTH)
-  while parse_select_table_boundaries[j+1] * 8 <= crit[OFFSET]:
-    j += 1
-  return j, crit
+  return sorted_criteria, sorted_branches, default_branch
 
 def update_sorted_branches(sorted_branches, crit, j):
   curr_offset = crit[OFFSET]
@@ -245,22 +241,68 @@ def update_sorted_branches(sorted_branches, crit, j):
     j += 1
   return sorted_branches
 
-def revise_branches(pcs, sorted_branches):
+def revise_value(val, crit, j):
+  curr_offset = crit[OFFSET]
+  ret = []
+  while curr_offset < (crit[OFFSET] + crit[WIDTH]):
+    # setup
+    diff = parse_select_table_boundaries[j+1] * 8 - curr_offset
+    if diff > crit[OFFSET] + crit[WIDTH]:
+      diff = crit[OFFSET] + crit[WIDTH] - curr_offset
+    # rev_branch_values
+    ret.append(get_new_val(val,
+                           crit[WIDTH],
+                           curr_offset - crit[OFFSET],
+                           diff))
+    # cleanup
+    curr_offset += diff
+    j += 1
+  return ret
+
+def revise_criteria(crit, j):
+  ret = []
+  curr_offset = crit[OFFSET]
+  while curr_offset < (crit[OFFSET] + crit[WIDTH]):
+    # setup
+    diff = parse_select_table_boundaries[j+1] * 8 - curr_offset
+    if diff > crit[OFFSET] + crit[WIDTH]:
+      diff = crit[OFFSET] + crit[WIDTH] - curr_offset
+    # update
+    ret.append((curr_offset, diff))
+    # cleanup
+    curr_offset += diff
+    j += 1
+  return ret
+
+def revise_return_select(pcs, sorted_criteria, sorted_branches):
   revised_branches = []
   for branch in sorted_branches:
-    j, crit = setup_select_revision(pcs, sorted_indices, i)
-    if parse_select_table_boundaries[j+1] * 8 <= (crit[OFFSET] + crit[WIDTH]):
+    revised_branches.append([])
+  revised_criteria = []
+
+  i = 0
+  for crit in sorted_criteria:
+    j = 0
+    while parse_select_table_boundaries[j+1] * 8 <= crit[OFFSET]:
+      j += 1
+
+    if parse_select_table_boundaries[j+1] * 8 <= (crit[OFFSET] + crit[WIDTH]):    
       # boundary broken
-      print("----BOUNDARY BROKEN----")
-      revised_branches = update_revised_branches(sorted_branches, crit, j)
+      revised_criteria += revise_criteria(crit, j)
+      k = 0
+      for branch in sorted_branches:
+        val = branch[BRANCH_VALUES][i][VAL_VALUE]
+        revised_branches[k] += revise_value(val, crit, j)
+        k += 1
+
     else:
-      rev_select_criteria.append(crit)
+      revised_criteria.append(crit)
       k = 0
       for branch in pcs.parse_state.return_statement[PS_RET_BRANCHES]:
         if branch[BRANCH_VALUES][0][VAL_TYPE] == 'value':
           sorted_branches[k].append(branch[BRANCH_VALUES][i][VAL_VALUE])
           k += 1
-
+    i += 1
 
 def gen_parse_select_entries(pcs, commands=[]):
   # base cases
@@ -270,10 +312,12 @@ def gen_parse_select_entries(pcs, commands=[]):
     return commands
 
   # sort
-  sorted_indices, sorted_branches, default_branch = sort_branches(pcs)
+  sorted_criteria, sorted_branches, default_branch = sort_return_select(pcs)
 
   # revise branch_values, select_criteria per parse_select table boundaries
-  revised_branches, rev_select_criteria = revise_branches(pcs, sorted_branches)
+  revised_criteria, revised_branches = revise_return_select(pcs,
+                                                            sorted_criteria,
+                                                            sorted_branches)
 
   print("gen_parse_select_entries line 270")
   code.interact(local=dict(globals(), **locals()))
