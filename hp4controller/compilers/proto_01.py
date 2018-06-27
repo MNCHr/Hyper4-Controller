@@ -189,12 +189,106 @@ def gen_parse_control_entries(pcs, commands=[]):
 
   return commands
 
-def gen_parse_select_entries(pcs, commands=[]):
-  parse_select_tables = []
-  # get start and end bytes, generate list of parse_select tables required
-  # TODO
+def get_new_val(val, width, offset, new_width):
+  mask = 0
+  bitpos = offset
+  while bitpos < (offset + new_width):
+    mask += 2**(width - bitpos - 1)
+    bitpos += 1
+  newval = val & mask
+  newval = newval >> (width - (offset + new_width))
+  return newval
 
-  for crit in pcs.select_criteria:
+def sort_branches(pcs):
+  sorted_indices = sorted(range(len(pcs.select_criteria)),
+                          key=pcs.select_criteria.__getitem__)
+  sorted_branches = []
+  default_branch = None
+  for branch in pcs.parse_state.return_statement[PS_RET_BRANCHES]:
+    if branch[BRANCH_VALUES][0][VAL_TYPE] == 'value':
+      sorted_values = []
+      for i in sorted_indices:
+        sorted_values.append(branch[BRANCH_VALUES][i][VAL_VALUE])
+      sorted_branches.append((sorted_values, branch[BRANCH_STATE]))
+    elif branch[BRANCH_VALUES][0][VAL_TYPE] == 'default':
+      default_branch = branch
+  return sorted_indices, sorted_branches, default_branch
+
+def setup_select_revision(pcs, sorted_indices, i):
+  j = 0
+  crit = pcs.select_criteria[sorted_indices[i]] # (OFFSET, WIDTH)
+  while parse_select_table_boundaries[j+1] * 8 <= crit[OFFSET]:
+    j += 1
+  return j, crit
+
+def update_sorted_branches(sorted_branches, crit, j):
+  curr_offset = crit[OFFSET]
+  while curr_offset < (crit[OFFSET] + crit[WIDTH]):
+    # setup
+    diff = parse_select_table_boundaries[j+1] * 8 - curr_offset
+    if diff > crit[OFFSET] + crit[WIDTH]:
+      diff = crit[OFFSET] + crit[WIDTH] - curr_offset
+    # rev_select_criteria
+    rev_select_criteria.append((curr_offset, diff))
+    # rev_branch_values
+    k = 0
+    for branch in pcs.parse_state.return_statement[PS_RET_BRANCHES]:
+      newval = get_new_val(branch[BRANCH_VALUES][i][VAL_VALUE],
+                           crit[WIDTH],
+                           curr_offset - crit[OFFSET],
+                           diff)
+      # NO: sorted_branches[k].append(newval)
+      # TODO
+      k += 1
+    # cleanup
+    curr_offset += diff
+    j += 1
+  return sorted_branches
+
+def revise_branches(pcs, sorted_branches):
+  revised_branches = []
+  for branch in sorted_branches:
+    j, crit = setup_select_revision(pcs, sorted_indices, i)
+    if parse_select_table_boundaries[j+1] * 8 <= (crit[OFFSET] + crit[WIDTH]):
+      # boundary broken
+      print("----BOUNDARY BROKEN----")
+      revised_branches = update_revised_branches(sorted_branches, crit, j)
+    else:
+      rev_select_criteria.append(crit)
+      k = 0
+      for branch in pcs.parse_state.return_statement[PS_RET_BRANCHES]:
+        if branch[BRANCH_VALUES][0][VAL_TYPE] == 'value':
+          sorted_branches[k].append(branch[BRANCH_VALUES][i][VAL_VALUE])
+          k += 1
+
+
+def gen_parse_select_entries(pcs, commands=[]):
+  # base cases
+  if pcs.pcs_id == 0:
+    return gen_parse_select_entries(pcs.children[0])
+  if pcs.parse_state.return_statement[PS_RET_TYPE] == 'immediate':
+    return commands
+
+  # sort
+  sorted_indices, sorted_branches, default_branch = sort_branches(pcs)
+
+  # revise branch_values, select_criteria per parse_select table boundaries
+  revised_branches, rev_select_criteria = revise_branches(pcs, sorted_branches)
+
+  print("gen_parse_select_entries line 270")
+  code.interact(local=dict(globals(), **locals()))
+  """
+  j = 0
+  for i in range(len(sorted_indices)):
+    while parse_select_table_boundaries[j+1] <= pcs.select_criteria[sorted_indices[i]][OFFSET] / 8:
+      j += 1
+    lowerbound = parse_select_table_boundaries[j]
+    upperbound = parse_select_table_boundaries[j+1]
+    table_name = 'tset_parse_select_%02d_%02d' % (lowerbound, upperbound - 1)
+    if table_name not in parse_select_tables:
+      parse_select_tables.append(table_name)  
+  """
+
   # establish in-order queue of select criteria, select values
   #  - if any cross table boundaries, replace w/ two items
   #    - 1) from criteria's first bit through last bit before boundary
@@ -326,7 +420,9 @@ def main():
   pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
   launch_process_parse_tree_clr(pre_pcs, h)
   consolidate_parse_tree_clr(pre_pcs, h)
-  commands = gen_parse_control_entries(pre_pcs)
+  parse_control_commands = gen_parse_control_entries(pre_pcs)
+  parse_select_commands = gen_parse_select_entries(pre_pcs)
+  print("main: line 417")
   code.interact(local=dict(globals(), **locals()))
 
 if __name__ == '__main__':

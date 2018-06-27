@@ -1,0 +1,12 @@
+sorted_branches:
+  reconstructs pcs.parse_state.return_statement[PS_RET_BRANCHES]
+  with all criteria in order
+
+revised_branches:
+  revision of sorted_branches: all values fit parse_select table boundaries
+
+TODO:
+- sort_branches should also sort the pcs.select_criteria and return it, or else
+  we can do this after sort_branches via sorted_indices
+- setup_select_revision obsolete?
+- fix revise_branches from line 251+
