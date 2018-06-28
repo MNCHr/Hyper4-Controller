@@ -210,20 +210,6 @@ def get_new_val(val, width, offset, new_width):
   newval = newval >> (width - (offset + new_width))
   return newval
 
-def split_val(val, width):
-  ret = []
-  mask = 0
-  bitpos = 0
-  offset = 0
-  while bitpos < 8:
-    mask += 2**(width - bitpos - 1)
-    bitpos += 1
-  while offset < width:
-    ret.append((val & mask) >> (width - 8))
-    mask = mask >> 8
-    offset += 8
-  return ret  
-
 def sort_return_select(pcs):
   sorted_indices = sorted(range(len(pcs.select_criteria)),
                           key=pcs.select_criteria.__getitem__)
@@ -276,10 +262,8 @@ def revise_criteria(crit, j):
   return ret
 
 def revise_return_select(pcs, sorted_criteria, sorted_branches):
-  revised_branches = []
-  for branch in sorted_branches:
-    revised_branches.append([])
   revised_criteria = []
+  revised_branches = [[] for count in xrange(len(sorted_branches))]
 
   i = 0
   for crit in sorted_criteria:
@@ -308,6 +292,56 @@ def revise_return_select(pcs, sorted_criteria, sorted_branches):
 
   return revised_criteria, revised_branches
 
+def do_split_criteria(crit):
+  try:
+    assert(crit[WIDTH] % 8 == 0)
+  except AssertionError as e:
+    print(e)
+    print("select criteria (" + str(crit[OFFSET]) + ", " + str(crit[WIDTH]) \
+                              + ") not divisible by 8")
+    exit()
+  curr_offset = crit[OFFSET]
+  split_crit = []
+  while curr_offset < crit[OFFSET] + crit[WIDTH]:
+    split_crit.append((curr_offset, 8))
+    curr_offset += 8
+  return split_crit
+
+def do_split_val(val, width):
+  ret = []
+  mask = 0
+  bitpos = 0
+  offset = 0
+
+  while offset < width:
+    mask = 0
+    while bitpos < offset + 8:
+      mask += 2**(width - bitpos - 1)
+      bitpos += 1
+    ret.append((val & mask) >> (width - bitpos))
+    offset += 8
+  return ret  
+
+def split_return_select(revised_criteria, revised_branches):
+  split_criteria = []
+  split_branches = [[] for count in xrange(len(revised_branches))]
+
+  i = 0
+  for crit in revised_criteria:
+    split_crits = do_split_criteria(crit)
+    for split_crit in split_crits:
+      split_criteria.append(split_crit)
+    j = 0
+    for branch in revised_branches:
+      val = branch[i]
+      split_vals = do_split_val(val, crit[WIDTH])
+      for split_val in split_vals:
+        split_branches[j].append(split_val)
+      j += 1
+    i += 1
+
+  return split_criteria, split_branches
+
 def get_parse_select_tables(revised_criteria):
   parse_select_tables = []
   for crit in revised_criteria:
@@ -321,42 +355,37 @@ def get_parse_select_tables(revised_criteria):
       parse_select_tables.append((table_name, lowerbound*8, upperbound*8))
   return parse_select_tables
 
-def get_mparam_indices(table, crit):
+def get_mparam_indices(table, crits):
   mparam_indices = []
-  curr_offset = crit[OFFSET]
-  while curr_offset < crit[OFFSET] + crit[WIDTH]:
-    mparam_indices.append((curr_offset - table[L_BOUND]) / 8)
-    curr_offset += 8
+  for crit in crits:
+    curr_offset = crit[OFFSET]
+    while curr_offset < crit[OFFSET] + crit[WIDTH]:
+      mparam_indices.append((curr_offset - table[L_BOUND]) / 8)
+      curr_offset += 8
   return mparam_indices
 
-def get_branch_mparams(branch_mparams, branch, crit)
-  # TODO: not sure about any of the below but surely need to call split_val
-  curr_offset = crit[OFFSET]
-  while curr_offset < crit[OFFSET] + crit[WIDTH]:
-    # TODO: ???
-    curr_offset += 8
-  # Line below ???
-  value = branch.pop(0)
+def get_branch_mparams(branch_mparams, branch, mparam_indices):
+  for index in mparam_indices:
+    branch_mparams[index] = hex(branch.pop(0)) + '&&&0xFF'
+  return branch_mparams
 
 def get_parse_select_entries(parse_select_tables,
-                             revised_criteria,
-                             revised_branches):
+                             split_criteria,
+                             split_branches):
   # for each parse_select table:
   # - pop all queue items that belong to the table
   # - generate table entry
   for table in parse_select_tables:
-    mparams = ['0&&&0' for count in xrange((table[L_BOUND] - table[U_BOUND]) / 8)]
-    while (revised_criteria[0][OFFSET] >= table[L_BOUND] and
-           revised_criteria[0][OFFSET] < table[U_BOUND]):
-      # TODO: rethink this?  maybe gather all crits first,
-      #  e.g., crits.append(revised_criteria.pop(0)), then
-      #  call get_branch_params using crits instead of single crit(eria)
-      crit = revised_criteria.pop(0)
-      mparam_indices = get_mparam_indices(table, crit)
-      for branch in revised_branches:
-        branch_mparams = get_branch_mparams(list(mparams), branch, crit)
-        # TODO: generate command
-        
+    crits = []
+    while (split_criteria[0][OFFSET] >= table[L_BOUND] and
+           split_criteria[0][OFFSET] < table[U_BOUND]):
+      crits.append(split_criteria.pop(0))
+    mparam_indices = get_mparam_indices(table, crits)
+    mparams = ['0&&&0' for count in xrange((table[U_BOUND] - table[L_BOUND]) / 8)]
+    for branch in split_branches:
+      branch_mparams = get_branch_mparams(list(mparams), branch, mparam_indices)
+      # TODO: generate command
+      debug()
 
 def gen_parse_select_entries(pcs, commands=[]):
   # base cases
@@ -373,11 +402,14 @@ def gen_parse_select_entries(pcs, commands=[]):
                                                             sorted_criteria,
                                                             sorted_branches)
 
+  split_criteria, split_branches = split_return_select(revised_criteria,
+                                                       revised_branches)
+
   parse_select_tables = get_parse_select_tables(revised_criteria)
 
   commands += get_parse_select_entries(parse_select_tables,
-                                       revised_criteria,
-                                       revised_branches)
+                                       split_criteria,
+                                       split_branches)
 
   for child in pcs.children:
     commands = gen_parse_select_entries(child, commands)
