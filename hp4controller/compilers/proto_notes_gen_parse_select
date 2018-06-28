@@ -10,3 +10,5 @@ TODO:
   we can do this after sort_branches via sorted_indices
 - setup_select_revision obsolete?
 - fix revise_branches from line 251+
+
+  sorted_criteria, sorted_branches, default_branch = sort_return_select(pcs)

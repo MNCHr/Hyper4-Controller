@@ -25,6 +25,9 @@ BRANCH_STATE = 1
 VAL_TYPE = 0
 VAL_VALUE = 1
 MAX_BYTE = 100
+T_NAME = 0
+L_BOUND = 1
+U_BOUND = 2
 
 parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
@@ -203,14 +206,23 @@ def get_new_val(val, width, offset, new_width):
   while bitpos < (offset + new_width):
     mask += 2**(width - bitpos - 1)
     bitpos += 1
-  # debug()
-  try:
-    newval = val & mask
-  except TypeError as e:
-    print(e)
-    debug()
+  newval = val & mask
   newval = newval >> (width - (offset + new_width))
   return newval
+
+def split_val(val, width):
+  ret = []
+  mask = 0
+  bitpos = 0
+  offset = 0
+  while bitpos < 8:
+    mask += 2**(width - bitpos - 1)
+    bitpos += 1
+  while offset < width:
+    ret.append((val & mask) >> (width - 8))
+    mask = mask >> 8
+    offset += 8
+  return ret  
 
 def sort_return_select(pcs):
   sorted_indices = sorted(range(len(pcs.select_criteria)),
@@ -296,6 +308,56 @@ def revise_return_select(pcs, sorted_criteria, sorted_branches):
 
   return revised_criteria, revised_branches
 
+def get_parse_select_tables(revised_criteria):
+  parse_select_tables = []
+  for crit in revised_criteria:
+    j = 0
+    while parse_select_table_boundaries[j+1] * 8 <= crit[OFFSET]:
+      j += 1
+    lowerbound = parse_select_table_boundaries[j]
+    upperbound = parse_select_table_boundaries[j+1]
+    table_name = 'tset_parse_select_%02d_%02d' % (lowerbound, upperbound - 1)
+    if (table_name, lowerbound*8, upperbound*8) not in parse_select_tables:
+      parse_select_tables.append((table_name, lowerbound*8, upperbound*8))
+  return parse_select_tables
+
+def get_mparam_indices(table, crit):
+  mparam_indices = []
+  curr_offset = crit[OFFSET]
+  while curr_offset < crit[OFFSET] + crit[WIDTH]:
+    mparam_indices.append((curr_offset - table[L_BOUND]) / 8)
+    curr_offset += 8
+  return mparam_indices
+
+def get_branch_mparams(branch_mparams, branch, crit)
+  # TODO: not sure about any of the below but surely need to call split_val
+  curr_offset = crit[OFFSET]
+  while curr_offset < crit[OFFSET] + crit[WIDTH]:
+    # TODO: ???
+    curr_offset += 8
+  # Line below ???
+  value = branch.pop(0)
+
+def get_parse_select_entries(parse_select_tables,
+                             revised_criteria,
+                             revised_branches):
+  # for each parse_select table:
+  # - pop all queue items that belong to the table
+  # - generate table entry
+  for table in parse_select_tables:
+    mparams = ['0&&&0' for count in xrange((table[L_BOUND] - table[U_BOUND]) / 8)]
+    while (revised_criteria[0][OFFSET] >= table[L_BOUND] and
+           revised_criteria[0][OFFSET] < table[U_BOUND]):
+      # TODO: rethink this?  maybe gather all crits first,
+      #  e.g., crits.append(revised_criteria.pop(0)), then
+      #  call get_branch_params using crits instead of single crit(eria)
+      crit = revised_criteria.pop(0)
+      mparam_indices = get_mparam_indices(table, crit)
+      for branch in revised_branches:
+        branch_mparams = get_branch_mparams(list(mparams), branch, crit)
+        # TODO: generate command
+        
+
 def gen_parse_select_entries(pcs, commands=[]):
   # base cases
   if pcs.pcs_id == 0:
@@ -310,22 +372,15 @@ def gen_parse_select_entries(pcs, commands=[]):
   revised_criteria, revised_branches = revise_return_select(pcs,
                                                             sorted_criteria,
                                                             sorted_branches)
-  """
-  j = 0
-  for i in range(len(sorted_indices)):
-    while parse_select_table_boundaries[j+1] <= pcs.select_criteria[sorted_indices[i]][OFFSET] / 8:
-      j += 1
-    lowerbound = parse_select_table_boundaries[j]
-    upperbound = parse_select_table_boundaries[j+1]
-    table_name = 'tset_parse_select_%02d_%02d' % (lowerbound, upperbound - 1)
-    if table_name not in parse_select_tables:
-      parse_select_tables.append(table_name)  
-  """
 
-  # for each parse_select table:
-  # - pop all queue items that belong to the table
-  # - generate table entry
-  # TODO
+  parse_select_tables = get_parse_select_tables(revised_criteria)
+
+  commands += get_parse_select_entries(parse_select_tables,
+                                       revised_criteria,
+                                       revised_branches)
+
+  for child in pcs.children:
+    commands = gen_parse_select_entries(child, commands)
 
   return commands
 
