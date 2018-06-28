@@ -369,23 +369,50 @@ def get_branch_mparams(branch_mparams, branch, mparam_indices):
     branch_mparams[index] = hex(branch.pop(0)) + '&&&0xFF'
   return branch_mparams
 
-def get_parse_select_entries(parse_select_tables,
+def get_ps_action(tablename):
+  return '[' + tablename.split('tset_')[1].upper() + ']'
+
+def get_parse_select_entries(pcs,
+                             parse_select_tables,
                              split_criteria,
-                             split_branches):
+                             split_branches_with_dests,
+                             default_branch):
   # for each parse_select table:
   # - pop all queue items that belong to the table
   # - generate table entry
-  for table in parse_select_tables:
+  for pst_count, table in enumerate(parse_select_tables):
     crits = []
     while (split_criteria[0][OFFSET] >= table[L_BOUND] and
            split_criteria[0][OFFSET] < table[U_BOUND]):
       crits.append(split_criteria.pop(0))
     mparam_indices = get_mparam_indices(table, crits)
     mparams = ['0&&&0' for count in xrange((table[U_BOUND] - table[L_BOUND]) / 8)]
-    for branch in split_branches:
-      branch_mparams = get_branch_mparams(list(mparams), branch, mparam_indices)
-      # TODO: generate command
+    for branch in split_branches_with_dests:
+      branch_mparams = get_branch_mparams(list(mparams), branch[BRANCH_VALUES], mparam_indices)
+      # TODO: determine action and action_params
+      act = ''
+      aparams = []
       debug()
+      # set_next_action or extract_more
+      if pst_count != len(parse_select_tables) - 1:
+        act = 'set_next_action'
+        aparams.append(get_ps_action(parse_select_tables[pst_count + 1][T_NAME]))
+      else:
+        next = [child for child in pcs.children \
+                       if child.parse_state.name == branch[BRANCH_STATE]][0]
+        if next.hp4_bits_extracted > pcs.hp4_bits_extracted:
+          act = 'extract_more'
+          aparams.append(str(next.hp4_bits_extracted))
+        else: # another select statement in next pcs - need to rewind?
+          n_sorted_criteria = sort_return_select(next)[0]
+
+      aparams.append(str(pcs.pcs_id))
+
+      cmd = HP4_Command(command='table_add',
+                        table=table[T_NAME],
+                        action=act,
+                        match_params=branch_mparams,
+                        action_params=aparams)
 
 def gen_parse_select_entries(pcs, commands=[]):
   # base cases
@@ -407,9 +434,13 @@ def gen_parse_select_entries(pcs, commands=[]):
 
   parse_select_tables = get_parse_select_tables(revised_criteria)
 
-  commands += get_parse_select_entries(parse_select_tables,
+  dests = [branch[BRANCH_STATE] for branch in sorted_branches]
+
+  commands += get_parse_select_entries(pcs,
+                                       parse_select_tables,
                                        split_criteria,
-                                       split_branches)
+                                       zip(split_branches, dests),
+                                       default_branch)
 
   for child in pcs.children:
     commands = gen_parse_select_entries(child, commands)
