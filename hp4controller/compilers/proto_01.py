@@ -28,6 +28,8 @@ MAX_BYTE = 100
 T_NAME = 0
 L_BOUND = 1
 U_BOUND = 2
+HIGHEST_PRIORITY = '0'
+LOWEST_PRIORITY = '2147483646'
 
 parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
@@ -372,11 +374,49 @@ def get_branch_mparams(branch_mparams, branch, mparam_indices):
 def get_ps_action(tablename):
   return '[' + tablename.split('tset_')[1].upper() + ']'
 
+def get_branch_action(pcs, pst_count, parse_select_tables, branch):
+  action = ''
+  aparams = []
+
+  if branch[BRANCH_STATE] == 'ingress':
+    action = 'set_next_action'
+    aparams.append('[PROCEED]')
+    aparams.append(str(pcs.pcs_id))
+    return action, aparams
+
+  # set_next_action or extract_more
+  if pst_count != len(parse_select_tables) - 1:
+    action = 'set_next_action'
+    aparams.append(get_ps_action(parse_select_tables[pst_count + 1][T_NAME]))
+    aparams.append(str(pcs.pcs_id))
+  else:
+    next = [child for child in pcs.children \
+                   if child.parse_state.name == branch[BRANCH_STATE]][0]
+    if next.hp4_bits_extracted > pcs.hp4_bits_extracted:
+      action = 'extract_more'
+      aparams.append(str(next.hp4_bits_extracted))
+    else: # another select statement in next pcs - need to rewind?
+      n_first_criteria = sort_return_select(next)[0][0]
+      j = 0
+      while parse_select_table_boundaries[j+1] * 8 <= n_first_criteria[OFFSET]:
+        j += 1
+      if parse_select_table_boundaries[j] <= parse_select_tables[pst_count][L_BOUND]:
+        # rewind
+        action = 'extract_more'
+        aparams.append(str(next.hp4_bits_extracted))
+      else:
+        act = 'set_next_action'
+        aparams.append(get_ps_action(parse_select_tables[pst_count + 1][T_NAME]))
+    aparams.append(str(next.pcs_id))
+
+  return action, aparams
+
 def get_parse_select_entries(pcs,
                              parse_select_tables,
                              split_criteria,
                              split_branches_with_dests,
                              default_branch):
+  commands = []
   # for each parse_select table:
   # - pop all queue items that belong to the table
   # - generate table entry
@@ -385,34 +425,40 @@ def get_parse_select_entries(pcs,
     while (split_criteria[0][OFFSET] >= table[L_BOUND] and
            split_criteria[0][OFFSET] < table[U_BOUND]):
       crits.append(split_criteria.pop(0))
+      if not split_criteria:
+        break
     mparam_indices = get_mparam_indices(table, crits)
     mparams = ['0&&&0' for count in xrange((table[U_BOUND] - table[L_BOUND]) / 8)]
     for branch in split_branches_with_dests:
-      branch_mparams = get_branch_mparams(list(mparams), branch[BRANCH_VALUES], mparam_indices)
-      # TODO: determine action and action_params
-      act = ''
-      aparams = []
-      debug()
-      # set_next_action or extract_more
-      if pst_count != len(parse_select_tables) - 1:
-        act = 'set_next_action'
-        aparams.append(get_ps_action(parse_select_tables[pst_count + 1][T_NAME]))
-      else:
-        next = [child for child in pcs.children \
-                       if child.parse_state.name == branch[BRANCH_STATE]][0]
-        if next.hp4_bits_extracted > pcs.hp4_bits_extracted:
-          act = 'extract_more'
-          aparams.append(str(next.hp4_bits_extracted))
-        else: # another select statement in next pcs - need to rewind?
-          n_sorted_criteria = sort_return_select(next)[0]
+      branch_mparams = ['[vdev ID]', str(pcs.pcs_id)]
+      branch_mparams += get_branch_mparams(list(mparams), branch[BRANCH_VALUES], mparam_indices)
+      # determine action and action_params
+      branch_action, branch_aparams = get_branch_action(pcs,
+                                                        pst_count,
+                                                        parse_select_tables,
+                                                        branch)
+      # priority
+      branch_aparams.append(HIGHEST_PRIORITY)
+      commands.append(HP4_Command(command='table_add',
+                                  table=table[T_NAME],
+                                  action=branch_action,
+                                  match_params=branch_mparams,
+                                  action_params=branch_aparams))
+    # default branch
+    default_mparams = ['[vdev ID]', str(pcs.pcs_id)]
+    default_mparams += list(mparams)
+    default_action, default_aparams = get_branch_action(pcs,
+                                                        pst_count,
+                                                        parse_select_tables,
+                                                        default_branch)
+    default_aparams.append(LOWEST_PRIORITY)
+    commands.append(HP4_Command(command='table_add',
+                                table=table[T_NAME],
+                                action=default_action,
+                                match_params=default_mparams,
+                                action_params=default_aparams))
 
-      aparams.append(str(pcs.pcs_id))
-
-      cmd = HP4_Command(command='table_add',
-                        table=table[T_NAME],
-                        action=act,
-                        match_params=branch_mparams,
-                        action_params=aparams)
+  return commands
 
 def gen_parse_select_entries(pcs, commands=[]):
   # base cases
@@ -567,8 +613,7 @@ def main():
   consolidate_parse_tree_clr(pre_pcs, h)
   parse_control_commands = gen_parse_control_entries(pre_pcs)
   parse_select_commands = gen_parse_select_entries(pre_pcs)
-  print("main: line 417")
-  code.interact(local=dict(globals(), **locals()))
+  debug()
 
 if __name__ == '__main__':
   main()
