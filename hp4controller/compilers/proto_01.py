@@ -161,6 +161,26 @@ def gen_pc_entry_start(pcs):
                     action_params=aparams)
   return cmd
 
+def get_p_ps_tables(pcs):
+  # sort
+  sorted_criteria, sorted_branches, default_branch = sort_return_select(pcs)
+
+  # revise branch_values, select_criteria per parse_select table boundaries
+  revised_criteria, revised_branches = revise_return_select(pcs,
+                                                            sorted_criteria,
+                                                            sorted_branches)
+  return get_parse_select_tables(revised_criteria)
+
+def did_rewind(pcs):
+  first_criteria = sort_return_select(pcs)[0][0]
+  j = 0
+  while parse_select_table_boundaries[j+1] * 8 <= first_criteria[OFFSET]:
+    j += 1
+  p_ps_tables = get_p_ps_tables(pcs.pcs_path[-1])
+  if parse_select_table_boundaries[j] <= p_ps_tables[-1][L_BOUND]:
+    return True
+  return False
+
 def gen_parse_control_entries(pcs, commands=[]):
   if pcs.pcs_id == 0:
     cmd = gen_pc_entry_start(pcs)
@@ -172,7 +192,8 @@ def gen_parse_control_entries(pcs, commands=[]):
         commands = gen_parse_control_entries(child, commands)
   
   else:
-    if pcs.pcs_path[-1].hp4_bits_extracted < pcs.hp4_bits_extracted:
+    if (pcs.pcs_path[-1].hp4_bits_extracted < pcs.hp4_bits_extracted or
+        did_rewind(pcs)):
       mparams = ['[vdev ID]', str(pcs.pcs_id)]
       aparams = []
       act = 'set_next_action'
@@ -344,17 +365,21 @@ def split_return_select(revised_criteria, revised_branches):
 
   return split_criteria, split_branches
 
+def get_parse_select_table(crit):
+  j = 0
+  while parse_select_table_boundaries[j+1] * 8 <= crit[OFFSET]:
+    j += 1
+  lowerbound = parse_select_table_boundaries[j]
+  upperbound = parse_select_table_boundaries[j+1]
+  table_name = 'tset_parse_select_%02d_%02d' % (lowerbound, upperbound - 1)
+  return table_name, lowerbound * 8, upperbound * 8
+
 def get_parse_select_tables(revised_criteria):
   parse_select_tables = []
   for crit in revised_criteria:
-    j = 0
-    while parse_select_table_boundaries[j+1] * 8 <= crit[OFFSET]:
-      j += 1
-    lowerbound = parse_select_table_boundaries[j]
-    upperbound = parse_select_table_boundaries[j+1]
-    table_name = 'tset_parse_select_%02d_%02d' % (lowerbound, upperbound - 1)
-    if (table_name, lowerbound*8, upperbound*8) not in parse_select_tables:
-      parse_select_tables.append((table_name, lowerbound*8, upperbound*8))
+    parse_select_table = get_parse_select_table(crit)
+    if parse_select_table not in parse_select_tables:
+      parse_select_tables.append(parse_select_table)
   return parse_select_tables
 
 def get_mparam_indices(table, crits):
@@ -406,7 +431,9 @@ def get_branch_action(pcs, pst_count, parse_select_tables, branch):
         aparams.append(str(next.hp4_bits_extracted))
       else:
         act = 'set_next_action'
-        aparams.append(get_ps_action(parse_select_tables[pst_count + 1][T_NAME]))
+        next_ps_table = get_parse_select_table(n_first_criteria)
+        aparams.append(get_ps_action(next_ps_table[T_NAME]))
+
     aparams.append(str(next.pcs_id))
 
   return action, aparams

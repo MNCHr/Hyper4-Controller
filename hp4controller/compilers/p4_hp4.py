@@ -1444,7 +1444,6 @@ class P4_to_HP4(HP4Compiler):
     self.gen_tset_parse_control_entries()
     self.gen_tset_parse_select_entries()
     self.gen_tset_pipeline_config_entries()
-    code.interact(local=dict(globals(), **locals()))
     self.gen_tX_templates()
     self.gen_action_entries()
     self.gen_tmiss_entries()
