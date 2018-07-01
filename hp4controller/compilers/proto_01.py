@@ -35,6 +35,15 @@ parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
 current_call = tuple
 
+def debug():
+  """ Break and enter interactive method after printing location info """
+  # written before I knew about the pdb module
+  caller = currentframe().f_back
+  method_name = caller.f_code.co_name
+  line_no = getframeinfo(caller).lineno
+  print(method_name + ": line " + str(line_no))
+  code.interact(local=dict(globals(), **caller.f_locals))
+
 class HP4_Command(object):
   def __init__(self, command='table_add',
                      table='',
@@ -116,6 +125,19 @@ class PC_State(object):
     for child in self.children:
       ret += child.parse_state.name + ' '
     return ret
+
+def do_support_checks(h):
+  def unsupported(msg):
+    print(msg)
+    exit()
+
+  # Not sure how this would happen in P4 but HLIR suggests the possibility:
+  if len(h.p4_ingress_ptr.keys()) > 1:
+    unsupported("Not supported: multiple entry points into the ingress pipeline")
+  # Tables with multiple match criteria:
+  for table in h.p4_tables.values():
+    if len(table.match_fields) > 1:
+      unsupported("Not supported: multiple field matches (table: %s)" % table.name)
 
 def get_parse_select_table_code(first_byte):
   for i in range(len(parse_select_table_boundaries) - 1):
@@ -215,13 +237,6 @@ def gen_parse_control_entries(pcs, commands=[]):
       commands = gen_parse_control_entries(child, commands)
 
   return commands
-
-def debug():
-  caller = currentframe().f_back
-  method_name = caller.f_code.co_name
-  line_no = getframeinfo(caller).lineno
-  print(method_name + ": line " + str(line_no))
-  code.interact(local=dict(globals(), **caller.f_locals))
 
 def get_new_val(val, width, offset, new_width):
   mask = 0
@@ -520,6 +535,31 @@ def gen_parse_select_entries(pcs, commands=[]):
 
   return commands
 
+def get_pipeline_config_entries(level):
+  commands = []
+  # TODO...
+  return commands
+
+def gen_pipeline_config_entries(pcs):
+  commands = []
+  pcs_levels = collect_pcs_levels(pcs)
+  for level in pcs_levels:
+    commands += get_pipeline_config_entries(level)
+  return commands
+
+def collect_pcs_levels(pcs, levellist = [], level=0):
+  if pcs.pcs_id == 0:
+    return collect_pcs_levels(pcs.children[0], [[pcs.children[0]]])
+
+  if pcs.children:
+    if len(levellist) < level + 2:
+      levellist.append([])
+    levellist[level + 1] += [child for child in pcs.children]
+
+  for child in pcs.children:
+    levellist = collect_pcs_levels(child, levellist, level+1)
+  return levellist
+
 def process_extract_statements(pcs):
   for call in pcs.parse_state.call_sequence:
     if call[PS_CALL_TYPE] == p4_hlir.hlir.p4_parser.parse_call.extract:
@@ -635,11 +675,13 @@ def main():
   args = parse_args(sys.argv[1:])
   h = HLIR(args.input)
   h.build()
+  do_support_checks(h)
   pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
   launch_process_parse_tree_clr(pre_pcs, h)
   consolidate_parse_tree_clr(pre_pcs, h)
   parse_control_commands = gen_parse_control_entries(pre_pcs)
   parse_select_commands = gen_parse_select_entries(pre_pcs)
+  pipeline_config_commands = gen_pipeline_config_entries(pre_pcs)
   debug()
 
 if __name__ == '__main__':
