@@ -3,13 +3,17 @@
 from p4_hlir.main import HLIR
 from p4_hlir.hlir.p4_parser import p4_parse_state
 import p4_hlir
+from compiler import HP4Compiler, CodeRepresentation
 import argparse
 import itertools
 import code
 from inspect import currentframe, getframeinfo
 import sys
+import math
+import json
 
 SEB = 320
+METADATA_WIDTH = 256
 
 PS_RET_TYPE = 0
 PS_RET_CRITERIA = 1
@@ -44,6 +48,11 @@ def debug():
   print(method_name + ": line " + str(line_no))
   code.interact(local=dict(globals(), **caller.f_locals))
 
+def convert_to_builtin_type(obj):
+  d = { '__class__':obj.__class__.__name__, '__module__':obj.__module__, }
+  d.update(obj.__dict__)
+  return d
+
 class HP4_Command(object):
   def __init__(self, command='table_add',
                      table='',
@@ -65,18 +74,6 @@ class HP4_Command(object):
     ret += ' '.join(self.action_params)
     return ret
 
-class HP4_Parse_Select_Command(HP4_Command):
-  def __init__(self, curr_pc_state = 0,
-                     next_pc_state = 0,
-                     next_parse_state = '',
-                     priority = 0,
-                     **kwargs):
-    super(HP4_Parse_Select_Command, self).__init__(**kwargs)
-    self.curr_pc_state = curr_pc_state
-    self.next_pc_state = next_pc_state
-    self.next_parse_state = next_parse_state
-    self.priority = priority
-
 class HP4_Match_Command(HP4_Command):
   def __init__(self, source_table='',
                      source_action='',
@@ -84,6 +81,120 @@ class HP4_Match_Command(HP4_Command):
     super(HP4_Match_Command, self).__init__(**kwargs)
     self.source_table = source_table
     self.source_action = source_action
+
+class HP4_Primitive_Command(HP4_Command):
+  def __init__(self, source_table, source_action, command, table, action, mparams, aparams, src_aparam_id):
+    HP4_Command.__init__(self, command, table, action, mparams, aparams)
+    self.source_table = source_table
+    self.source_action = source_action
+    self.src_aparam_id = src_aparam_id
+
+class DAG_Topo_Sorter():
+  def __init__(self, p4_tables):
+    self.unmarked = []
+    self.tempmarked = []
+    self.permmarked = []
+    self.L = []
+    for key in p4_tables:
+      self.unmarked.append(p4_tables[key])
+
+  def visit(self, n):
+    if n.control_flow_parent == 'egress':
+      print("ERROR: Not yet supported: tables in egress (" + n.name + ")")
+      exit()
+    if n in self.tempmarked:
+      print("ERROR: not a DAG")
+      exit()
+    if n in self.unmarked:
+      self.unmarked.remove(n)
+      self.tempmarked.append(n)
+      for m in n.next_.values():
+        if m != None:
+          self.visit(m)
+      self.permmarked.append(n)
+      self.tempmarked.remove(n)
+      self.L.insert(0, n)
+
+  def sort(self):      
+    while len(self.unmarked) > 0: # while there are unmarked nodes do
+      n = self.unmarked[0]
+      self.visit(n)
+    return self.L
+
+class Table_Rep():
+  def __init__(self, stage, match_type, source_type, field_name):
+    self.stage = stage # int
+    self.match_type = match_type
+    self.source_type = source_type
+    self.field_name = field_name
+    self.name = 't' + str(self.stage) + '_'
+    if source_type == 'standard_metadata':
+      self.name += 'stdmeta_' + field_name + '_'
+    elif source_type == 'metadata':
+      self.name += 'metadata_'
+    elif source_type == 'extracted':
+      self.name += 'extracted_'
+    if match_type == 'P4_MATCH_EXACT':
+      self.name += 'exact'
+    elif match_type == 'P4_MATCH_VALID':
+      self.name += 'valid'
+    elif match_type == 'P4_MATCH_TERNARY':
+      self.name += 'ternary'
+    elif match_type == 'MATCHLESS':
+      self.name += 'matchless'
+  def table_type(self):
+    if self.source_type == 'standard_metadata':
+      if self.match_type == 'P4_MATCH_EXACT':
+        if self.field_name == 'ingress_port':
+          return '[STDMETA_INGRESS_PORT_EXACT]'
+        elif self.field_name == 'packet_length':
+          return '[STDMETA_PACKET_LENGTH_EXACT]'
+        elif self.field_name == 'instance_type':
+          return '[STDMETA_INSTANCE_TYPE_EXACT]'
+        elif self.field_name == 'egress_spec':
+          return '[STDMETA_EGRESS_SPEC_EXACT]'
+        else:
+          print("Not supported: standard_metadata field %s" % self.field_name)
+          exit()
+      else:
+        print("Not supported: standard_metadata with %s match type" % self.match_type)
+        exit()
+    elif self.source_type == 'metadata':
+      if self.match_type == 'P4_MATCH_EXACT':
+        return '[METADATA_EXACT]'
+      elif self.match_type == 'P4_MATCH_TERNARY':
+        return '[METADATA_TERNARY]'
+      else:
+        print("Not supported: metadata with %s match type" % self.match_type)
+        exit()
+    elif self.source_type == 'extracted':
+      if self.match_type == 'P4_MATCH_EXACT':
+        return '[EXTRACTED_EXACT]'
+      elif self.match_type == 'P4_MATCH_VALID':
+        return '[EXTRACTED_VALID]'
+      elif self.match_type == 'P4_MATCH_TERNARY':
+        return '[EXTRACTED_TERNARY]'
+      else:
+        print("Not supported: extracted with %s match type" % self.match_type)
+        exit()
+    elif self.source_type == '':
+      if self.match_type == 'MATCHLESS':
+        return '[MATCHLESS]'
+      else:
+        print("Not supported: [no source] with %s match type" % self.match_type)
+        exit()
+    else:
+      print("Not supported: source type %s, match type %s" % (self.source_type, self.match_type))
+      exit()
+  def __str__(self):
+    return self.name
+
+class Action_Rep():
+  def __init__(self):
+    self.stages = set()
+    self.tables = {} # {stage (int) : table_name (str)}
+    self.next = {} # {table_name (str) : (next_stage (int), next_table_code (int))}
+    self.call_sequence = []
 
 class PC_State(object):
   newid = itertools.count().next
@@ -125,6 +236,15 @@ class PC_State(object):
     for child in self.children:
       ret += child.parse_state.name + ' '
     return ret
+
+class P4_to_HP4(HP4Compiler):
+
+  def collect_actions(self):
+    """ Uniquely number each action """
+    for action in self.h.p4_actions.values():
+      if action.lineno > 0: # is action from source (else built-in)?
+        self.action_ID[action] = self.actionID
+        self.actionID += 1
 
 def do_support_checks(h):
   def unsupported(msg):
@@ -681,20 +801,8 @@ def gen_pipeline_config_entries(pcs, first_table):
 
   return commands
 
-""" This method evidently is worthless:
-def collect_pcs_levels(pcs, levellist = [], level=0):
-  if pcs.pcs_id == 0:
-    return collect_pcs_levels(pcs.children[0], [[pcs.children[0]]])
-
-  if pcs.children:
-    if len(levellist) < level + 2:
-      levellist.append([])
-    levellist[level + 1] += [child for child in pcs.children]
-
-  for child in pcs.children:
-    levellist = collect_pcs_levels(child, levellist, level+1)
-  return levellist
-"""
+def gen_tX_templates(first_table):
+  pass
 
 def process_extract_statements(pcs):
   for call in pcs.parse_state.call_sequence:
@@ -824,6 +932,7 @@ def main():
   parse_select_commands = gen_parse_select_entries(pre_pcs)
   first_table = h.p4_ingress_ptr.keys()[0]
   pipeline_config_commands = gen_pipeline_config_entries(pre_pcs, first_table)
+  tX_templates = gen_tX_templates(first_table)
   debug()
 
 if __name__ == '__main__':
