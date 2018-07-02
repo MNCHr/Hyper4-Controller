@@ -7,7 +7,6 @@ import argparse
 import itertools
 import code
 from inspect import currentframe, getframeinfo
-# code.interact(local=dict(globals(), **locals()))
 import sys
 
 SEB = 320
@@ -30,6 +29,7 @@ L_BOUND = 1
 U_BOUND = 2
 HIGHEST_PRIORITY = '0'
 LOWEST_PRIORITY = '2147483646'
+VBITS_WIDTH = 80
 
 parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
@@ -194,6 +194,8 @@ def get_p_ps_tables(pcs):
   return get_parse_select_tables(revised_criteria)
 
 def did_rewind(pcs):
+  if not pcs.children:
+    return False
   first_criteria = sort_return_select(pcs)[0][0]
   j = 0
   while parse_select_table_boundaries[j+1] * 8 <= first_criteria[OFFSET]:
@@ -249,6 +251,9 @@ def get_new_val(val, width, offset, new_width):
   return newval
 
 def sort_return_select(pcs):
+  if pcs.parse_state.return_statement[PS_RET_TYPE] == 'immediate':
+    return [], [], None
+
   sorted_indices = sorted(range(len(pcs.select_criteria)),
                           key=pcs.select_criteria.__getitem__)
   sorted_criteria = []
@@ -256,6 +261,7 @@ def sort_return_select(pcs):
     sorted_criteria.append(pcs.select_criteria[i])
   sorted_branches = []
   default_branch = None
+
   for branch in pcs.parse_state.return_statement[PS_RET_BRANCHES]:
     if branch[BRANCH_VALUES][0][VAL_TYPE] == 'value':
       sorted_values = []
@@ -430,26 +436,36 @@ def get_branch_action(pcs, pst_count, parse_select_tables, branch):
     aparams.append(get_ps_action(parse_select_tables[pst_count + 1][T_NAME]))
     aparams.append(str(pcs.pcs_id))
   else:
-    next = [child for child in pcs.children \
-                   if child.parse_state.name == branch[BRANCH_STATE]][0]
-    if next.hp4_bits_extracted > pcs.hp4_bits_extracted:
+    try:
+      next_pcs = [child for child in pcs.children \
+                     if child.parse_state.name == branch[BRANCH_STATE]][0]
+    except IndexError as e:
+      print(e)
+      debug()
+    if next_pcs.hp4_bits_extracted > pcs.hp4_bits_extracted:
       action = 'extract_more'
-      aparams.append(str(next.hp4_bits_extracted))
-    else: # another select statement in next pcs - need to rewind?
-      n_first_criteria = sort_return_select(next)[0][0]
+      aparams.append(str(next_pcs.hp4_bits_extracted))
+    else:
+      if not next_pcs.children:
+        action = 'set_next_action'
+        aparams.append('[PROCEED]')
+        aparams.append(str(next_pcs.pcs_id))
+        return action, aparams
+      # another select statement in next pcs - need to rewind?
+      n_first_criteria = sort_return_select(next_pcs)[0][0]
       j = 0
       while parse_select_table_boundaries[j+1] * 8 <= n_first_criteria[OFFSET]:
         j += 1
       if parse_select_table_boundaries[j] <= parse_select_tables[pst_count][L_BOUND]:
         # rewind
         action = 'extract_more'
-        aparams.append(str(next.hp4_bits_extracted))
+        aparams.append(str(next_pcs.hp4_bits_extracted))
       else:
-        act = 'set_next_action'
+        action = 'set_next_action'
         next_ps_table = get_parse_select_table(n_first_criteria)
         aparams.append(get_ps_action(next_ps_table[T_NAME]))
 
-    aparams.append(str(next.pcs_id))
+    aparams.append(str(next_pcs.pcs_id))
 
   return action, aparams
 
@@ -535,24 +551,134 @@ def gen_parse_select_entries(pcs, commands=[]):
 
   return commands
 
-def get_pipeline_config_entries(level):
-  commands = []
-  # TODO
-  return commands
+"""
+def get_parse_state_maps(pcs, ps_to_pcs={}):
+  if pcs.pcs_id == 0:
+    return get_parse_state_maps(pcs.children[0])
 
-  """ I don't think we will output the commands here
-      Rather we just need to look at the headers
-  """
+  if ps_to_pcs.has_key(pcs.parse_state) is False:
+    ps_to_pcs[pcs.parse_state] = set()
 
-def gen_pipeline_config_entries(pcs):
+  ps_to_pcs[pcs.parse_state].add(pcs)
+  
+  for child in pcs.children:
+    ps_to_pcs.update(get_parse_state_maps(child, ps_to_pcs))
+
+  return ps_to_pcs
+"""
+
+def collect_ingress_pcs(pcs, ingress_pcs_list=[]):
+  if pcs.pcs_id == 0:
+    return collect_ingress_pcs(pcs.children[0])
+
+  ps = pcs.parse_state
+
+  if ps.return_statement[PS_RET_TYPE] == 'select':
+    for branch in ps.return_statement[PS_RET_BRANCHES]:
+      if branch[BRANCH_STATE] == 'ingress':
+        ingress_pcs_list.append(pcs)
+        break
+  elif ps.return_statement[PS_RET_TYPE] == 'immediate':
+    if ps.return_statement[PS_RET_IMM_STATE] == 'ingress':
+      ingress_pcs_list.append(pcs)
+  else:
+    print("Unhandled ps return_statement: " + ps.return_statement[PS_RET_TYPE])
+    exit()
+
+  for child in pcs.children:
+    ingress_pcs_list = collect_ingress_pcs(child, ingress_pcs_list)
+
+  return ingress_pcs_list
+
+def get_headerset_and_maxdepth(ingress_pcs_list):
+  pcs_headers = {}
+  longest = 0
+  for pcs in ingress_pcs_list:
+    if len(pcs.header_offsets) > longest:
+      longest = len(pcs.header_offsets)
+  headerset = [set() for count in xrange(longest)]
+  for j in range(longest):
+    for pcs in ingress_pcs_list:
+      if len(pcs.header_offsets) > j:
+        pcs_headers = sorted(pcs.header_offsets, key=pcs.header_offsets.get)
+        headerset[j].add(pcs_headers[j])
+
+  return headerset, longest
+
+def get_vbits(headerset, maxdepth):
+  vbits = {}
+  lshift = VBITS_WIDTH
+  for j in range(maxdepth):
+    numbits = len(headerset[j])
+    lshift = lshift - numbits
+    i = 1
+    for header in headerset[j]:
+      vbits[(j, header)] = i << lshift
+      i = i << 1
+  return vbits
+
+def get_hp4_type(header):
+  if header.name == 'standard_metadata':
+    return 'standard_metadata'
+  if header.metadata == True:
+    return 'metadata'
+  return 'extracted'
+
+def get_aparam_table_ID(table):
+  if len(table.match_fields) == 0:
+    return '[MATCHLESS]'
+
+  field_match = table.match_fields[0] # supporting only one match field
+  field = field_match[0]
+  header = field.instance
+  match_type = field_match[1]
+
+  if match_type.value == 'P4_MATCH_EXACT':
+    header_hp4_type = get_hp4_type(header)
+    if header_hp4_type == 'standard_metadata':
+      if field.name == 'ingress_port':
+        return '[STDMETA_INGRESS_PORT_EXACT]'
+      elif field.name == 'packet_length':
+        return '[STDMETA_PACKET_LENGTH_EXACT]'
+      elif field.name == 'instance_type':
+        return '[STDMETA_INSTANCE_TYPE_EXACT]'
+      elif field.name == 'egress_spec':
+        return '[STDMETA_EGRESS_SPEC_EXACT]'
+      else:
+        print("ERROR: Unsupported: match on stdmetadata field %s" % field.name)
+        exit()
+    elif header_hp4_type == 'metadata':
+      return '[METADATA_EXACT]'
+    elif header_hp4_type == 'extracted':
+      return '[EXTRACTED_EXACT]'
+  elif match_type.value == 'P4_MATCH_VALID':
+    return '[EXTRACTED_VALID]'
+  else:
+    print("Not yet supported: " + match_type.value)
+    exit()
+  
+def gen_pipeline_config_entries(pcs, first_table):
+  if pcs.pcs_id == 0:
+    return gen_pipeline_config_entries(pcs.children[0], first_table)
+
   commands = []
-  """ This approach seems incorrect:
-  pcs_levels = collect_pcs_levels(pcs)
-  for level in pcs_levels:
-    commands += get_pipeline_config_entries(level)
-  """
-  debug()
-  # pcs_headers = 
+
+  ingress_pcs_list = collect_ingress_pcs(pcs)
+  headerset, maxdepth = get_headerset_and_maxdepth(ingress_pcs_list)
+  vbits = get_vbits(headerset, maxdepth)
+  aparam_table_ID = get_aparam_table_ID(first_table)  
+
+  for pcs in ingress_pcs_list:
+    val = 0
+    for i, header in enumerate(pcs.header_offsets):
+      val = val | vbits[(i, header)]
+    valstr = '0x' + '%x' % val
+    commands.append(HP4_Command('table_add',
+                                'tset_pipeline_config',
+                                'a_set_pipeline',
+                                ['[vdev ID]', str(pcs.pcs_id)],
+                                [aparam_table_ID, valstr, HIGHEST_PRIORITY]))
+
   return commands
 
 """ This method evidently is worthless:
@@ -644,6 +770,7 @@ def consolidate_parse_tree_clr(pcs, h):
     if next_parse_state_name != 'ingress':
       next_pc_state = pcs.children[0]
       next_parse_state = next_pc_state.parse_state
+      old_ps_name = pcs.parse_state.name
       new_ps_name = pcs.parse_state.name + '-' + next_parse_state.name
       new_ps_call_sequence = list(pcs.parse_state.call_sequence)
       new_ps_call_sequence += next_parse_state.call_sequence
@@ -657,6 +784,10 @@ def consolidate_parse_tree_clr(pcs, h):
       pcs.p4_bits_extracted += p4_bits_diff
       pcs.parse_state = new_ps
       pcs.children = list(next_pc_state.children)
+      prev_ps = pcs.ps_path[-1]
+      for i, branch in enumerate(prev_ps.return_statement[PS_RET_BRANCHES]):
+        if branch[BRANCH_STATE] == old_ps_name:
+          prev_ps.return_statement[PS_RET_BRANCHES][i] = (branch[BRANCH_VALUES], new_ps_name)
   for child in pcs.children:
     consolidate_parse_tree_clr(child, h)
 
@@ -691,7 +822,8 @@ def main():
   consolidate_parse_tree_clr(pre_pcs, h)
   parse_control_commands = gen_parse_control_entries(pre_pcs)
   parse_select_commands = gen_parse_select_entries(pre_pcs)
-  pipeline_config_commands = gen_pipeline_config_entries(pre_pcs)
+  first_table = h.p4_ingress_ptr.keys()[0]
+  pipeline_config_commands = gen_pipeline_config_entries(pre_pcs, first_table)
   debug()
 
 if __name__ == '__main__':
