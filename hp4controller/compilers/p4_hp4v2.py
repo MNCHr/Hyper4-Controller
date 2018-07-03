@@ -239,12 +239,50 @@ class PC_State(object):
 
 class P4_to_HP4(HP4Compiler):
 
-  def collect_actions(self):
+  def collect_actions(self, actions):
     """ Uniquely number each action """
-    for action in self.h.p4_actions.values():
+    action_ID = {}
+    actionID = 1
+    for action in actions:
       if action.lineno > 0: # is action from source (else built-in)?
-        self.action_ID[action] = self.actionID
-        self.actionID += 1
+        action_ID[action] = actionID
+        actionID += 1
+    return action_ID
+
+  def build(self, h):
+
+    self.action_ID = self.collect_actions(h.p4_actions.values())
+
+    pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
+    launch_process_parse_tree_clr(pre_pcs, h)
+    consolidate_parse_tree_clr(pre_pcs, h)
+
+    first_table = h.p4_ingress_ptr.keys()[0]
+    self.commands = gen_parse_control_entries(pre_pcs) \
+                  + gen_parse_select_entries(pre_pcs) \
+                  + gen_pipeline_config_entries(pre_pcs, first_table)
+    self.command_templates = gen_tX_templates(first_table)
+
+  def compile_to_hp4(self, program_path, out_path, mt_out_path, numprimitives):
+    self.out_path = out_path
+    self.mt_out_path = mt_out_path
+    numprimitives = numprimitives
+    h = HLIR(program_path)
+    h.build()
+    do_support_checks(h)
+    self.build(h)
+    self.write_output()
+
+    return CodeRepresentation(out_path, mt_out_path)
+
+  def write_output(self):
+    out = open(self.out_path, 'w')
+    for command in self.commands:
+      out.write(str(command) + '\n')
+    out.close()
+    out = open(self.mt_out_path, 'w')
+    json.dump(self.command_templates, out, default=convert_to_builtin_type, indent=2)
+    out.close()
 
 def do_support_checks(h):
   def unsupported(msg):
@@ -556,12 +594,9 @@ def get_branch_action(pcs, pst_count, parse_select_tables, branch):
     aparams.append(get_ps_action(parse_select_tables[pst_count + 1][T_NAME]))
     aparams.append(str(pcs.pcs_id))
   else:
-    try:
-      next_pcs = [child for child in pcs.children \
-                     if child.parse_state.name == branch[BRANCH_STATE]][0]
-    except IndexError as e:
-      print(e)
-      debug()
+    next_pcs = [child for child in pcs.children \
+                       if child.parse_state.name == branch[BRANCH_STATE]][0]
+
     if next_pcs.hp4_bits_extracted > pcs.hp4_bits_extracted:
       action = 'extract_more'
       aparams.append(str(next_pcs.hp4_bits_extracted))
@@ -918,21 +953,20 @@ def launch_process_parse_tree_clr(pcs, h):
 def parse_args(args):
   parser = argparse.ArgumentParser(description='Recursive Parse Tree Processing')
   parser.add_argument('input', help='path for input .p4', type=str)
+  parser.add_argument('-o', '--output', help='path for output .hp4t file',
+                    type=str, action="store", default='output.hp4t')
+  parser.add_argument('-m', '--mt_output', help='path for match template output',
+                    type=str, action="store", default='output.hp4mt')
+  parser.add_argument('--numprimitives', help='maximum number of primitives \
+                       for which HyPer4 is configured',
+                      type=int, action="store", default=9)
+
   return parser.parse_args(args)
 
 def main():
   args = parse_args(sys.argv[1:])
-  h = HLIR(args.input)
-  h.build()
-  do_support_checks(h)
-  pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
-  launch_process_parse_tree_clr(pre_pcs, h)
-  consolidate_parse_tree_clr(pre_pcs, h)
-  parse_control_commands = gen_parse_control_entries(pre_pcs)
-  parse_select_commands = gen_parse_select_entries(pre_pcs)
-  first_table = h.p4_ingress_ptr.keys()[0]
-  pipeline_config_commands = gen_pipeline_config_entries(pre_pcs, first_table)
-  tX_templates = gen_tX_templates(first_table)
+  hp4c = P4_to_HP4()
+  hp4c.compile_to_hp4(args.input, args.output, args.mt_output, args.numprimitives)
   debug()
 
 if __name__ == '__main__':
