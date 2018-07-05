@@ -43,6 +43,8 @@ P4_CALL_PRIMITIVE = 0
 P4_CALL_PARAMS = 1
 PARAM = 0
 PARAM_TYPE = 1
+MATCH_OBJECT = 0
+MATCH_TYPE = 1
 
 parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
@@ -115,6 +117,11 @@ mf_prim_subtype_action = {'1': 'mod_meta_stdmeta_ingressport',
                           '12': 'mod_extracted_extracted',
                           '13': 'mod_meta_extracted',
                           '14': 'mod_extracted_meta'}
+
+a2f_prim_subtype_ID = {'add': '1', 'sub': '2'}
+
+a2f_prim_subtype_action = {'1': 'a_add2f_extracted_const_u',
+                           '2': 'a_subff_extracted_const_u'}
 
 gen_prim_subtype_action = {'add_header': 'a_addh',
                            'copy_header': '',
@@ -548,9 +555,7 @@ class P4_to_HP4(HP4Compiler):
             maskwidth = 100
             if field.instance.metadata:
               maskwidth = 32
-              offset = self.meta_offsets[str(field)]
-            else:
-              offset = self.field_offsets[str(field)]
+            offset = self.field_offsets[str(field)]
             mp += '&&&' + gen_bitmask(field.width,
                                       offset,
                                       maskwidth)
@@ -613,15 +618,15 @@ class P4_to_HP4(HP4Compiler):
 
   def build(self, h):
 
-    self.meta_offsets = collect_meta(h.p4_header_instances)
+    self.field_offsets = collect_meta(h.p4_header_instances)
     self.action_ID = collect_actions(h.p4_actions.values())
 
     pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
     launch_process_parse_tree_clr(pre_pcs, h)
 
     self.header_offsets = collect_header_offsets(pre_pcs)
-    self.field_offsets = collect_field_offsets(self.header_offsets,
-                                               h.p4_header_instances)
+    self.field_offsets.update(collect_field_offsets(self.header_offsets,
+                                                    h.p4_header_instances))
 
     consolidate_parse_tree_clr(pre_pcs, h)
 
@@ -646,7 +651,13 @@ class P4_to_HP4(HP4Compiler):
                                        self.table_to_trep,
                                        h.p4_control_flows['ingress'],
                                        self.numprimitives)
-    debug()
+
+    self.commands += gen_t_checksum_entries(h.calculated_fields,
+                                            h.p4_field_list_calculations,
+                                            self.field_offsets,
+                                            self.vbits)
+
+    self.commands += gen_t_resize_pr_entries()
 
   def compile_to_hp4(self, program_path, out_path, mt_out_path, numprimitives):
     self.out_path = out_path
@@ -1165,12 +1176,12 @@ def get_aparam_table_ID(table):
   if len(table.match_fields) == 0:
     return '[MATCHLESS]'
 
-  field_match = table.match_fields[0] # supporting only one match field
-  field = field_match[0]
-  header = field.instance
-  match_type = field_match[1]
+  match = table.match_fields[0] # supporting only one match field
+  match_type = match[MATCH_TYPE]
 
   if match_type.value == 'P4_MATCH_EXACT':
+    field = match[MATCH_OBJECT]
+    header = field.instance
     header_hp4_type = get_hp4_type(header)
     if header_hp4_type == 'standard_metadata':
       if field.name == 'ingress_port':
@@ -1415,7 +1426,7 @@ def gen_action_aparams(p4_call, call, field_offsets):
         if mf_prim_subtype_action[subtype] == 'mod_meta_const':
           maskwidthbits = 256
         leftshift = str(maskwidthbits - (fo + fw))
-        mask = self.gen_bitmask(p4_call_params[0].width,
+        mask = gen_bitmask(p4_call_params[0].width,
                                 field_offsets[str(p4_call_params[0])],
                                 maskwidthbits / 8)
         aparams.append(leftshift)
@@ -1453,7 +1464,7 @@ def gen_action_aparams(p4_call, call, field_offsets):
           lshift = dst_revo - src_revo
         aparams.append(str(lshift))
         aparams.append(str(rshift))
-        aparams.append(self.gen_bitmask(p4_call_params[0].width, dst_offset, 100))
+        aparams.append(gen_bitmask(p4_call_params[0].width, dst_offset, 100))
       elif mf_prim_subtype_action[subtype] == 'mod_meta_extracted':
         dst_offset = field_offsets[str(p4_call_params[0])]
         src_offset = field_offsets[str(p4_call_params[1])]
@@ -1468,11 +1479,11 @@ def gen_action_aparams(p4_call, call, field_offsets):
           rshift = src_revo - dst_revo
         else:
           lshift = dst_revo - src_revo
-        dstmask = self.gen_bitmask(p4_call_params[0].width, dst_offset,
+        dstmask = gen_bitmask(p4_call_params[0].width, dst_offset,
                                    dstmaskwidthbits / 8)
         srcmask = dstmask
         if p4_call_params[1].width < p4_call_params[0].width:
-          srcmask = self.gen_bitmask(p4_call_params[1].width, dst_offset,
+          srcmask = gen_bitmask(p4_call_params[1].width, dst_offset,
                                      dstmaskwidthbits / 8)
         aparams.append(str(lshift))
         aparams.append(str(rshift))
@@ -1492,11 +1503,11 @@ def gen_action_aparams(p4_call, call, field_offsets):
           rshift = src_revo - dst_revo
         else:
           lshift = dst_revo - src_revo
-        dstmask = self.gen_bitmask(p4_call_params[0].width, dst_offset,
+        dstmask = gen_bitmask(p4_call_params[0].width, dst_offset,
                                    dstmaskwidthbits / 8)
         srcmask = dstmask
         if p4_call_params[1].width < p4_call_params[0].width:
-          srcmask = self.gen_bitmask(p4_call_params[1].width, dst_offset,
+          srcmask = gen_bitmask(p4_call_params[1].width, dst_offset,
                                      dstmaskwidthbits / 8)
         aparams.append(str(lshift))
         aparams.append(str(rshift))
@@ -1664,6 +1675,102 @@ def gen_tmiss_entries(tables, table_to_trep, ingress, numprimitives):
                                 action_params=aparams))
 
   return commands
+
+# gen_t_checksum_entries(h.calculated_fields)
+def gen_t_checksum_entries(calculated_fields, p4_field_list_calculations,
+                           field_offsets, vbits):
+    """ detect and handle ipv4 checksum """
+    commands = []
+
+    cf_none_types = 0
+    cf_valid_types = 0
+    checksum_detected = False
+    for cf in calculated_fields:
+      for statement in cf[1]:
+        if statement[0] == 'update':
+          flc = p4_field_list_calculations[statement[1]]
+          for fl in flc.input:
+            count = 0
+            max_field_offset = 0
+            max_field = None
+            for field in fl.fields:
+              count += field.width
+              if field.offset > max_field_offset:
+                max_field_offset = field.offset
+                max_field = field
+            if count == 144:
+              if flc.algorithm == 'csum16' and flc.output_width == 16:
+                # Calculate rshift_base parameter
+                #  This is the amount to R-shift extracted.data such
+                #  that the ipv4 header is right aligned
+                key = max_field.instance.name + '.' + max_field.name
+                # TODO: remove assumption that extracted.data is 800 bits
+                aparam = str(800 - field_offsets[key] - max_field.width)
+                if statement[2] == None:
+                  cf_none_types += 1
+                  if (cf_none_types + cf_valid_types) > 1:
+                    print("ERROR: Unsupported: multiple checksums")
+                    exit()
+                  else:
+                    checksum_detected = True
+                    commands.append(HP4_Command("table_add",
+                                                "t_checksum",
+                                                "a_ipv4_csum16",
+                                                ['[vdev ID]', '0&&&0'],
+                                                [aparam, str(LOWEST_PRIORITY)]))
+                else:
+                  if statement[2].op == 'valid':
+                    cf_valid_types += 1
+                    if (cf_none_types + cf_valid_types) > 1:
+                      print("ERROR: Unsupported: multiple checksums")
+                      exit()
+                    else:
+                      # TODO: reduce entries by isolating relevant bit
+                      for key in vbits.keys():
+                        if statement[2].right == key[1]:
+                          mparams = ['[vdev ID]']
+                          val = format(vbits[key], '#x')
+                          mparams.append(val + '&&&' + val)
+                          checksum_detected = True
+                          commands.append(HP4_Command("table_add",
+                                                      "t_checksum",
+                                                      "a_ipv4_csum16",
+                                                       mparams,
+                                                       [aparam, '0']))
+                  else:
+                    unsupported("ERROR: Unsupported if_cond op " \
+                                + "in calculated field: %s" % statement[2].op)
+
+              else:
+                unsupported("ERROR: Unsupported checksum (%s, %i)" \
+                            % (flc.algorithm, flc.output_width))
+
+            else:
+              unsupported("ERROR: Unsupported checksum - field list of %i bits" \
+                          % count)
+
+        else:
+          unsupported("WARNING: Unsupported update_verify_spec " \
+                      + "for calculated field: %s" % statement[0])
+
+    if checksum_detected == False:
+      commands.append(HP4_Command("table_add",
+                                      "t_checksum",
+                                      "_no_op",
+                                      ['[vdev ID]', '0&&&0'],
+                                      [str(LOWEST_PRIORITY)]))
+
+    return commands
+
+def gen_t_resize_pr_entries():
+    commands = []
+    # TODO: full implementation as the following primitives get support:
+    # - add_header | remove_header | truncate | push | pop | copy_header*
+    # * maybe (due to possibility of making previously invalid header
+    #   valid)
+    # default entry handled by controller
+
+    return commands
 
 def print_processed_parse_tree(pcs, level=0):
   for line in str(pcs).split('\n'):
