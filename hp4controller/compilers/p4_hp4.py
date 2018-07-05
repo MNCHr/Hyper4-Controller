@@ -8,10 +8,19 @@ from p4_hlir.hlir.p4_tables import p4_table
 from collections import OrderedDict
 import argparse
 import code
-# code.interact(local=dict(globals(), **locals()))
+from inspect import currentframe, getframeinfo
 import sys
 import math
 import json
+
+def debug():
+  """ Break and enter interactive method after printing location info """
+  # written before I knew about the pdb module
+  caller = currentframe().f_back
+  method_name = caller.f_code.co_name
+  line_no = getframeinfo(caller).lineno
+  print(method_name + ": line " + str(line_no))
+  code.interact(local=dict(globals(), **caller.f_locals))
 
 RETURN_TYPE = 0
 CRITERIA = 1
@@ -1442,6 +1451,7 @@ class P4_to_HP4(HP4Compiler):
     self.collect_headers()
     self.collect_actions()
     self.gen_tset_parse_control_entries()
+    debug()
     self.gen_tset_parse_select_entries()
     self.gen_tset_pipeline_config_entries()
     self.gen_tX_templates()

@@ -280,7 +280,7 @@ class PC_State(object):
       ret += child.parse_state.name + ' '
     return ret
 
-def collect_headers(headers):
+def collect_meta(headers):
   """ Classify headers (metadata | parsed representation)
       - For metadata: assign each field an offset into meta.data
       - NOTE: the same cannot be done for parsed representation headers
@@ -288,7 +288,7 @@ def collect_headers(headers):
         parse tree potentially yields a distinct set of field offsets
         into pr.data.
   """
-  field_offsets = {}
+  meta_offsets = {}
   metadata_offset = 0
 
   for header_key in headers.keys():
@@ -301,12 +301,12 @@ def collect_headers(headers):
 
       for field in header.fields:
         fullname = header.name + '.' + field.name
-        field_offsets[fullname] = metadata_offset
+        meta_offsets[fullname] = metadata_offset
         metadata_offset += field.width
         if metadata_offset > METADATA_WIDTH:
           unsupported("Error: out of metadata memory with %s" % fullname)
 
-  return field_offsets
+  return meta_offsets
 
 def collect_actions(actions):
   """ Uniquely number each action """
@@ -489,8 +489,12 @@ class P4_to_HP4(HP4Compiler):
             maskwidth = 100
             if field.instance.metadata:
               maskwidth = 32
+              offset = self.meta_offsets[str(field)]
+            else:
+              debug()
+              # offset = 
             mp += '&&&' + gen_bitmask(field.width,
-                                      self.field_offsets[str(field)],
+                                      offset,
                                       maskwidth)
           elif field.name != 'egress_spec' and field.name != 'ingress_port':
             mp += '&&&' + hex((1 << field.width) - 1)
@@ -551,12 +555,14 @@ class P4_to_HP4(HP4Compiler):
 
   def build(self, h):
 
-    self.field_offsets = collect_headers(h.p4_header_instances)
+    self.meta_offsets = collect_meta(h.p4_header_instances)
     self.action_ID = collect_actions(h.p4_actions.values())
 
     pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
     launch_process_parse_tree_clr(pre_pcs, h)
     consolidate_parse_tree_clr(pre_pcs, h)
+
+    do_header_offset_issue_check(pre_pcs)
 
     ingress_pcs_list = collect_ingress_pcs(pre_pcs)
     self.vbits = get_vbits(ingress_pcs_list)
@@ -1234,6 +1240,16 @@ def consolidate_parse_tree_clr(pcs, h):
           prev_ps.return_statement[PS_RET_BRANCHES][i] = (branch[BRANCH_VALUES], new_ps_name)
   for child in pcs.children:
     consolidate_parse_tree_clr(child, h)
+
+def do_header_offset_issue_check(pcs, header_offsets={}):
+  for header in pcs.header_offsets:
+    if header in header_offsets:
+      if pcs.header_offsets[header] != header_offsets[header]:
+        unsupported("Unsupported: %s has multiple potential offsets; %db and %db" \
+                    % (header, pcs.header_offsets[header], header_offsets[header]))
+  header_offsets.update(pcs.header_offsets)
+  for child in pcs.children:
+    do_header_offset_issue_check(child, header_offsets)
 
 def print_processed_parse_tree(pcs, level=0):
   for line in str(pcs).split('\n'):
