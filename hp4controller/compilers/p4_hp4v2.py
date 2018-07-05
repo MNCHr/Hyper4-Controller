@@ -116,6 +116,23 @@ mf_prim_subtype_action = {'1': 'mod_meta_stdmeta_ingressport',
                           '13': 'mod_meta_extracted',
                           '14': 'mod_extracted_meta'}
 
+gen_prim_subtype_action = {'add_header': 'a_addh',
+                           'copy_header': '',
+                           'remove_header': '',
+                           'modify_field_with_hash_based_offset': '',
+                           'truncate': 'a_truncate',
+                           'drop': 'a_drop',
+                           'no_op': '',
+                           'push': '',
+                           'pop': '',
+                           'count': '',
+                           'execute_meter': '',
+                           'recirculate': '',
+                           'resubmit': '',
+                           'clone_ingress_pkt_to_egress': '',
+                           'clone_egress_pkt_to_egress': '',
+                           'multicast': 'a_multicast'}
+
 current_call = tuple
 
 def debug():
@@ -1550,7 +1567,7 @@ def gen_action_entries(action_to_arep, action_ID, field_offsets):
           if len(mparams) > 0:
             for param in mparams:
               if '&&&' in param:
-                aparams.append(str(MAX_PRIORITY))
+                aparams.append(str(LOWEST_PRIORITY))
                 break
           commands.append(HP4_Command("table_add",
                                       tname,
@@ -1561,8 +1578,7 @@ def gen_action_entries(action_to_arep, action_ID, field_offsets):
   return commands, command_templates
 
 def get_table_from_cs(control_statement):
-    debug()
-    if type(control_statement) is p4_hlir.hlir.p4_tables.p4_table:
+    if type(control_statement) is p4_table:
       return control_statement
     elif type(control_statement) is tuple:
       return control_statement[0]
@@ -1578,21 +1594,21 @@ def walk_control_block(control_block, table):
         if control_statement == table:
           if cs_idx == len(control_block) - 1:
             return True, None
-          return True, self.get_table_from_cs(control_block[cs_idx + 1])
+          return True, get_table_from_cs(control_block[cs_idx + 1])
       elif type(control_statement) is tuple:
         # apply_and_select_block
         if control_statement[0] == table:
           if cs_idx == len(control_block) - 1:
             return True, None
-          return True, self.get_table_from_cs(control_block[cs_idx + 1])
+          return True, get_table_from_cs(control_block[cs_idx + 1])
         else:
           for case in control_statement[1]:
-            found, next_table = self.walk_control_block(case[1], table)
+            found, next_table = walk_control_block(case[1], table)
             if found:
               if next_table != None:
                 return True, next_table
               elif cs_idx < len(control_block) - 1:
-                return True, self.get_table_from_cs(control_block[cs_idx + 1])
+                return True, get_table_from_cs(control_block[cs_idx + 1])
               else:
                 return True, None
       else:
@@ -1602,7 +1618,7 @@ def walk_control_block(control_block, table):
 
 def gen_tmiss_entries(tables, table_to_trep, ingress, numprimitives):
   commands = []
-  debug()
+
   for table_name in tables:
 
     table = tables[table_name]
@@ -1639,7 +1655,7 @@ def gen_tmiss_entries(tables, table_to_trep, ingress, numprimitives):
       aparams.append('0')
 
     if 'matchless' not in tname:
-      aparams.append(str(MAX_PRIORITY))
+      aparams.append(str(LOWEST_PRIORITY))
 
     commands.append(HP4_Command(command="table_add",
                                 table=tname,
