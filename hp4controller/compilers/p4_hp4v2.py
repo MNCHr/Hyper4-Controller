@@ -542,7 +542,7 @@ class P4_to_HP4(HP4Compiler):
           # self.vbits[(level, header_instance)]
           hinst = table.match_fields[0][0]
           for key in self.vbits.keys():
-            if hinst == key[1]:
+            if hinst.name == key[1]:
               mp += format(self.vbits[key], '#x')
               # temp_mparams = list(mparams)
               # temp_mparams.append(mp)
@@ -678,7 +678,12 @@ class P4_to_HP4(HP4Compiler):
       out.write(str(command) + '\n')
     out.close()
     out = open(self.mt_out_path, 'w')
-    json.dump(self.command_templates, out, default=convert_to_builtin_type, indent=2)
+
+    def getkey(command):
+      return (command.table, command.source_action, command.action_params)
+    sorted_ct = sorted(self.command_templates, key=getkey)
+
+    json.dump(sorted_ct, out, default=convert_to_builtin_type, indent=2)
     out.close()
 
 def do_support_checks(h):

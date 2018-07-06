@@ -1506,7 +1506,12 @@ class P4_to_HP4(HP4Compiler):
       out.write(str(command) + '\n')
     out.close()
     out = open(self.mt_out_path, 'w')
-    json.dump(self.command_templates, out, default=convert_to_builtin_type, indent=2)
+
+    def getkey(command):
+      return (command.table, command.source_action, command.action_params)
+    sorted_ct = sorted(self.command_templates, key=getkey)
+
+    json.dump(sorted_ct, out, default=convert_to_builtin_type, indent=2)
     out.close()
 
 def parse_args(args):
