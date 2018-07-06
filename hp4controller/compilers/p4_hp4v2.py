@@ -11,6 +11,7 @@ import code
 from inspect import currentframe, getframeinfo
 import sys
 import math
+from math import ceil
 import json
 
 SEB = 320
@@ -532,8 +533,8 @@ class P4_to_HP4(HP4Compiler):
       aname = 'init_program_state'
       mparams = ['[vdev ID]']
       if len(table.match_fields) > 1:
-        print("Not yet supported: more than 1 match field (table: %s)" % table.name)
-        exit()
+        unsupported("Not yet supported: more than 1 match field (table: %s)" % table.name)
+
       # mparams_list = []
       if len(table.match_fields) == 1:      
         if table.match_fields[0][1].value == 'P4_MATCH_VALID':
@@ -718,7 +719,7 @@ def gen_pc_entry_start(pcs):
   act = 'set_next_action'
   if start_pcs.p4_bits_extracted > pcs.hp4_bits_extracted:
     act = 'extract_more'
-    aparams.append(str(start_pcs.p4_bits_extracted))
+    aparams.append(str(int(ceil(start_pcs.p4_bits_extracted / 8.0))))
   else:
     if not start_pcs.children:
       aparams.append('[PROCEED]')
@@ -992,7 +993,9 @@ def get_branch_action(pcs, pst_count, parse_select_tables, branch):
 
     if next_pcs.hp4_bits_extracted > pcs.hp4_bits_extracted:
       action = 'extract_more'
-      aparams.append(str(next_pcs.hp4_bits_extracted))
+      numbytes = int(ceil(next_pcs.hp4_bits_extracted / 8.0))
+      aparams.append(str(numbytes))
+
     else:
       if not next_pcs.children:
         action = 'set_next_action'
@@ -1007,7 +1010,8 @@ def get_branch_action(pcs, pst_count, parse_select_tables, branch):
       if parse_select_table_boundaries[j] <= parse_select_tables[pst_count][L_BOUND]:
         # rewind
         action = 'extract_more'
-        aparams.append(str(next_pcs.hp4_bits_extracted))
+        numbytes = int(ceil(next_pcs.hp4_bits_extracted / 8.0))
+        aparams.append(str(numbytes))
       else:
         action = 'set_next_action'
         next_ps_table = get_parse_select_table(n_first_criteria)
@@ -1241,7 +1245,7 @@ def process_extract_statements(pcs):
       raise Exception('Unsupported parse call: %s' % call[PS_CALL_TYPE])
 
 def process_parse_tree_clr(pcs, h):
-  print(str(pcs.pcs_id) + ' [' + pcs.parse_state.name + ']')
+  #print(str(pcs.pcs_id) + ' [' + pcs.parse_state.name + ']')
   process_extract_statements(pcs)
 
   def add_next(next_parse_state):
@@ -1805,7 +1809,6 @@ def main():
   args = parse_args(sys.argv[1:])
   hp4c = P4_to_HP4()
   hp4c.compile_to_hp4(args.input, args.output, args.mt_output, args.numprimitives)
-  debug()
 
 if __name__ == '__main__':
   main()

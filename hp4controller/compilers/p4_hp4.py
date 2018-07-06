@@ -1451,7 +1451,6 @@ class P4_to_HP4(HP4Compiler):
     self.collect_headers()
     self.collect_actions()
     self.gen_tset_parse_control_entries()
-    debug()
     self.gen_tset_parse_select_entries()
     self.gen_tset_pipeline_config_entries()
     self.gen_tX_templates()
