@@ -46,6 +46,8 @@ PARAM = 0
 PARAM_TYPE = 1
 MATCH_OBJECT = 0
 MATCH_TYPE = 1
+EXT_FIRST_WIDTH = 40 # in bytes
+EXT_START_INDEX = 2
 
 parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
@@ -635,8 +637,14 @@ class P4_to_HP4(HP4Compiler):
     self.vbits = get_vbits(ingress_pcs_list)
 
     first_table = h.p4_ingress_ptr.keys()[0]
+
+    ps_entries = gen_parse_select_entries(pre_pcs)
+    # post-process output of gen_parse_select_entries:
+    #  parse_select_00_19, _20_29, and _30_39 use 320b field ext.first
+    ps_entries = process_parse_select_entries(ps_entries)
+
     self.commands = gen_parse_control_entries(pre_pcs) \
-                  + gen_parse_select_entries(pre_pcs) \
+                  + ps_entries \
                   + gen_pipeline_config_entries(pre_pcs, first_table,
                                                 ingress_pcs_list, self.vbits)
 
@@ -1108,21 +1116,39 @@ def gen_parse_select_entries(pcs, commands=[]):
 
   return commands
 
-"""
-def get_parse_state_maps(pcs, ps_to_pcs={}):
-  if pcs.pcs_id == 0:
-    return get_parse_state_maps(pcs.children[0])
+def process_parse_select_entries(ps_entries):
+  ret = []
+  for command in ps_entries:
+    strbounds = command.table.split('tset_parse_select_')[1].split('_')
+    lower, upper = [int(x) for x in strbounds]
+    if lower > EXT_FIRST_WIDTH:
+      ret.append(command)
 
-  if ps_to_pcs.has_key(pcs.parse_state) is False:
-    ps_to_pcs[pcs.parse_state] = set()
+    new_mp_val = ''
+    new_mp_mask = ''
+    started = False
+    for mp in command.match_params[EXT_START_INDEX:]:
+      val, mask = [int(x, 0) for x in mp.split('&&&')]
+      if started or mask != 0:
+        started = True
+        valstr, maskstr = ["0x{:02x}".format(x).split('0x')[1] for x in [val, mask]]
+        new_mp_val += valstr
+        new_mp_mask += maskstr
 
-  ps_to_pcs[pcs.parse_state].add(pcs)
-  
-  for child in pcs.children:
-    ps_to_pcs.update(get_parse_state_maps(child, ps_to_pcs))
+    # fill out remaining bytes until we have all 40
+    for j in range(upper + 1, EXT_FIRST_WIDTH):
+      new_mp_val += '00'
+      new_mp_mask += '00'
 
-  return ps_to_pcs
-"""
+    new_mp = command.match_params[0:EXT_START_INDEX]
+    new_mp.append('0x' + new_mp_val + '&&&0x' + new_mp_mask)
+    ret.append(HP4_Command(command='table_add',
+                           table=command.table,
+                           action=command.action,
+                           match_params=new_mp,
+                           action_params=command.action_params))
+    
+  return ret
 
 def collect_ingress_pcs(pcs, ingress_pcs_list=[]):
   if pcs.pcs_id == 0:
