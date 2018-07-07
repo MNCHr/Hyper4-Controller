@@ -11,8 +11,3 @@ virtualized programmable data plane:
   -- includes an API for composing P4 programs
 - A P4->HyPer4 compiler
 - A bmv2 command -> HyPer4 command interpreter
-
-Execute this command to make hp4controller module and sub modules available
-to the system:
-
-  sudo python ./setup.py install_lib

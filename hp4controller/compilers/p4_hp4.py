@@ -1,34 +1,55 @@
 #!/usr/bin/python
 
-from compiler import HP4Compiler, CodeRepresentation
 from p4_hlir.main import HLIR
+from p4_hlir.hlir.p4_parser import p4_parse_state
 import p4_hlir
-from p4_hlir.hlir.p4_core import p4_enum
 from p4_hlir.hlir.p4_tables import p4_table
-from collections import OrderedDict
+from compiler import HP4Compiler, CodeRepresentation
 import argparse
+import itertools
 import code
 from inspect import currentframe, getframeinfo
 import sys
 import math
+from math import ceil
 import json
 
-def debug():
-  """ Break and enter interactive method after printing location info """
-  # written before I knew about the pdb module
-  caller = currentframe().f_back
-  method_name = caller.f_code.co_name
-  line_no = getframeinfo(caller).lineno
-  print(method_name + ": line " + str(line_no))
-  code.interact(local=dict(globals(), **caller.f_locals))
-
-RETURN_TYPE = 0
-CRITERIA = 1
-NEXT_PARSE_STATE = 1
-CASE_ENTRIES = 2
+SEB = 320
 METADATA_WIDTH = 256
 
-MAX_PRIORITY = 2147483646
+PS_RET_TYPE = 0
+PS_RET_CRITERIA = 1
+PS_RET_BRANCHES = 2
+PS_RET_IMM_STATE = 1
+PS_CALL_TYPE = 0
+PS_CALL_H_INST = 1
+OFFSET = 0
+WIDTH = 1
+BRANCH_VALUES = 0
+BRANCH_STATE = 1
+VAL_TYPE = 0
+VAL_VALUE = 1
+MAX_BYTE = 100
+T_NAME = 0
+L_BOUND = 1
+U_BOUND = 2
+HIGHEST_PRIORITY = '0'
+LOWEST_PRIORITY = '2147483646'
+VBITS_WIDTH = 80
+MATCH_TYPE = 1
+MATCH_FIELD = 0
+PRIM_TYPE = 0
+PRIM_SUBTYPE = 1
+P4_CALL_PRIMITIVE = 0
+P4_CALL_PARAMS = 1
+PARAM = 0
+PARAM_TYPE = 1
+MATCH_OBJECT = 0
+MATCH_TYPE = 1
+EXT_FIRST_WIDTH = 40 # in bytes
+EXT_START_INDEX = 2
+
+parse_select_table_boundaries = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
 primitive_ID = {'modify_field': '[MODIFY_FIELD]',
                 'add_header': '[ADD_HEADER]',
@@ -83,8 +104,7 @@ mf_prim_subtype_ID = {('meta', 'ingress_port'): '1',
                       ('egress_spec', 'ingress_port'): '11',
                       ('ext', 'ext'): '12',
                       ('meta', 'ext'): '13',
-                      ('ext', 'meta'): '14'} #,
-                      #('mcast_grp', 'const'): '80'}
+                      ('ext', 'meta'): '14'}
 
 mf_prim_subtype_action = {'1': 'mod_meta_stdmeta_ingressport',
                           '2': 'mod_meta_stdmeta_packetlength',
@@ -99,8 +119,7 @@ mf_prim_subtype_action = {'1': 'mod_meta_stdmeta_ingressport',
                           '11': 'mod_stdmeta_egressspec_stdmeta_ingressport',
                           '12': 'mod_extracted_extracted',
                           '13': 'mod_meta_extracted',
-                          '14': 'mod_extracted_meta'} #,
-                           #'80': 'mod_intmeta_mcast_grp_const'}
+                          '14': 'mod_extracted_meta'}
 
 a2f_prim_subtype_ID = {'add': '1', 'sub': '2'}
 
@@ -124,40 +143,52 @@ gen_prim_subtype_action = {'add_header': 'a_addh',
                            'clone_egress_pkt_to_egress': '',
                            'multicast': 'a_multicast'}
 
+current_call = tuple
+
+def debug():
+  """ Break and enter interactive method after printing location info """
+  # written before I knew about the pdb module
+  caller = currentframe().f_back
+  method_name = caller.f_code.co_name
+  line_no = getframeinfo(caller).lineno
+  print(method_name + ": line " + str(line_no))
+  code.interact(local=dict(globals(), **caller.f_locals))
+
+def unsupported(msg):
+  print(msg)
+  exit()
+
 def convert_to_builtin_type(obj):
   d = { '__class__':obj.__class__.__name__, '__module__':obj.__module__, }
   d.update(obj.__dict__)
   return d
 
-class HP4_Command:
-  def __init__(self, command, table, action, mparams, aparams):
+class HP4_Command(object):
+  def __init__(self, command='table_add',
+                     table='',
+                     action='',
+                     match_params=[],
+                     action_params=[]):
     self.command = command
     self.table = table
     self.action = action
-    self.match_params = mparams
-    self.action_params = aparams
+    self.match_params = match_params
+    self.action_params = action_params
   def __str__(self):
     """ assumes command is \'table_add\' """
     if self.command != 'table_add':
-      print("ERROR: incorrect table command %s, table %s" % (self.command, self.table))
-      exit()
+      raise Exception("Incorrect table command %s, table %s" % (self.command, self.table))
     ret = self.table + ' ' + self.action + ' :'
     ret += ' '.join(self.match_params)
     ret += ':'
     ret += ' '.join(self.action_params)
     return ret
 
-class HP4_Parse_Select_Command(HP4_Command):
-  def __init__(self):
-    HP4_Command.__init__(self, '', '', '', [], [])
-    self.curr_pc_state = 0
-    self.next_pc_state = 0
-    self.next_parse_state = ''
-    self.priority = 0
-
 class HP4_Match_Command(HP4_Command):
-  def __init__(self, source_table, source_action, command, table, action, mparams, aparams):
-    HP4_Command.__init__(self, command, table, action, mparams, aparams)
+  def __init__(self, source_table='',
+                     source_action='',
+                     **kwargs):
+    super(HP4_Match_Command, self).__init__(**kwargs)
     self.source_table = source_table
     self.source_action = source_action
 
@@ -167,13 +198,6 @@ class HP4_Primitive_Command(HP4_Command):
     self.source_table = source_table
     self.source_action = source_action
     self.src_aparam_id = src_aparam_id
-
-class MatchParam():
-  def __init__(self):
-    self.value = 0
-    self.mask = 0
-  def __str__(self):
-    return format(self.value, '#04x') + '&&&' + format(self.mask, '#04x')
 
 class DAG_Topo_Sorter():
   def __init__(self, p4_tables):
@@ -186,11 +210,11 @@ class DAG_Topo_Sorter():
 
   def visit(self, n):
     if n.control_flow_parent == 'egress':
-      print("ERROR: Not yet supported: tables in egress (" + n.name + ")")
-      exit()
+      unsupported("ERROR: Not yet supported: tables in egress (" + n.name + ")")
+
     if n in self.tempmarked:
-      print("ERROR: not a DAG")
-      exit()
+      unsupported("ERROR: not a DAG")
+
     if n in self.unmarked:
       self.unmarked.remove(n)
       self.tempmarked.append(n)
@@ -240,19 +264,20 @@ class Table_Rep():
         elif self.field_name == 'egress_spec':
           return '[STDMETA_EGRESS_SPEC_EXACT]'
         else:
-          print("Not supported: standard_metadata field %s" % self.field_name)
-          exit()
+          unsupported("Not supported: standard_metadata field %s" \
+                                                % self.field_name)
       else:
-        print("Not supported: standard_metadata with %s match type" % self.match_type)
-        exit()
+        unsupported("Not supported: standard_metadata with %s match type" \
+                                                        % self.match_type)
+
     elif self.source_type == 'metadata':
       if self.match_type == 'P4_MATCH_EXACT':
         return '[METADATA_EXACT]'
       elif self.match_type == 'P4_MATCH_TERNARY':
         return '[METADATA_TERNARY]'
       else:
-        print("Not supported: metadata with %s match type" % self.match_type)
-        exit()
+        unsupported("Not supported: metadata with %s match type" \
+                                               % self.match_type)
     elif self.source_type == 'extracted':
       if self.match_type == 'P4_MATCH_EXACT':
         return '[EXTRACTED_EXACT]'
@@ -261,17 +286,18 @@ class Table_Rep():
       elif self.match_type == 'P4_MATCH_TERNARY':
         return '[EXTRACTED_TERNARY]'
       else:
-        print("Not supported: extracted with %s match type" % self.match_type)
-        exit()
+        unsupported("Not supported: extracted with %s match type" \
+                                                % self.match_type)
     elif self.source_type == '':
       if self.match_type == 'MATCHLESS':
         return '[MATCHLESS]'
       else:
-        print("Not supported: [no source] with %s match type" % self.match_type)
-        exit()
+        unsupported("Not supported: [no source] with %s match type" \
+                                                  % self.match_type)
     else:
-      print("Not supported: source type %s, match type %s" % (self.source_type, self.match_type))
-      exit()
+      unsupported("Not supported: source type %s, match type %s" \
+                           % (self.source_type, self.match_type))
+
   def __str__(self):
     return self.name
 
@@ -282,305 +308,189 @@ class Action_Rep():
     self.next = {} # {table_name (str) : (next_stage (int), next_table_code (int))}
     self.call_sequence = []
 
+class PC_State(object):
+  newid = itertools.count().next
+  def __init__(self, hp4_bits_extracted=SEB,
+                     p4_bits_extracted=0,
+                     ps_path=[],
+                     pcs_path=[],
+                     parse_state=None,
+                     entry_table='tset_parse_control',
+                     **kwargs):
+    self.hp4_bits_extracted = hp4_bits_extracted
+    self.p4_bits_extracted = p4_bits_extracted
+    self.ps_path = ps_path
+    self.pcs_path = pcs_path
+    self.pcs_id = PC_State.newid()
+    self.parse_state = parse_state
+    self.entry_table = entry_table # TODO: Delete if we don't need this
+    self.children = []
+    self.header_offsets = {} # header name (str) : hp4 bit offset (int)
+    for pcs in self.pcs_path:
+      self.header_offsets.update(pcs.header_offsets)
+    self.select_criteria = [] # list of (offset, width) tuples, each
+                              #  element corresponding to a criteria in the
+                              #  select statement, representing the hp4 view
+    self.select_values = [] # list of lists: each member a list of values,
+                            #  each value corresponding to a criteria in
+                            #  select_criteria
+
+  def __str__(self):
+    ret = 'ID: ' + str(self.pcs_id) + '; ' + self.parse_state.name + '\n'
+    ret += 'hp4_bits_extracted: ' + str(self.hp4_bits_extracted) + '\n'
+    ret += 'p4_bits_extracted: ' + str(self.p4_bits_extracted) + '\n'
+    ret += 'ps_path: ' + str(self.ps_path) + '\n'
+    ret += 'pcs_path: ' 
+    for pcs in self.pcs_path:
+      ret += str(pcs.pcs_id) + '(' + pcs.parse_state.name + ') '
+    ret += '\n'
+    ret += 'children: '
+    for child in self.children:
+      ret += child.parse_state.name + ' '
+    return ret
+
+def collect_meta(headers):
+  """ Classify headers (metadata | parsed representation)
+      - For metadata: assign each field an offset into meta.data
+      - NOTE: the same cannot be done for parsed representation headers
+        until we traverse the parse tree, because each path through the
+        parse tree potentially yields a distinct set of field offsets
+        into pr.data.
+  """
+  meta_offsets = {}
+  metadata_offset = 0
+
+  for header_key in headers.keys():
+    header = headers[header_key]
+
+    if header.name == 'standard_metadata':
+      continue
+
+    if header.metadata == True:
+
+      for field in header.fields:
+        fullname = header.name + '.' + field.name
+        meta_offsets[fullname] = metadata_offset
+        metadata_offset += field.width
+        if metadata_offset > METADATA_WIDTH:
+          unsupported("Error: out of metadata memory with %s" % fullname)
+
+  return meta_offsets
+
+def collect_actions(actions):
+  """ Uniquely number each action """
+  action_ID = {}
+  actionID = 1
+  for action in actions:
+    if action.lineno > 0: # is action from source (else built-in)?
+      action_ID[action] = actionID
+      actionID += 1
+  return action_ID
+
+def get_prim_subtype(p4_call):
+  """ p4_call: (p4_action, [list of parameters])
+  """
+  primitive = p4_call[P4_CALL_PRIMITIVE]
+  params = p4_call[P4_CALL_PARAMS]
+  if primitive.name == 'drop':
+    return '0'
+  elif primitive.name == 'add_to_field':
+    if type(params[0]) is p4_hlir.hlir.p4_headers.p4_field:
+      if params[0].instance.metadata == True:
+        unsupported("Not supported: metadata (%s) as dst field in \
+                         add_to_field" %  params[0].instance.name)
+
+      else:
+        if type(params[1]) is int:
+          if params[1] < 0:
+            return(a2f_prim_subtype_ID['sub'])
+          else:
+            return(a2f_prim_subtype_ID['add'])
+        else:
+          unsupported("ERROR: Not supported: %s type for src field in \
+                                      add_to_field" % type(params[1]))
+
+    else:
+      unsupported("ERROR: dst field type %s in add_to_field" % type(params[0]))
+
+  elif primitive.name == 'modify_field':
+    first = 0
+    second = 0
+    if params[0].instance.metadata == True:
+      if params[0].instance.name == 'standard_metadata':
+        if params[0].name == 'egress_spec':
+          first = params[0].name
+        else:
+          unsupported("ERROR: Unexpected stdmeta field %s as dst in \
+                           modify_field primitive" % params[0].name)
+
+      elif params[0].instance.name == 'intrinsic_metadata':
+        if params[0].name == 'mcast_grp':
+          #first = params[0].name
+          first = 'egress_spec'
+        else:
+          unsupported("ERROR: Unexpected intmeta field %s as dst in \
+                        mmmmodify_field primitive" % params[0].name)
+
+      else: # user-defined metadata
+        first = 'meta'
+    else: # parsed representation
+      first = 'ext'
+    if type(params[1]) is int:
+      second = 'const'
+    elif type(params[1]) is p4_hlir.hlir.p4_headers.p4_field:
+      if params[1].instance.metadata == True:
+        if params[1].instance.name == 'standard_metadata':
+          second = params[1].name
+        else:
+          second = 'meta'
+      else:
+        second = 'ext'
+    elif type(params[1]) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
+      second = 'const'
+    else:
+      unsupported("ERROR: Unexpected type %s as src in \
+                    modify_field call" % type(params[1]))
+
+    return mf_prim_subtype_ID[first, second]
+
+def gen_bitmask(fieldwidth, offset, maskwidth):
+  """fieldwidth: bits; offset: bits; maskwidth: bytes"""
+  mask = '0x'
+
+  bytes_written = offset / 8
+  bits_left = fieldwidth
+  while bits_left > 0:
+    byte = 0
+    bit = 0b10000000 >> (offset % 8)
+    if bits_left >= 8 - (offset % 8):
+      for i in range(8 - (offset % 8)):
+        byte = byte | bit
+        bit = bit >> 1
+      bits_left = bits_left - (8 - (offset % 8))
+      offset = offset + 8 - (offset % 8)
+    else:
+      for i in range(bits_left):
+        byte = byte | bit
+        bit = bit >> 1
+      bits_left = 0
+    mask += hex(byte)[2:]
+    bytes_written += 1
+
+  mask += '[' + str(maskwidth - bytes_written) + 'x00s]'
+
+  return mask
 
 class P4_to_HP4(HP4Compiler):
 
-  def collect_headers(self):
-    """ Classify headers (metadata | parsed representation)
-        - For metadata: assign each field an offset into meta.data
-        - NOTE: the same cannot be done for parsed representation headers
-          until we traverse the parse tree, because each path through the
-          parse tree potentially yields a distinct set of field offsets
-          into pr.data.
-    """
-    metadata_offset = 0
-    for header_key in self.h.p4_header_instances.keys():
-      header = self.h.p4_header_instances[header_key]
-      if header.name == 'standard_metadata':
-        self.headers_hp4_type[header_key] = 'standard_metadata'
-        continue
-      if header.metadata == True:
-        self.headers_hp4_type[header_key] = 'metadata'
-        for field in header.fields:
-          fullname = header.name + '.' + field.name
-          self.field_offsets[fullname] = metadata_offset
-          metadata_offset += field.width
-          if metadata_offset > METADATA_WIDTH:
-            print("Error: out of metadata memory with %s" % fullname)
-            exit()
-      else:
-        self.headers_hp4_type[header_key] = 'extracted'
-    metadata_offset = 0
-
-  def collect_actions(self):
-    """ Uniquely number each action """
-    for action in self.h.p4_actions.values():
-      if action.lineno > 0: # is action from source (else built-in)?
-        self.action_ID[action] = self.actionID
-        self.actionID += 1
-
-  def update_parse_state_maps(self, parse_state, pc_state):
-    """ Track associations between parse states and parse control states """
-    if self.ps_to_pc.has_key(parse_state) is False:
-      self.ps_to_pc[parse_state] = set()
-    if pc_state == 0:
-      self.ps_to_pc[parse_state].add(1)
-      self.pc_to_ps[1] = parse_state
-    else:
-      self.ps_to_pc[parse_state].add(pc_state)
-      self.pc_to_ps[pc_state] = parse_state
-
-  def process_parse_state(self, parse_state, pc_state):
-    """ Analyze a parse control state
-        - Examine associated parse state's calls
-          - extract calls affect field offsets
-          - extract calls and 'current' statements affect the
-            number of bytes that should be extracted prior to entering
-            the parse control state
-            - but 'current' statements do not advance the pointer; this
-              must be taken into account when looking at next parse control
-              states
-          - Identify byte range XX-YY in return statements of type 'select',
-            requiring tset_parse_select_XX_YY entries
-    """
-    self.update_parse_state_maps(parse_state, pc_state)
-
-    # numbits: Total number of bits that must have been extracted for hp4
-    #          to handle this pc state.
-    numbits = self.offset # measures how far into the packet we are already
-
-    # handle extract statements
-    for call in parse_state.call_sequence:
-      if call[0].value != 'extract':
-        print("ERROR: unsupported call %s" % call[0].value)
-        exit()
-      # update field_offsets, numbits
-      for field in call[1].fields:
-        self.field_offsets[call[1].name + '.' + field.name] = self.offset
-        self.offset += field.width # advance offset
-        numbits += field.width     # update requirement
-
-    #code.interact(local=dict(globals(), **locals()))
-
-    # establish required number of bits for hp4 to handle the pc state
-    if numbits > self.seb * 8:
-      self.pc_bits_extracted[pc_state] = numbits
-    else:
-      self.pc_bits_extracted[pc_state] = self.seb * 8
-    self.pc_bit_offsets[pc_state] = self.offset
-    if pc_state == 0: # TODO: proper implementation vs. this hack
-      self.pc_bit_offsets[1] = self.offset
-
-    # shouldn't we delay the preceding statements until we've processed
-    #  the return_statement?
-
-    if parse_state.return_statement[RETURN_TYPE] == 'immediate':
-      if parse_state.return_statement[NEXT_PARSE_STATE] == 'ingress':
-        self.pc_action[pc_state] = '[PROCEED]'
-    elif parse_state.return_statement[RETURN_TYPE] == 'select':
-      # The parse_select_* tables follow parse_control and read the
-      #  pc_state.  Following parse_control, pc_state will == 1 if
-      #  the node is parse 'start'.  Track value of pc_state as
-      #  read by parse_select_* tables with parse_select_pc_state:
-      if pc_state == 0:
-        parse_select_pc_state = 1
-      else:
-        parse_select_pc_state = pc_state
-
-      # account for 'current' instances
-      maxcurr = 0
-      # identify range of bytes to examine
-      startbytes = 100
-      endbytes = 0
-      self.parse_select_match_offsets[parse_select_pc_state] = []
-      for criteria in parse_state.return_statement[CRITERIA]:
-        if isinstance(criteria, tuple): # tuple indicates use of 'current'
-          # criteria[0]: start offset from current position
-          # criteria[1]: width of 'current' call
-          if maxcurr < criteria[0] + criteria[1]:
-            maxcurr = criteria[0] + criteria[1]
-          if (startbytes * 8) > self.offset + criteria[0]:
-            startbytes = (self.offset + criteria[0]) / 8
-          if (endbytes * 8) < self.offset + maxcurr:
-            endbytes = int(math.ceil((self.offset + maxcurr) / 8.0))
-        else: # single field
-          offset_width = (self.field_offsets[criteria],
-                          self.h.p4_fields[criteria].width)
-          self.parse_select_match_offsets[parse_select_pc_state].append(offset_width)
-          fieldstart = self.field_offsets[criteria] / 8
-          fieldend = int(math.ceil((fieldstart * 8
-                                    + self.h.p4_fields[criteria].width) / 8.0))
-          if startbytes > fieldstart:
-            startbytes = fieldstart
-          if endbytes < fieldend:
-            endbytes = fieldend
-
-      #print(str(parse_state) + ': maxcurr = ' + str(maxcurr) + '; offset = ' \
-      #    + str(self.offset))
-      #print('pc_bits_extracted[' + str(pc_state) + ']: ' \
-      #    + str(self.pc_bits_extracted[pc_state]))
-      if (maxcurr + self.offset) > self.pc_bits_extracted[pc_state]:
-        self.pc_bits_extracted[pc_state] = self.offset + maxcurr
-  
-      # pc_action[pc_state] = 'parse_select_XX_YY'
-      if startbytes >= endbytes:
-        print("ERROR: startbytes(%i) > endbytes(%i)" % (startbytes, endbytes))
-        print("parse_state: %s" % parse_state)
-        exit()
-      def unsupported(sbytes, ebytes):
-        print("ERROR: Not yet supported: startbytes(%i) and endbytes(%i) cross \
-               boundaries"  % (sbytes, ebytes))
-        exit()
-      if startbytes < 20:
-        if endbytes >= 20:
-          unsupported(startbytes, endbytes)
-        else:
-          self.pc_action[pc_state] = '[PARSE_SELECT_00_19]'
-          self.parse_select_table_names[parse_select_pc_state] = 'tset_parse_select_00_19'
-      else:
-        bound = 30
-        while bound <= 100:
-          if startbytes < bound:
-            if endbytes >= bound:
-              unsupported(startbytes, endbytes)
-            else:
-              namecore = 'parse_select_' + str(bound - 10) + '_' + str(bound - 1)
-              self.pc_action[pc_state] = '[' + namecore.upper() + ']'
-              self.parse_select_table_names[parse_select_pc_state] = 'tset_' + namecore
-              break
-          bound += 10
-      if pc_state not in self.pc_action:
-        print("ERROR: did not find parse_select_XX_YY function for \
-               startbytes(%i) and endbytes(%i)" % (startbytes, endbytes))
-        exit()
-
-  def fill_parse_select_match_params(self, criteria_fields, values, pc_state):
-    if len(criteria_fields) != len(values):
-      print("ERROR: criteria_fields(%i) not same length as values(%i)" \
-            % (len(criteria_fields),len(values)))
-      exit()
-    # looking at a single criteria field is sufficient to determine the byte
-    #  range for the inspection, which affects the size of the match
-
-    #  parameters string (20 bytes for the first parse_select table, 10 bytes
-    #  for all others)
-    mparams = []
-    bitoffset = 0
-    if isinstance(criteria_fields[0], str):
-      # not 'current'
-      bitoffset = self.field_offsets[criteria_fields[0]]
-    elif isinstance(criteria_fields[0], tuple):
-      # using 'current'
-      bitoffset = criteria_fields[0][0]
-      if pc_state in self.pc_bits_extracted:
-        bitoffset += self.pc_bits_extracted[pc_state]
-    #print('fill_parse_select_match_params')
-    #code.interact(local=dict(globals(), **locals()))
-    if bitoffset / 8 < 40:
-      mparams = self.fill_parse_select_match_params_under40(criteria_fields, values, pc_state)
-    else:
-      mparams = self.fill_parse_select_match_params_40_99(criteria_fields, values, pc_state)
-
-    ret = ['[vdev ID]', str(pc_state)]
-    for mparam in mparams:
-      ret.append(str(mparam))
-    return ret
-
-  def fill_parse_select_match_params_under40(self, criteria_fields, values, pc_state):
-    mparam = MatchParam()
-    for i in range(len(criteria_fields)):
-      if values[i][0] != 'value' and values[i][0] != 'default':
-        print("Not yet supported: type %s in case entry" % values[i][0])
-        exit()
-      fo = 0
-      width = 0
-      if isinstance(criteria_fields[i], str): # not 'current' tuple
-        fo = self.field_offsets[criteria_fields[i]]
-        width = self.h.p4_fields[criteria_fields[i]].width
-      elif isinstance(criteria_fields[i], tuple): # 'current' tuple
-        fo = criteria_fields[i][0] + self.pc_bit_offsets[pc_state]
-        width = criteria_fields[i][1]
-      fieldend = fo + width
-      value = 0
-      val = 0
-      mask = 0
-      if values[i][0] == 'value':
-        value = values[i][1]
-        mask = 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000
-        pos = fo
-        while pos < fieldend:
-          bit = 0x80000000000000000000000000000000000000000000000000000000000000000000000000000000 >> pos
-          mask = mask | bit
-          pos += 1
-        try:
-          val = value << (320 - fieldend)
-        except ValueError as e:
-          print(e)
-          code.interact(local=dict(globals(), **locals()))
-          exit()
-      mparam.mask = mparam.mask | mask
-      mparam.value = mparam.value | val
-    return [mparam]
-
-  def fill_parse_select_match_params_40_99(self, criteria_fields, values, pc_state):
-    # create our return value, a list of MatchParams for tset_parse_select_40_49
-    #  each initialized to '0&&&0' (value 0, mask 0 = don't care)
-    mparams = [MatchParam() for count in xrange(10)]
-    for i in range(len(criteria_fields)):
-      # get field offset and width
-      if isinstance(criteria_fields[i], tuple): # current
-        fo = criteria_fields[i][0] + self.pc_bit_offsets[pc_state]
-        width = criteria_fields[i][1]
-      else: # field
-        fo = self.field_offsets[criteria_fields[i]]
-        width = self.h.p4_fields[criteria_fields[i]].width
-
-      # set index of starting match parameter
-      j = (fo / 8) % len(mparams)
-
-      # set position of next bit after field
-      fieldend = fo + width
-
-      # set index of ending match parameter
-      end_j = (int(math.ceil(fieldend / 8.0)) - 1) % len(mparams)
-
-      value = 0
-      if values[i][0] == 'value':
-        value = values[i][1]
-      while j <= end_j:
-        mask = 0b00000000
-        pos = fo % 8
-        end = min(pos + width, 8)
-        if values[i][0] == 'value':
-          bit = 128 >> pos
-          while pos < end:
-            mask = mask | bit
-            bit = bit >> 1
-            pos += 1
-        # truncate bits outside current byte boundary
-        val = value >> (((fo % 8) + width) - end)
-        # lshift to place value in correct position within current byte
-        val = val << (8 - end)
-        
-        mparams[j].mask = mparams[j].mask | mask
-        mparams[j].value = mparams[j].value | val
-        j += 1
-        if j <= end_j: # prepare for next iteration
-          advance = 8 - (fo % 8)
-          # advance fo
-          fo = fo + advance
-          # reduce width
-          width = width - advance
-          # change values[i]
-          if width > 0:
-            value = value % (1 << width)
-    return mparams
-
-  def walk_ingress_pipeline(self, curr_table):
+  def walk_ingress_pipeline(self, tables):
     """ populate table_to_trep and action_to_arep data structures """
+    table_to_trep = {}
+    action_to_arep = {}
+    stage = 1
 
     # 1) Do topological sort of tables
-    tsorter = DAG_Topo_Sorter(self.h.p4_tables)
+    tsorter = DAG_Topo_Sorter(tables)
     tsort = tsorter.sort()
     # 2) assign each one to a unique stage
     for i in range(len(tsort)):
@@ -589,328 +499,57 @@ class P4_to_HP4(HP4Compiler):
       match_type = 'MATCHLESS'
       field_name = ''
       if len(curr_table.match_fields) > 0:
-        match_type = curr_table.match_fields[0][1].value
-        field_name = curr_table.match_fields[0][0].name
+        match = curr_table.match_fields[0]
+        match_type = match[MATCH_TYPE].value
+        field_name = match[MATCH_FIELD].name
         if (match_type == 'P4_MATCH_EXACT' or
             match_type == 'P4_MATCH_TERNARY'):
           # headers_hp4_type[<str>]: 'standard_metadata' | 'metadata' | 'extracted'
-          source_type = self.headers_hp4_type[curr_table.match_fields[0][0].instance.name]
+          source_type = get_hp4_type(match[MATCH_FIELD].instance)
         elif match_type == 'P4_MATCH_VALID':
-          source_type = self.headers_hp4_type[curr_table.match_fields[0][0].name]
-      self.table_to_trep[curr_table] = Table_Rep(self.stage,
-                                                 match_type,
-                                                 source_type,
-                                                 field_name)
+          source_type = get_hp4_type(match[MATCH_FIELD])
+      table_to_trep[curr_table] = Table_Rep(stage,
+                                            match_type,
+                                            source_type,
+                                            field_name)
 
       for action in curr_table.actions:
-        if self.action_to_arep.has_key(action) is False:
-          self.action_to_arep[action] = Action_Rep()
+        if action_to_arep.has_key(action) is False:
+          action_to_arep[action] = Action_Rep()
           for call in action.call_sequence:
-            prim_type = call[0].name
-            prim_subtype = self.get_prim_subtype(call)
-            self.action_to_arep[action].call_sequence.append((prim_type, prim_subtype))
-        self.action_to_arep[action].stages.add(self.stage)
-        self.action_to_arep[action].tables[self.stage] = curr_table.name
+            prim_type = call[PRIM_TYPE].name
+            prim_subtype = get_prim_subtype(call)
+            action_to_arep[action].call_sequence.append((prim_type, prim_subtype))
+        action_to_arep[action].stages.add(stage)
+        action_to_arep[action].tables[stage] = curr_table.name
 
-      self.stage += 1
+      stage += 1
 
-  def walk_parse_tree(self, parse_state, pc_state):
-    """ parse_state: the HLIR object representing a parse node
-        pc_state: A parse_control state representing a (possibly partial) path
-                  through the parse tree
-        - Collect parse control states, each uniquely numbered and associated
-          with a list of parse states representing a (possibly partial) path
-          through the parse tree.
-        - Analyze each parse control state to identify its byte extraction
-          requirements (to know when/how we should invoke the extract_more
-          action)
-    """ 
-    # TODO: resolve concern that direct jumps not merged properly
-    self.process_parse_state(parse_state, pc_state)
+    return table_to_trep, action_to_arep
 
-    curr_pc_state = pc_state
-    if curr_pc_state == 0:
-      curr_pc_state += 1
-      self.pc_to_preceding_pcs[curr_pc_state] = []
+  def gen_tX_templates(self, tables):
+    command_templates = []
 
-    # traverse parse tree
-    next_states = []
-    next_states_pcs = {}
-    if parse_state.return_statement[RETURN_TYPE] == 'immediate':
-      if parse_state.return_statement[NEXT_PARSE_STATE] != 'ingress':
-        next_state = self.h.p4_parse_states[parse_state.return_statement[1]]
-        self.walk_parse_tree(next_state, pc_state)
-      else:
-        return
-    elif parse_state.return_statement[RETURN_TYPE] == 'select':
-      # return_statement[CASE_ENTRIES]: list of tuples (see case_entry below)
-      for case_entry in parse_state.return_statement[CASE_ENTRIES]:
-        t = HP4_Parse_Select_Command()
-        t.command = "table_add"
-        t.curr_pc_state = curr_pc_state
-        t.table = self.parse_select_table_names[curr_pc_state]
-        t.match_params = self.fill_parse_select_match_params(parse_state.return_statement[CRITERIA], case_entry[0], t.curr_pc_state)
-        if case_entry[0][0][0] == 'default':
-          t.priority = MAX_PRIORITY
-        # case_entry: (list of values, next parse_state)
-        if case_entry[1] != 'ingress':
-          next_state = self.h.p4_parse_states[case_entry[1]]
-          t.next_parse_state = next_state
-          if next_state not in next_states:
-            if pc_state == 0:
-              pc_state += 1
-            pc_state += 1
-            next_states_pcs[next_state] = pc_state
-
-            # track preceding pc_states
-            if self.pc_to_preceding_pcs.has_key(curr_pc_state) is False:
-              self.pc_to_preceding_pcs[curr_pc_state] = []
-            self.pc_to_preceding_pcs[pc_state] = self.pc_to_preceding_pcs[curr_pc_state] + [curr_pc_state]
-
-            # TODO: verify this line is correct; does it account for 'current'?
-            # I think these lines are unnecessary - should be handled in process_parse_state
-            #if self.offset > self.seb * 8:
-            #  self.pc_bits_extracted[pc_state] = self.offset
-            #else:
-            #  self.pc_bits_extracted[pc_state] = self.seb * 8
-
-            next_states.append(next_state)
-            t.next_pc_state = pc_state
-          else:
-            t.next_pc_state = next_states_pcs[next_state]
-        else:
-          t.next_parse_state = 'ingress'
-          t.next_pc_state = t.curr_pc_state
-          t.action = 'set_next_action'
-          t.action_params = ['[PROCEED]', str(t.next_pc_state), str(t.priority)]
-        self.parse_select_list.append(t)
-    else:
-      print("ERROR: Unknown directive in return statement: %s" \
-            % parse_state.return_statement[0])
-      exit()
-
-    save_offset = self.offset
-    for next_state in next_states:
-      self.walk_parse_tree(next_state, next_states_pcs[next_state])
-      self.offset = save_offset
-
-  def gen_tset_parse_control_entries(self):
-    self.walk_parse_tree(self.h.p4_parse_states['start'], 0)
-    for key in self.pc_action.keys():
-      # special handling for pc_state 0
-      if key == 0:
-        if self.pc_bits_extracted[0] > (self.seb * 8):
-          self.commands.append(HP4_Command("table_add",
-                                           "tset_parse_control",
-                                           "extract_more",
-                                           ["[vdev ID]", "0"],
-                                           [str(self.pc_bits_extracted[0]), "1"]))
-          self.commands.append(HP4_Command("table_add",
-                                           "tset_parse_control",
-                                           "set_next_action",
-                                           ["[vdev ID]", "1"],
-                                           [self.pc_action[0], "1"]))
-        else:
-          self.commands.append(HP4_Command("table_add",
-                                           "tset_parse_control",
-                                           "set_next_action",
-                                           ["[vdev ID]", "0"],
-                                           [self.pc_action[0], "1"]))
-          self.pc_bits_extracted[0] = self.seb * 8
-
-        self.pc_bits_extracted[1] = self.pc_bits_extracted[0]
-        self.pc_bits_extracted[0] = self.seb * 8
-        self.pc_action[1] = self.pc_action[0]
-
-      else:
-        self.commands.append(HP4_Command("table_add",
-                                         "tset_parse_control",
-                                         "set_next_action",
-                                         ["[vdev ID]", str(key)],
-                                         [self.pc_action[key], str(key)]))
-
-  def gen_tset_parse_select_entries(self):
-    for t in self.parse_select_list:
-      if t.next_parse_state != 'ingress':
-        if self.pc_bits_extracted[t.next_pc_state] > self.pc_bits_extracted[t.curr_pc_state]:
-          t.action = "extract_more"
-          bytes = int(math.ceil(self.pc_bits_extracted[t.next_pc_state] / 8.0))
-          t.action_params = [str(bytes), str(t.next_pc_state), str(t.priority)]
-        else:
-          t.action = "set_next_action"
-          if t.next_pc_state in self.parse_select_table_names:
-            next_action = "[" + self.parse_select_table_names[t.next_pc_state].split('tset_')[1].upper() + "]"
-          else:
-            next_action = "[PROCEED]"
-          t.action_params = [next_action, str(t.next_pc_state), str(t.priority)]
-      self.commands.append(t)
-
-  def gen_tset_pipeline_config_entries(self):
-    # USEFUL DATA STRUCTURES:
-    # self.ps_to_pc = {p4_parse_state : pc_state}
-    # self.pc_to_ps = {pc_state : p4_parse_state}
-    # self.pc_to_preceding_pcs = {pc_state : [pc_state, ..., pc_state]}
-    # self.h.p4_ingress_ptr = {p4_table: set([p4_parse_state, ..., p4_parse_state])}
-    # self.h.p4_ingress_ptr.keys()[0].match_fields: (p4_field, MATCH_TYPE, None)
-    #    MATCH_TYPE: P4_MATCH_EXACT | ? (no doubt P4_MATCH_VALID, others)
-    #    third is probably mask
-    if len(self.h.p4_ingress_ptr.keys()) > 1:
-      print("Not yet supported: multiple entry points into ingress pipeline")
-      exit()
-    first_table = self.h.p4_ingress_ptr.keys()[0]
-    if len(first_table.match_fields) > 1:
-      print("Not yet supported: multiple field matches (table: %s)" % first_table.name)
-      exit()
-
-    # create all the valid values for extracted.validbits
-    pc_headers = {}
-    longest = 0
-    for ingress_ps in self.h.p4_ingress_ptr[first_table]:
-      for pc_state in self.ps_to_pc[ingress_ps]:
-        pc_headers[pc_state] = []
-        for prec_pc in self.pc_to_preceding_pcs[pc_state]:
-          ps = self.pc_to_ps[prec_pc]
-          for call in ps.call_sequence:
-            if call[0].value != 'extract':
-              print("ERROR (gen_tset_pipeline_config_entries): unsupported call %s" % call[0].value)
-              exit()
-            pc_headers[pc_state].append(call[1])
-        for call in ingress_ps.call_sequence:
-          if call[0].value != 'extract':
-            print("ERROR (gen_tset_pipeline_config_entries): unsupported call %s" % call[0].value)
-            exit()
-          pc_headers[pc_state].append(call[1])
-
-        if len(pc_headers[pc_state]) > longest:
-          longest = len(pc_headers[pc_state])
-
-    headerset = []
-    for j in range(longest):
-      headerset.append(set())
-      
-      for pc_state in pc_headers.keys():
-        if len(pc_headers[pc_state]) > j:
-          headerset[j].add(pc_headers[pc_state][j])
-
-    # extracted.validbits is 80b wide
-    # vbits: {(level (int), header name (str)): number (binary)}
-    lshift = 80
-    for j in range(longest):
-      numbits = len(headerset[j])
-      lshift = lshift - numbits
-      i = 1
-      for header in headerset[j]:
-        self.vbits[(j, header)] = i << lshift
-        i = i << 1
-
-    # handle table_ID
-    if len(first_table.match_fields) > 1:
-      print("Not yet supported: multiple match fields (%s)" % first_table.name)
-      exit()
-    if len(first_table.match_fields) == 0:
-      aparam_table_ID = '[MATCHLESS]'
-    else:
-      field_match = first_table.match_fields[0]
-      field = field_match[0]
-      match_type = field_match[1]
-
-      if match_type.value == 'P4_MATCH_EXACT':
-        if self.headers_hp4_type[field.instance.name] == 'standard_metadata':
-          if field.name == 'ingress_port':
-            aparam_table_ID = '[STDMETA_INGRESS_PORT_EXACT]'
-          elif field.name == 'packet_length':
-            aparam_table_ID = '[STDMETA_PACKET_LENGTH_EXACT]'
-          elif field.name == 'instance_type':
-            aparam_table_ID = '[STDMETA_INSTANCE_TYPE_EXACT]'
-          elif field.name == 'egress_spec':
-            aparam_table_ID = '[STDMETA_EGRESS_SPEC_EXACT]'
-          else:
-            print("ERROR: Unsupported: match on stdmetadata field %s" % field.name)
-            exit()
-        elif self.headers_hp4_type[field.instance.name] == 'metadata':
-          aparam_table_ID = '[METADATA_EXACT]'
-        elif self.headers_hp4_type[field.instance.name] == 'extracted':
-          aparam_table_ID = '[EXTRACTED_EXACT]'
-      elif match_type.value == 'P4_MATCH_VALID':
-        aparam_table_ID = '[EXTRACTED_VALID]'
-      else:
-        print("Not yet supported: " + match_type.value)
-        exit()
-        # code.interact(local=dict(globals(), **locals()))
-
-    for ps in self.h.p4_ingress_ptr[first_table]:
-      for pc_state in self.ps_to_pc[ps]:
-        val = 0
-        for i in range(len(pc_headers[pc_state])):
-          val = val | self.vbits[(i, pc_headers[pc_state][i])]
-        valstr = '0x' + '%x' % val
-
-        self.commands.append(HP4_Command("table_add",
-                                         "tset_pipeline_config",
-                                         "a_set_pipeline",
-                                         ['[vdev ID]', str(pc_state)],
-                                         [aparam_table_ID, valstr, '0']))
-
-  def gen_bitmask(self, fieldwidth, offset, maskwidth):
-    """fieldwidth: bits; offset: bits; maskwidth: bytes"""
-    mask = '0x'
-    # offset = self.field_offsets[str(field)]
-    bytes_written = offset / 8
-    bits_left = fieldwidth
-    while bits_left > 0:
-      byte = 0
-      bit = 0b10000000 >> (offset % 8)
-      if bits_left >= 8 - (offset % 8):
-        for i in range(8 - (offset % 8)):
-          byte = byte | bit
-          bit = bit >> 1
-        bits_left = bits_left - (8 - (offset % 8))
-        offset = offset + 8 - (offset % 8)
-      else:
-        for i in range(bits_left):
-          byte = byte | bit
-          bit = bit >> 1
-        bits_left = 0
-      mask += hex(byte)[2:]
-      bytes_written += 1
-    # maskwidth = 100
-    # if field.instance.metadata:
-    #  maskwidth = 32
-    mask += '[' + str(maskwidth - bytes_written) + 'x00s]'
-    #while bytes_written < 100:
-    #  mask += '00'
-    #  bytes_written += 1
-    return mask
-
-  def gen_bitmask2(self, fieldwidth, offset, maskwidthbits):
-    mask = '0x'
-    bits_written = offset
-    bits_left = fieldwidth
-    while bits_left > 0:
-      bit = 0b10000000 >> offset
-
-  def gen_tX_templates(self):
-    self.walk_ingress_pipeline(self.h.p4_ingress_ptr.keys()[0])
     for table in self.table_to_trep:
       tname = str(self.table_to_trep[table])
       aname = 'init_program_state'
-      match_params = ['[vdev ID]']
+      mparams = ['[vdev ID]']
       if len(table.match_fields) > 1:
-        print("Not yet supported: more than 1 match field (table: %s)" % table.name)
-        exit()
-      # match_params_list = []
+        unsupported("Not yet supported: more than 1 match field (table: %s)" % table.name)
+
+      # mparams_list = []
       if len(table.match_fields) == 1:      
         if table.match_fields[0][1].value == 'P4_MATCH_VALID':
           mp = '[valid]&&&'
           # self.vbits[(level, header_instance)]
           hinst = table.match_fields[0][0]
           for key in self.vbits.keys():
-            if hinst == key[1]:
+            if hinst.name == key[1]:
               mp += format(self.vbits[key], '#x')
-              # temp_match_params = list(match_params)
-              # temp_match_params.append(mp)
-              # match_params_list.append(temp_match_params)
-              match_params.append(mp)
+              # temp_mparams = list(mparams)
+              # temp_mparams.append(mp)
+              # mparams_list.append(temp_mparams)
+              mparams.append(mp)
         elif ((table.match_fields[0][1].value == 'P4_MATCH_EXACT') or
              (table.match_fields[0][1].value == 'P4_MATCH_TERNARY')):
           field = table.match_fields[0][0]
@@ -919,14 +558,15 @@ class P4_to_HP4(HP4Compiler):
             maskwidth = 100
             if field.instance.metadata:
               maskwidth = 32
-            mp += '&&&' + self.gen_bitmask(field.width,
-                                           self.field_offsets[str(field)],
-                                           maskwidth)
+            offset = self.field_offsets[str(field)]
+            mp += '&&&' + gen_bitmask(field.width,
+                                      offset,
+                                      maskwidth)
           elif field.name != 'egress_spec' and field.name != 'ingress_port':
             mp += '&&&' + hex((1 << field.width) - 1)
           else: # egress_spec... rep'd by virt_egress_spec, which is 8 bits
             mp += '&&&0xFF'
-          match_params.append(mp)
+          mparams.append(mp)
 
       # need a distinct template entry for every possible action
       for action in table.actions:
@@ -949,8 +589,8 @@ class P4_to_HP4(HP4Compiler):
         # primitives
         idx = 0
         for call in action.call_sequence:
-          prim_type = primitive_ID[call[0].name]
-          prim_subtype = self.get_prim_subtype(call)
+          prim_type = primitive_ID[call[P4_CALL_PRIMITIVE].name]
+          prim_subtype = get_prim_subtype(call)
           aparams.append(prim_type)
           aparams.append(prim_subtype)
           idx += 1
@@ -969,533 +609,73 @@ class P4_to_HP4(HP4Compiler):
         # all matches are ternary, requiring priority
         # TODO: except matchless?
         aparams.append('[PRIORITY]')
-        self.command_templates.append(HP4_Match_Command(table.name,
-                                          action.name,
-                                          "table_add",
-                                          tname,
-                                          aname,
-                                          match_params,
-                                          aparams))
 
-  # primitive_call: (p4_action, [list of parameters])
-  def get_prim_subtype(self, call):
-    if call[0].name == 'drop':
-      return '0'
-    elif call[0].name == 'add_to_field':
-      if type(call[1][0]) is p4_hlir.hlir.p4_headers.p4_field:
-        if call[1][0].instance.metadata == True:
-          print("Not supported: metadata (%s) as dst field in add_to_field" %  call[1][0].instance.name)
-          exit()
-        else:
-          if type(call[1][1]) is int:
-            if call[1][1] < 0:
-              return(a2f_prim_subtype_ID['sub'])
-            else:
-              return(a2f_prim_subtype_ID['add'])
-          else:
-            print("ERROR: Not supported: %s type for src field in add_to_field" % type(call[1][1]))
-            exit()
-      else:
-        print("ERROR: dst field type %s in add_to_field" % type(call[1][0]))
-        exit()
-    elif call[0].name == 'modify_field':
-      first = 0
-      second = 0
-      if call[1][0].instance.metadata == True:
-        if call[1][0].instance.name == 'standard_metadata':
-          if call[1][0].name == 'egress_spec':
-            first = call[1][0].name
-          else:
-            print("ERROR: Unexpected stdmeta field %s as dst in modify_field primitive" % call[1][0].name)
-            exit()
-        elif call[1][0].instance.name == 'intrinsic_metadata':
-          if call[1][0].name == 'mcast_grp':
-            #first = call[1][0].name
-            first = 'egress_spec'
-          else:
-            print("ERROR: Unexpected intmeta field %s as dst in modify_field primitive" % call[1][0].name)
-            exit()
-        else: # user-defined metadata
-          first = 'meta'
-      else: # parsed representation
-        first = 'ext'
-      if type(call[1][1]) is int:
-        second = 'const'
-      elif type(call[1][1]) is p4_hlir.hlir.p4_headers.p4_field:
-        if call[1][1].instance.metadata == True:
-          if call[1][1].instance.name == 'standard_metadata':
-            second = call[1][1].name
-          else:
-            second = 'meta'
-        else:
-          second = 'ext'
-      elif type(call[1][1]) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
-        second = 'const'
-      else:
-        print("ERROR: Unexpected type %s as src in modify_field call" % type(call[1][1]))
-        exit()
-      return mf_prim_subtype_ID[first, second]
+        command_templates.append(HP4_Match_Command(source_table=table.name,
+                                                   source_action=action.name,
+                                                   command="table_add",
+                                                   table=tname,
+                                                   action=aname,
+                                                   match_params=mparams,
+                                                   action_params=aparams))
+    return command_templates
 
-  def print_action_to_arep(self):
-    for action in self.action_to_arep:
-      print("Action: " + str(action))
-      print("  stages: " + str(self.action_to_arep[action].stages))
-      print("  call_sequence: " + str(self.action_to_arep[action].call_sequence))
+  def build(self, h):
 
-  def gen_action_entries(self):
-    for action in self.action_to_arep:
-      for stage in self.action_to_arep[action].stages:
-        table_name = self.action_to_arep[action].tables[stage]
-        for p4_call in action.call_sequence:
-          istemplate = False
-          idx = action.call_sequence.index(p4_call)
-          call = self.action_to_arep[action].call_sequence[idx]
-          rank = idx + 1
-          tname = 't_' + primitive_tnames[call[0]] + '_' + str(stage) + str(rank)
+    self.field_offsets = collect_meta(h.p4_header_instances)
+    self.action_ID = collect_actions(h.p4_actions.values())
 
-          if call[0] == 'modify_field':
-            aname = mf_prim_subtype_action[call[1]]
-          elif call[0] == 'add_to_field':
-            aname = a2f_prim_subtype_action[call[1]]
-          else:
-            aname = gen_prim_subtype_action[call[0]]
-          mparams = ['[vdev ID]']
-          if call[0] != 'drop':
-            if call[0] == 'modify_field' or call[0] == 'add_to_field':
-              mparams.append( call[1] )
-            mparams.append(str(self.action_ID[action]))
-            # If the parameter passed to the primitive in the source code is an
-            # action parameter reference, the match_ID parameter should be
-            # [val]&&&0x7FFFFF because each distinct match could have a different
-            # value for the action parameter.  Otherwise, we don't care what the
-            # match_ID is so use 0&&&0.
-            match_ID_param = '0&&&0'
-            for param in p4_call[1]:
-              if type(param) == p4_hlir.hlir.p4_imperatives.p4_signature_ref:
-                match_ID_param = '[match ID]&&&0x7FFFFF'
-                istemplate = True
-                break
-            mparams.append(match_ID_param)
-          aparams = self.gen_action_aparams(p4_call, call)
-          if istemplate == True:
-            aparams.append('0') # meta_primitive_state.match_ID mparam matters
-            idx = -1
-            if type(p4_call[1][1] == p4_hlir.hlir.p4_imperatives.p4_signature_ref):
-              idx = p4_call[1][1].idx
-            self.command_templates.append(HP4_Primitive_Command(table_name,
-                                            action.name,
-                                            "table_add",
-                                            tname,
-                                            aname,
-                                            mparams,
-                                            aparams,
-                                            str(idx)))
-          else:
-            # meta_primitive_state.match_ID mparam does not matter
-            # only append priority if the table involves ternary matching
-            #  e.g., drop tables do not
-            if len(mparams) > 0:
-              for param in mparams:
-                if '&&&' in param:
-                  aparams.append(str(MAX_PRIORITY))
-                  break
-            self.commands.append(HP4_Command("table_add",
-                                         tname,
-                                         aname,
-                                         mparams,
-                                         aparams))
+    pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
+    launch_process_parse_tree_clr(pre_pcs, h)
 
-  # focus: mod, drop, math
-  def gen_action_aparams(self, p4_call, call):
-    aparams = []
-    if call[0] == 'drop':
-      return aparams
-    if call[0] == 'add_to_field':
-      if (a2f_prim_subtype_action[call[1]] == 'a_add2f_extracted_const_u' or
-          a2f_prim_subtype_action[call[1]] == 'a_subff_extracted_const_u'):
-        # aparams: leftshift, val
-        dst_offset = self.field_offsets[str(p4_call[1][0])]
-        leftshift = 800 - (dst_offset + p4_call[1][0].width)
-        if type(p4_call[1][1]) == int:
-          val = str(p4_call[1][1])
-          if a2f_prim_subtype_action[call[1]] == 'a_subff_extracted_const_u':
-            val = str(p4_call[1][1]*-1)
-        else:
-          val = '[val]'
-        aparams.append(str(leftshift))
-        aparams.append(val)
-    if call[0] == 'modify_field':
-      instance_name = p4_call[1][0].instance.name
-      dst_field_name = p4_call[1][0].name
-      if instance_name == 'intrinsic_metadata':
-        if dst_field_name == 'mcast_grp':
-          instance_name = 'standard_metadata'
-          dst_field_name = 'egress_spec'
-        else:
-          print("Not supported: modify_field(" + instance_name + '.' \
-                + dst_field_name + ", *)")
-          exit()
-      if isinstance(p4_call[1][1], p4_hlir.hlir.p4_headers.p4_field):
-        if p4_call[1][1].width > p4_call[1][0].width:
-          dst = instance_name + '.' + dst_field_name
-          src = p4_call[1][1].instance.name + '.' + p4_call[1][1].name
-          print("WARNING: modify_field(%s, %s): %s width (%i) > %s width (%i)" \
-              % (dst, src, src, p4_call[1][1].width, dst, p4_call[1][0].width))
-      if mf_prim_subtype_action[call[1]] == 'mod_meta_stdmeta_ingressport':
-        print("Not yet supported: %s" % mf_prim_subtype_action[call[1]])
-        exit()
-      elif mf_prim_subtype_action[call[1]] == 'mod_meta_stdmeta_packetlength':
-        print("Not yet supported: %s" % mf_prim_subtype_action[call[1]])
-        exit()
-      elif mf_prim_subtype_action[call[1]] == 'mod_meta_stdmeta_egressspec':
-        print("Not yet supported: %s" % mf_prim_subtype_action[call[1]])
-        exit()
-      elif mf_prim_subtype_action[call[1]] == 'mod_meta_stdmeta_egressport':
-        print("Not yet supported: %s" % mf_prim_subtype_action[call[1]])
-        exit()
-      elif mf_prim_subtype_action[call[1]] == 'mod_meta_stdmeta_egressinst':
-        print("Not yet supported: %s" % mf_prim_subtype_action[call[1]])
-        exit()
-      elif mf_prim_subtype_action[call[1]] == 'mod_meta_stdmeta_insttype':
-        print("Not yet supported: %s" % mf_prim_subtype_action[call[1]])
-        exit()
-      elif mf_prim_subtype_action[call[1]] == 'mod_stdmeta_egressspec_meta':
-        # aparams: rightshift, tmask
-        rshift = 256 - (self.field_offsets[str(p4_call[1][1])] + p4_call[1][1].width)
-        mask = 0
-        if p4_call[1][1].width < p4_call[1][0].width:
-          mask = hex(int(math.pow(2, p4_call[1][1].width)) - 1)
-        else:
-          mask = hex(int(math.pow(2, p4_call[1][0].width)) - 1)
-        aparams.append(str(rshift))
-        aparams.append(mask)
-      elif (mf_prim_subtype_action[call[1]] == 'mod_meta_const' or
-            mf_prim_subtype_action[call[1]] == 'mod_extracted_const'):
-        # aparams: leftshift, mask, val
-        if type(p4_call[1][1]) == int:
-          val = str(p4_call[1][1])
-        else:
-          val = '[val]'
-        fo = self.field_offsets[str(p4_call[1][0])]
-        fw = p4_call[1][0].width
-        maskwidthbits = 800
-        if mf_prim_subtype_action[call[1]] == 'mod_meta_const':
-          maskwidthbits = 256
-        leftshift = str(maskwidthbits - (fo + fw))
-        mask = self.gen_bitmask(p4_call[1][0].width,
-                                self.field_offsets[str(p4_call[1][0])],
-                                maskwidthbits / 8)
-        aparams.append(leftshift)
-        aparams.append(mask)
-        aparams.append(val)
-      elif (mf_prim_subtype_action[call[1]] == 'mod_stdmeta_egressspec_const'):
-        if type(p4_call[1][1]) == int:
-          aparams.append(str(p4_call[1][1]))
-        else:
-          aparams.append('[val]')
-      elif (mf_prim_subtype_action[call[1]] == 'mod_intmeta_mcast_grp_const'):
-        if type(p4_call[1][1]) == int:
-          print("Not yet supported: mod_intmeta_mcast_grp_const w/ explicit const")
-          exit()
-        else:
-          aparams.append('[MCAST_GRP]')
+    self.header_offsets = collect_header_offsets(pre_pcs)
+    self.field_offsets.update(collect_field_offsets(self.header_offsets,
+                                                    h.p4_header_instances))
 
-      #elif mf_prim_subtype_action[call[1]] == 'mod_stdmeta_egressspec_stdmeta_ingressport':
-      #  return aparams
-      elif mf_prim_subtype_action[call[1]] == 'mod_extracted_extracted':
-        # aparams:
-        # - leftshift (how far should src field be shifted to align w/ dst)
-        # - rightshift (how far should src field be shifted to align w/ dst)
-        # - msk (bitmask for dest field)
-        dst_offset = self.field_offsets[str(p4_call[1][0])]
-        src_offset = self.field_offsets[str(p4_call[1][1])]
-        lshift = 0
-        rshift = 0
-        # *_revo = revised offset; right-aligned instead of left-aligned
-        dst_revo = 800 - (dst_offset + p4_call[1][0].width)
-        src_revo = 800 - (src_offset + p4_call[1][1].width)
-        if src_revo > dst_revo:
-          rshift = src_revo - dst_revo
-        else:
-          lshift = dst_revo - src_revo
-        aparams.append(str(lshift))
-        aparams.append(str(rshift))
-        aparams.append(self.gen_bitmask(p4_call[1][0].width, dst_offset, 100))
-      elif mf_prim_subtype_action[call[1]] == 'mod_meta_extracted':
-        dst_offset = self.field_offsets[str(p4_call[1][0])]
-        src_offset = self.field_offsets[str(p4_call[1][1])]
-        lshift = 0
-        rshift = 0
-        dstmaskwidthbits = 256
-        srcmaskwidthbits = 800
-        # *_revo = revised offset; right-aligned instead of left-aligned
-        dst_revo = dstmaskwidthbits - (dst_offset + p4_call[1][0].width)
-        src_revo = srcmaskwidthbits - (src_offset + p4_call[1][1].width)
-        if src_revo > dst_revo:
-          rshift = src_revo - dst_revo
-        else:
-          lshift = dst_revo - src_revo
-        dstmask = self.gen_bitmask(p4_call[1][0].width, dst_offset,
-                                   dstmaskwidthbits / 8)
-        srcmask = dstmask
-        if p4_call[1][1].width < p4_call[1][0].width:
-          srcmask = self.gen_bitmask(p4_call[1][1].width, dst_offset,
-                                     dstmaskwidthbits / 8)
-        aparams.append(str(lshift))
-        aparams.append(str(rshift))
-        aparams.append(dstmask)
-        aparams.append(srcmask)
-      elif mf_prim_subtype_action[call[1]] == 'mod_extracted_meta':
-        dst_offset = self.field_offsets[str(p4_call[1][0])]
-        src_offset = self.field_offsets[str(p4_call[1][1])]
-        lshift = 0
-        rshift = 0
-        dstmaskwidthbits = 800
-        srcmaskwidthbits = 256
-        # *_revo = revised offset; right-aligned instead of left-aligned
-        dst_revo = dstmaskwidthbits - (dst_offset + p4_call[1][0].width)
-        src_revo = srcmaskwidthbits - (src_offset + p4_call[1][1].width)
-        if src_revo > dst_revo:
-          rshift = src_revo - dst_revo
-        else:
-          lshift = dst_revo - src_revo
-        dstmask = self.gen_bitmask(p4_call[1][0].width, dst_offset,
-                                   dstmaskwidthbits / 8)
-        srcmask = dstmask
-        if p4_call[1][1].width < p4_call[1][0].width:
-          srcmask = self.gen_bitmask(p4_call[1][1].width, dst_offset,
-                                     dstmaskwidthbits / 8)
-        aparams.append(str(lshift))
-        aparams.append(str(rshift))
-        aparams.append(dstmask)
-        aparams.append(srcmask)
+    consolidate_parse_tree_clr(pre_pcs, h)
 
-    return aparams
+    ingress_pcs_list = collect_ingress_pcs(pre_pcs)
+    self.vbits = get_vbits(ingress_pcs_list)
 
-  def get_table_from_cs(self, control_statement):
-    if type(control_statement) == p4_hlir.hlir.p4_tables.p4_table:
-      return control_statement
-    elif type(control_statement) == tuple:
-      return control_statement[0]
-    else:
-      print("Error (get_table_from_cs): unsupported control statement type: " \
-            + str(type(control_statement)))
-      exit()
+    first_table = h.p4_ingress_ptr.keys()[0]
 
-  def walk_control_block(self, control_block, table):
-    for control_statement in control_block:
-      cs_idx = control_block.index(control_statement)
-      if type(control_statement) == p4_table:
-        # apply_table_call
-        if control_statement == table:
-          if cs_idx == len(control_block) - 1:
-            return True, None
-          return True, self.get_table_from_cs(control_block[cs_idx + 1])
-      elif type(control_statement) == tuple:
-        # apply_and_select_block
-        if control_statement[0] == table:
-          if cs_idx == len(control_block) - 1:
-            return True, None
-          return True, self.get_table_from_cs(control_block[cs_idx + 1])
-        else:
-          for case in control_statement[1]:
-            found, next_table = self.walk_control_block(case[1], table)
-            if found:
-              if next_table != None:
-                return True, next_table
-              elif cs_idx < len(control_block) - 1:
-                return True, self.get_table_from_cs(control_block[cs_idx + 1])
-              else:
-                return True, None
-      else:
-        print("Error: unsupported call_sequence entry type: " + str(type(entry)))
-        exit()
-    return False, None
+    ps_entries = gen_parse_select_entries(pre_pcs)
+    # post-process output of gen_parse_select_entries:
+    #  parse_select_00_19, _20_29, and _30_39 use 320b field ext.first
+    ps_entries = process_parse_select_entries(ps_entries)
 
-  def gen_tmiss_entries(self):
-    for table_name in self.h.p4_tables:
+    self.commands = gen_parse_control_entries(pre_pcs) \
+                  + ps_entries \
+                  + gen_pipeline_config_entries(pre_pcs, first_table,
+                                                ingress_pcs_list, self.vbits)
 
-      table = self.h.p4_tables[table_name]
-      trep = self.table_to_trep[table]
-      tname = trep.name
-      stage = trep.stage # int
-      aname = 'init_program_state'
-      mparams = ['[vdev ID]']
-      if 'matchless' not in tname:
-        mparams.append('0&&&0')
-                 
-      # identify next_table so we can look up stage for aparams[0]
-      #   aparams[0]: 'next_stage' parameter in finish_action (stages.p4/p4t)
-      if 'miss' in table.next_:
-        next_table = table.next_['miss']
-      else:
-        ingress = self.h.p4_control_flows['ingress']
-        found, next_table = self.walk_control_block(ingress.call_sequence, table)
+    self.table_to_trep, self.action_to_arep = self.walk_ingress_pipeline(h.p4_tables)
+    self.command_templates = self.gen_tX_templates(h.p4_tables)
+    action_commands, action_templates = gen_action_entries(self.action_to_arep,
+                                                           self.action_ID,
+                                                           self.field_offsets)
+    self.commands += action_commands
+    self.command_templates += action_templates
 
-      if next_table == None:
-        next_stage = '0'
-        next_table_type = '0'
-      else:
-        next_stage = str(self.table_to_trep[next_table].stage)
-        next_table_type = self.table_to_trep[next_table].table_type()
+    self.commands += gen_tmiss_entries(h.p4_tables,
+                                       self.table_to_trep,
+                                       h.p4_control_flows['ingress'],
+                                       self.numprimitives)
 
-      aparams = ['0', # action_ID
-                 '0', # match_ID
-                 next_stage,
-                 next_table_type]
-      
-      # zeros for remaining type / subtype parameters of init_program_state
-      for i in range(self.numprimitives):
-        aparams.append('0')
-        aparams.append('0')
+    self.commands += gen_t_checksum_entries(h.calculated_fields,
+                                            h.p4_field_list_calculations,
+                                            self.field_offsets,
+                                            self.vbits)
 
-      if 'matchless' not in tname:
-        aparams.append(str(MAX_PRIORITY))
+    self.commands += gen_t_resize_pr_entries()
 
-      self.commands.append(HP4_Command("table_add",
-                                            tname,
-                                            aname,
-                                            mparams,
-                                            aparams))
-
-  def gen_t_checksum_entries(self):
-    """ detect and handle ipv4 checksum """
-    cf_none_types = 0
-    cf_valid_types = 0
-    checksum_detected = False
-    for cf in self.h.calculated_fields:
-      for statement in cf[1]:
-        if statement[0] == 'update':
-          flc = self.h.p4_field_list_calculations[statement[1]]
-          for fl in flc.input:
-            count = 0
-            max_field_offset = 0
-            max_field = None
-            for field in fl.fields:
-              count += field.width
-              if field.offset > max_field_offset:
-                max_field_offset = field.offset
-                max_field = field
-            if count == 144:
-              if flc.algorithm == 'csum16' and flc.output_width == 16:
-                # Calculate rshift_base parameter
-                #  This is the amount to R-shift extracted.data such
-                #  that the ipv4 header is right aligned
-                key = max_field.instance.name + '.' + max_field.name
-                # TODO: remove assumption that extracted.data is 800 bits
-                aparam = str(800 - self.field_offsets[key] - max_field.width)
-                if statement[2] == None:
-                  cf_none_types += 1
-                  if (cf_none_types + cf_valid_types) > 1:
-                    print("ERROR: Unsupported: multiple checksums")
-                    exit()
-                  else:
-                    checksum_detected = True
-                    self.commands.append(HP4_Command("table_add",
-                                                      "t_checksum",
-                                                      "a_ipv4_csum16",
-                                                      ['[vdev ID]', '0&&&0'],
-                                                      [aparam, str(MAX_PRIORITY)]))
-                else:
-                  if statement[2].op == 'valid':
-                    cf_valid_types += 1
-                    if (cf_none_types + cf_valid_types) > 1:
-                      print("ERROR: Unsupported: multiple checksums")
-                      exit()
-                    else:
-                      # TODO: reduce entries by isolating relevant bit
-                      for key in self.vbits.keys():
-                        if statement[2].right == key[1]:
-                          mparams = ['[vdev ID]']
-                          val = format(self.vbits[key], '#x')
-                          mparams.append(val + '&&&' + val)
-                          checksum_detected = True
-                          self.commands.append(HP4_Command("table_add",
-                                                            "t_checksum",
-                                                            "a_ipv4_csum16",
-                                                            mparams,
-                                                            [aparam, '0']))
-                  else:
-                    print("ERROR: Unsupported if_cond op in calculated field: \
-                           %s" % statement[2].op)
-                    exit()
-              else:
-                print("ERROR: Unsupported checksum (%s, %i)" \
-                      % (flc.algorithm, flc.output_width))
-                exit()
-            else:
-              print("ERROR: Unsupported checksum - field list of %i bits" \
-                     % count)
-              exit()
-        else:
-          print("WARNING: Unsupported update_verify_spec for calculated field: \
-                 %s" % statement[0])
-
-    if checksum_detected == False:
-      self.commands.append(HP4_Command("table_add",
-                                      "t_checksum",
-                                      "_no_op",
-                                      ['[vdev ID]', '0&&&0'],
-                                      [str(MAX_PRIORITY)]))
-
-  def gen_t_resize_pr_entries(self):
-    # TODO: full implementation as the following primitives get support:
-    # - add_header | remove_header | truncate | push | pop | copy_header*
-    # * maybe (due to possibility of making previously invalid header
-    #   valid)
-
-    # default entry handled by dpmu
-    pass
-
-  def build(self):
-    self.collect_headers()
-    self.collect_actions()
-    self.gen_tset_parse_control_entries()
-    self.gen_tset_parse_select_entries()
-    self.gen_tset_pipeline_config_entries()
-    self.gen_tX_templates()
-    self.gen_action_entries()
-    self.gen_tmiss_entries()
-    self.gen_t_checksum_entries()
-    self.gen_t_resize_pr_entries()
-
-  def compile_to_hp4(self, program_path, out_path, mt_out_path, seb, numprimitives):
-    self.program_path = program_path
+  def compile_to_hp4(self, program_path, out_path, mt_out_path, numprimitives):
     self.out_path = out_path
     self.mt_out_path = mt_out_path
-    self.seb = seb
     self.numprimitives = numprimitives
-    self.h = HLIR(program_path)
-    self.h.build()
-    if len(self.h.p4_ingress_ptr) > 1:
-      print("ERROR: multiple ingress entry points:")
-      for node in h.p4_ingress_ptr.keys():
-        print('  ' + node)
-      exit()
-    self.headers_hp4_type = {}
-    self.action_ID = {}
-    self.actionID = 1
-
-    self.pc_bits_extracted = {} # num bits HP4 must have extracted prior to handling
-                                #  the associated parser function; viewpoint = hp4
-    self.pc_bit_offsets = {} # pc_state : offset into the packet; viewpoint = native
-
-    self.pc_action = {}
-    self.field_offsets = {}
-    self.offset = 0
-    self.ps_to_pc = {}
-    self.pc_to_ps = {}
-    self.pc_to_preceding_pcs = {}
-    self.vbits = {}
-    self.parse_select_match_offsets = {}
-    self.parse_select_table_names = {}
-    self.parse_select_list = []
-    self.stage = 1
-    self.table_to_trep = {}
-    self.action_to_arep = {}
-    self.commands = []
-    self.command_templates = []
-    self.build()
+    h = HLIR(program_path)
+    h.build()
+    do_support_checks(h)
+    self.build(h)
     self.write_output()
 
     return CodeRepresentation(out_path, mt_out_path)
@@ -1514,16 +694,1142 @@ class P4_to_HP4(HP4Compiler):
     json.dump(sorted_ct, out, default=convert_to_builtin_type, indent=2)
     out.close()
 
+def do_support_checks(h):
+  # Not sure how this would happen in P4 but HLIR suggests the possibility:
+  if len(h.p4_ingress_ptr.keys()) > 1:
+    unsupported("Not supported: multiple entry points into the ingress pipeline")
+
+  # Tables with multiple match criteria:
+  for table in h.p4_tables.values():
+    if len(table.match_fields) > 1:
+      unsupported("Not supported: multiple field matches (table: %s)" % table.name)
+
+def get_parse_select_table_code(first_byte):
+  for i in range(len(parse_select_table_boundaries) - 1):
+    lowerbound = parse_select_table_boundaries[i]
+    upperbound = parse_select_table_boundaries[i+1]
+    if first_byte >= lowerbound and first_byte < upperbound:
+      ret = '[PARSE_SELECT_'
+      ret += '%02d_%02d]' % (lowerbound, upperbound - 1)
+      return ret
+  raise Exception("Did not find parse_select table; first_byte: %d" % first_byte)
+
+def get_pc_action(pcs):
+  select_first_byte = MAX_BYTE
+  for criteria in pcs.select_criteria:
+    select_first_byte = min(criteria[OFFSET] / 8, select_first_byte)
+  return get_parse_select_table_code(select_first_byte)
+
+def gen_pc_entry_start(pcs):
+  """ Generate parse_control entries for pc 0/1:
+       We need an entry for pc 1 only if SEB is insufficient
+       to handle 'start', in which case the action for pc 0
+       must be extract_more
+  """
+  start_pcs = pcs.children[0] # pc 0 always has one child: pc 1
+  mparams = ['[vdev ID]', str(pcs.pcs_id)]
+  aparams = []
+  act = 'set_next_action'
+  if start_pcs.p4_bits_extracted > pcs.hp4_bits_extracted:
+    act = 'extract_more'
+    aparams.append(str(int(ceil(start_pcs.p4_bits_extracted / 8.0))))
+  else:
+    if not start_pcs.children:
+      aparams.append('[PROCEED]')
+    else:
+      aparams.append(get_pc_action(start_pcs))
+
+  aparams.append(str(start_pcs.pcs_id))
+
+  cmd = HP4_Command(command='table_add',
+                    table='tset_parse_control',
+                    action=act,
+                    match_params=mparams,
+                    action_params=aparams)
+  return cmd
+
+def get_p_ps_tables(pcs):
+  # sort
+  sorted_criteria, sorted_branches, default_branch = sort_return_select(pcs)
+
+  # revise branch_values, select_criteria per parse_select table boundaries
+  revised_criteria, revised_branches = revise_return_select(pcs,
+                                                            sorted_criteria,
+                                                            sorted_branches)
+  return get_parse_select_tables(revised_criteria)
+
+def did_rewind(pcs):
+  if not pcs.children:
+    return False
+  first_criteria = sort_return_select(pcs)[0][0]
+  j = 0
+  while parse_select_table_boundaries[j+1] * 8 <= first_criteria[OFFSET]:
+    j += 1
+  p_ps_tables = get_p_ps_tables(pcs.pcs_path[-1])
+  if parse_select_table_boundaries[j] <= p_ps_tables[-1][L_BOUND]:
+    return True
+  return False
+
+def gen_parse_control_entries(pcs, commands=[]):
+  if pcs.pcs_id == 0:
+    cmd = gen_pc_entry_start(pcs)
+    commands.append(cmd)
+    if cmd.action == 'extract_more':
+      commands = gen_parse_control_entries(pcs.children[0], commands)
+    else:
+      for child in pcs.children[0].children:
+        commands = gen_parse_control_entries(child, commands)
+  
+  else:
+    if (pcs.pcs_path[-1].hp4_bits_extracted < pcs.hp4_bits_extracted or
+        did_rewind(pcs)):
+      mparams = ['[vdev ID]', str(pcs.pcs_id)]
+      aparams = []
+      act = 'set_next_action'
+      if not pcs.children:
+        aparams.append('[PROCEED]')
+      else:
+        aparams.append(get_pc_action(pcs))
+      aparams.append(str(pcs.pcs_id))
+
+      cmd = HP4_Command(command='table_add',
+                        table='tset_parse_control',
+                        action=act,
+                        match_params=mparams,
+                        action_params=aparams)
+
+      commands.append(cmd)
+
+    for child in pcs.children:
+      commands = gen_parse_control_entries(child, commands)
+
+  return commands
+
+def get_new_val(val, width, offset, new_width):
+  mask = 0
+  bitpos = offset
+  while bitpos < (offset + new_width):
+    mask += 2**(width - bitpos - 1)
+    bitpos += 1
+  newval = val & mask
+  newval = newval >> (width - (offset + new_width))
+  return newval
+
+def sort_return_select(pcs):
+  if pcs.parse_state.return_statement[PS_RET_TYPE] == 'immediate':
+    return [], [], None
+
+  sorted_indices = sorted(range(len(pcs.select_criteria)),
+                          key=pcs.select_criteria.__getitem__)
+  sorted_criteria = []
+  for i in sorted_indices:
+    sorted_criteria.append(pcs.select_criteria[i])
+  sorted_branches = []
+  default_branch = None
+
+  for branch in pcs.parse_state.return_statement[PS_RET_BRANCHES]:
+    if branch[BRANCH_VALUES][0][VAL_TYPE] == 'value':
+      sorted_values = []
+      for i in sorted_indices:
+        sorted_values.append(branch[BRANCH_VALUES][i][VAL_VALUE])
+      sorted_branches.append((sorted_values, branch[BRANCH_STATE]))
+    elif branch[BRANCH_VALUES][0][VAL_TYPE] == 'default':
+      default_branch = branch
+  return sorted_criteria, sorted_branches, default_branch
+
+def revise_value(val, crit, j):
+  curr_offset = crit[OFFSET]
+  ret = []
+  while curr_offset < (crit[OFFSET] + crit[WIDTH]):
+    # setup
+    diff = parse_select_table_boundaries[j+1] * 8 - curr_offset
+    if diff > crit[WIDTH]:
+      diff = crit[OFFSET] + crit[WIDTH] - curr_offset
+    # rev_branch_values
+    ret.append(get_new_val(val,
+                           crit[WIDTH],
+                           curr_offset - crit[OFFSET],
+                           diff))
+    # cleanup
+    curr_offset += diff
+    j += 1
+  return ret
+
+def revise_criteria(crit, j):
+  ret = []
+  curr_offset = crit[OFFSET]
+  while curr_offset < (crit[OFFSET] + crit[WIDTH]):
+    # setup
+    diff = parse_select_table_boundaries[j+1] * 8 - curr_offset
+    if diff > crit[WIDTH]:
+      diff = crit[OFFSET] + crit[WIDTH] - curr_offset
+    # update
+    ret.append((curr_offset, diff))
+    # cleanup
+    curr_offset += diff
+    j += 1
+  return ret
+
+def revise_return_select(pcs, sorted_criteria, sorted_branches):
+  revised_criteria = []
+  revised_branches = [[] for count in xrange(len(sorted_branches))]
+
+  i = 0
+  for crit in sorted_criteria:
+    j = 0
+    while parse_select_table_boundaries[j+1] * 8 <= crit[OFFSET]:
+      j += 1
+
+    # detect and handle broken boundary
+    if parse_select_table_boundaries[j+1] * 8 <= (crit[OFFSET] + crit[WIDTH]):    
+      revised_criteria += revise_criteria(crit, j)
+      k = 0
+      for branch in sorted_branches:
+        val = branch[BRANCH_VALUES][i]
+        revised_branches[k] += revise_value(val, crit, j)
+        k += 1
+
+    else:
+      revised_criteria.append(crit)
+      k = 0
+      for branch in sorted_branches:
+        val = branch[BRANCH_VALUES][i]
+        revised_branches[k].append(val)
+        k += 1
+
+    i += 1
+
+  return revised_criteria, revised_branches
+
+def do_split_criteria(crit):
+  try:
+    assert(crit[WIDTH] % 8 == 0)
+  except AssertionError as e:
+    print(e)
+    unsupported("select criteria (" + str(crit[OFFSET]) + ", " + str(crit[WIDTH]) \
+                              + ") not divisible by 8")
+
+  curr_offset = crit[OFFSET]
+  split_crit = []
+  while curr_offset < crit[OFFSET] + crit[WIDTH]:
+    split_crit.append((curr_offset, 8))
+    curr_offset += 8
+  return split_crit
+
+def do_split_val(val, width):
+  ret = []
+  mask = 0
+  bitpos = 0
+  offset = 0
+
+  while offset < width:
+    mask = 0
+    while bitpos < offset + 8:
+      mask += 2**(width - bitpos - 1)
+      bitpos += 1
+    ret.append((val & mask) >> (width - bitpos))
+    offset += 8
+  return ret  
+
+def split_return_select(revised_criteria, revised_branches):
+  split_criteria = []
+  split_branches = [[] for count in xrange(len(revised_branches))]
+
+  i = 0
+  for crit in revised_criteria:
+    split_crits = do_split_criteria(crit)
+    for split_crit in split_crits:
+      split_criteria.append(split_crit)
+    j = 0
+    for branch in revised_branches:
+      val = branch[i]
+      split_vals = do_split_val(val, crit[WIDTH])
+      for split_val in split_vals:
+        split_branches[j].append(split_val)
+      j += 1
+    i += 1
+
+  return split_criteria, split_branches
+
+def get_parse_select_table(crit):
+  j = 0
+  while parse_select_table_boundaries[j+1] * 8 <= crit[OFFSET]:
+    j += 1
+  lowerbound = parse_select_table_boundaries[j]
+  upperbound = parse_select_table_boundaries[j+1]
+  table_name = 'tset_parse_select_%02d_%02d' % (lowerbound, upperbound - 1)
+  return table_name, lowerbound * 8, upperbound * 8
+
+def get_parse_select_tables(revised_criteria):
+  parse_select_tables = []
+  for crit in revised_criteria:
+    parse_select_table = get_parse_select_table(crit)
+    if parse_select_table not in parse_select_tables:
+      parse_select_tables.append(parse_select_table)
+  return parse_select_tables
+
+def get_mparam_indices(table, crits):
+  mparam_indices = []
+  for crit in crits:
+    curr_offset = crit[OFFSET]
+    while curr_offset < crit[OFFSET] + crit[WIDTH]:
+      mparam_indices.append((curr_offset - table[L_BOUND]) / 8)
+      curr_offset += 8
+  return mparam_indices
+
+def get_branch_mparams(branch_mparams, branch, mparam_indices):
+  for index in mparam_indices:
+    branch_mparams[index] = hex(branch.pop(0)) + '&&&0xFF'
+  return branch_mparams
+
+def get_ps_action(tablename):
+  return '[' + tablename.split('tset_')[1].upper() + ']'
+
+def get_branch_action(pcs, pst_count, parse_select_tables, branch):
+  action = ''
+  aparams = []
+
+  if branch[BRANCH_STATE] == 'ingress':
+    action = 'set_next_action'
+    aparams.append('[PROCEED]')
+    aparams.append(str(pcs.pcs_id))
+    return action, aparams
+
+  # set_next_action or extract_more
+  if pst_count != len(parse_select_tables) - 1:
+    action = 'set_next_action'
+    aparams.append(get_ps_action(parse_select_tables[pst_count + 1][T_NAME]))
+    aparams.append(str(pcs.pcs_id))
+  else:
+    next_pcs = [child for child in pcs.children \
+                       if child.parse_state.name == branch[BRANCH_STATE]][0]
+
+    if next_pcs.hp4_bits_extracted > pcs.hp4_bits_extracted:
+      action = 'extract_more'
+      numbytes = int(ceil(next_pcs.hp4_bits_extracted / 8.0))
+      aparams.append(str(numbytes))
+
+    else:
+      if not next_pcs.children:
+        action = 'set_next_action'
+        aparams.append('[PROCEED]')
+        aparams.append(str(next_pcs.pcs_id))
+        return action, aparams
+      # another select statement in next pcs - need to rewind?
+      n_first_criteria = sort_return_select(next_pcs)[0][0]
+      j = 0
+      while parse_select_table_boundaries[j+1] * 8 <= n_first_criteria[OFFSET]:
+        j += 1
+      if parse_select_table_boundaries[j] <= parse_select_tables[pst_count][L_BOUND]:
+        # rewind
+        action = 'extract_more'
+        numbytes = int(ceil(next_pcs.hp4_bits_extracted / 8.0))
+        aparams.append(str(numbytes))
+      else:
+        action = 'set_next_action'
+        next_ps_table = get_parse_select_table(n_first_criteria)
+        aparams.append(get_ps_action(next_ps_table[T_NAME]))
+
+    aparams.append(str(next_pcs.pcs_id))
+
+  return action, aparams
+
+def get_parse_select_entries(pcs,
+                             parse_select_tables,
+                             split_criteria,
+                             split_branches_with_dests,
+                             default_branch):
+  commands = []
+  # for each parse_select table:
+  # - pop all queue items that belong to the table
+  # - generate table entry
+  for pst_count, table in enumerate(parse_select_tables):
+    crits = []
+    while (split_criteria[0][OFFSET] >= table[L_BOUND] and
+           split_criteria[0][OFFSET] < table[U_BOUND]):
+      crits.append(split_criteria.pop(0))
+      if not split_criteria:
+        break
+    mparam_indices = get_mparam_indices(table, crits)
+    mparams = ['0&&&0' for count in xrange((table[U_BOUND] - table[L_BOUND]) / 8)]
+    for branch in split_branches_with_dests:
+      branch_mparams = ['[vdev ID]', str(pcs.pcs_id)]
+      branch_mparams += get_branch_mparams(list(mparams), branch[BRANCH_VALUES], mparam_indices)
+      # determine action and action_params
+      branch_action, branch_aparams = get_branch_action(pcs,
+                                                        pst_count,
+                                                        parse_select_tables,
+                                                        branch)
+      # priority
+      branch_aparams.append(HIGHEST_PRIORITY)
+      commands.append(HP4_Command(command='table_add',
+                                  table=table[T_NAME],
+                                  action=branch_action,
+                                  match_params=branch_mparams,
+                                  action_params=branch_aparams))
+    # default branch
+    default_mparams = ['[vdev ID]', str(pcs.pcs_id)]
+    default_mparams += list(mparams)
+    default_action, default_aparams = get_branch_action(pcs,
+                                                        pst_count,
+                                                        parse_select_tables,
+                                                        default_branch)
+    default_aparams.append(LOWEST_PRIORITY)
+    commands.append(HP4_Command(command='table_add',
+                                table=table[T_NAME],
+                                action=default_action,
+                                match_params=default_mparams,
+                                action_params=default_aparams))
+
+  return commands
+
+def gen_parse_select_entries(pcs, commands=[]):
+  # base cases
+  if pcs.pcs_id == 0:
+    return gen_parse_select_entries(pcs.children[0])
+  if pcs.parse_state.return_statement[PS_RET_TYPE] == 'immediate':
+    return commands
+
+  # sort
+  sorted_criteria, sorted_branches, default_branch = sort_return_select(pcs)
+
+  # revise branch_values, select_criteria per parse_select table boundaries
+  revised_criteria, revised_branches = revise_return_select(pcs,
+                                                            sorted_criteria,
+                                                            sorted_branches)
+
+  split_criteria, split_branches = split_return_select(revised_criteria,
+                                                       revised_branches)
+
+  parse_select_tables = get_parse_select_tables(revised_criteria)
+
+  dests = [branch[BRANCH_STATE] for branch in sorted_branches]
+
+  commands += get_parse_select_entries(pcs,
+                                       parse_select_tables,
+                                       split_criteria,
+                                       zip(split_branches, dests),
+                                       default_branch)
+
+  for child in pcs.children:
+    commands = gen_parse_select_entries(child, commands)
+
+  return commands
+
+def process_parse_select_entries(ps_entries):
+  ret = []
+  for command in ps_entries:
+    strbounds = command.table.split('tset_parse_select_')[1].split('_')
+    lower, upper = [int(x) for x in strbounds]
+    if lower > EXT_FIRST_WIDTH:
+      ret.append(command)
+
+    new_mp_val = ''
+    new_mp_mask = ''
+    started = False
+    for mp in command.match_params[EXT_START_INDEX:]:
+      val, mask = [int(x, 0) for x in mp.split('&&&')]
+      if started or mask != 0:
+        started = True
+        valstr, maskstr = ["0x{:02x}".format(x).split('0x')[1] for x in [val, mask]]
+        new_mp_val += valstr
+        new_mp_mask += maskstr
+
+    # fill out remaining bytes until we have all 40
+    for j in range(upper + 1, EXT_FIRST_WIDTH):
+      new_mp_val += '00'
+      new_mp_mask += '00'
+
+    new_mp = command.match_params[0:EXT_START_INDEX]
+    new_mp.append('0x' + new_mp_val + '&&&0x' + new_mp_mask)
+    ret.append(HP4_Command(command='table_add',
+                           table=command.table,
+                           action=command.action,
+                           match_params=new_mp,
+                           action_params=command.action_params))
+    
+  return ret
+
+def collect_ingress_pcs(pcs, ingress_pcs_list=[]):
+  if pcs.pcs_id == 0:
+    return collect_ingress_pcs(pcs.children[0])
+
+  ps = pcs.parse_state
+
+  if ps.return_statement[PS_RET_TYPE] == 'select':
+    for branch in ps.return_statement[PS_RET_BRANCHES]:
+      if branch[BRANCH_STATE] == 'ingress':
+        ingress_pcs_list.append(pcs)
+        break
+  elif ps.return_statement[PS_RET_TYPE] == 'immediate':
+    if ps.return_statement[PS_RET_IMM_STATE] == 'ingress':
+      ingress_pcs_list.append(pcs)
+  else:
+    unsupported("Unhandled ps return_statement: " + ps.return_statement[PS_RET_TYPE])
+
+  for child in pcs.children:
+    ingress_pcs_list = collect_ingress_pcs(child, ingress_pcs_list)
+
+  return ingress_pcs_list
+
+def get_headerset_and_maxdepth(ingress_pcs_list):
+  pcs_headers = {}
+  longest = 0
+  for pcs in ingress_pcs_list:
+    if len(pcs.header_offsets) > longest:
+      longest = len(pcs.header_offsets)
+  headerset = [set() for count in xrange(longest)]
+  for j in range(longest):
+    for pcs in ingress_pcs_list:
+      if len(pcs.header_offsets) > j:
+        pcs_headers = sorted(pcs.header_offsets, key=pcs.header_offsets.get)
+        headerset[j].add(pcs_headers[j])
+
+  return headerset, longest
+
+def get_vbits(ingress_pcs_list):
+  headerset, maxdepth = get_headerset_and_maxdepth(ingress_pcs_list)
+  vbits = {}
+  lshift = VBITS_WIDTH
+  for j in range(maxdepth):
+    numbits = len(headerset[j])
+    lshift = lshift - numbits
+    i = 1
+    for header in headerset[j]:
+      vbits[(j, header)] = i << lshift
+      i = i << 1
+  return vbits
+
+def get_hp4_type(header):
+  if header.name == 'standard_metadata':
+    return 'standard_metadata'
+  if header.metadata == True:
+    return 'metadata'
+  return 'extracted'
+
+def get_aparam_table_ID(table):
+  if len(table.match_fields) == 0:
+    return '[MATCHLESS]'
+
+  match = table.match_fields[0] # supporting only one match field
+  match_type = match[MATCH_TYPE]
+
+  if match_type.value == 'P4_MATCH_EXACT':
+    field = match[MATCH_OBJECT]
+    header = field.instance
+    header_hp4_type = get_hp4_type(header)
+    if header_hp4_type == 'standard_metadata':
+      if field.name == 'ingress_port':
+        return '[STDMETA_INGRESS_PORT_EXACT]'
+      elif field.name == 'packet_length':
+        return '[STDMETA_PACKET_LENGTH_EXACT]'
+      elif field.name == 'instance_type':
+        return '[STDMETA_INSTANCE_TYPE_EXACT]'
+      elif field.name == 'egress_spec':
+        return '[STDMETA_EGRESS_SPEC_EXACT]'
+      else:
+        unsupported("ERROR: Unsupported: match on stdmetadata field %s" % field.name)
+
+    elif header_hp4_type == 'metadata':
+      return '[METADATA_EXACT]'
+    elif header_hp4_type == 'extracted':
+      return '[EXTRACTED_EXACT]'
+  elif match_type.value == 'P4_MATCH_VALID':
+    return '[EXTRACTED_VALID]'
+  else:
+    unsupported("Not yet supported: " + match_type.value)
+  
+def gen_pipeline_config_entries(pcs, first_table, ingress_pcs_list, vbits):
+  if pcs.pcs_id == 0:
+    return gen_pipeline_config_entries(pcs.children[0],
+                                       first_table,
+                                       ingress_pcs_list,
+                                       vbits)
+
+  commands = []
+
+  aparam_table_ID = get_aparam_table_ID(first_table)  
+
+  for pcs in ingress_pcs_list:
+    val = 0
+    for i, header in enumerate( sorted(pcs.header_offsets,
+                                       key=pcs.header_offsets.get) ):
+      val = val | vbits[(i, header)]
+
+    valstr = '0x' + '%x' % val
+    commands.append(HP4_Command('table_add',
+                                'tset_pipeline_config',
+                                'a_set_pipeline',
+                                ['[vdev ID]', str(pcs.pcs_id)],
+                                [aparam_table_ID, valstr, HIGHEST_PRIORITY]))
+
+  return commands
+
+def process_extract_statements(pcs):
+  for call in pcs.parse_state.call_sequence:
+    if call[PS_CALL_TYPE] == p4_hlir.hlir.p4_parser.parse_call.extract:
+      pcs.header_offsets[call[PS_CALL_H_INST].name] = pcs.p4_bits_extracted
+      pcs.p4_bits_extracted += call[PS_CALL_H_INST].header_type.length * 8
+      if pcs.hp4_bits_extracted < pcs.p4_bits_extracted:
+        pcs.hp4_bits_extracted = pcs.p4_bits_extracted
+    else:
+      raise Exception('Unsupported parse call: %s' % call[PS_CALL_TYPE])
+
+def process_parse_tree_clr(pcs, h):
+  #print(str(pcs.pcs_id) + ' [' + pcs.parse_state.name + ']')
+  process_extract_statements(pcs)
+
+  def add_next(next_parse_state):
+    next_pcs_pcs_path = list(pcs.pcs_path)
+    next_pcs_pcs_path.append(pcs)
+    next_pcs_ps_path = list(pcs.ps_path)
+    next_pcs_ps_path.append(pcs.parse_state)
+    next_pcs = PC_State(hp4_bits_extracted = pcs.hp4_bits_extracted,
+                        p4_bits_extracted = pcs.p4_bits_extracted,
+                        ps_path = next_pcs_ps_path,
+                        pcs_path = next_pcs_pcs_path,
+                        parse_state = next_parse_state)
+    pcs.children.append(next_pcs)
+    return next_pcs
+
+  if pcs.parse_state.return_statement[PS_RET_TYPE] == 'select':
+    for criteria in pcs.parse_state.return_statement[PS_RET_CRITERIA]:
+      if isinstance(criteria, current_call):
+        curr_reqmt = criteria[OFFSET] + criteria[WIDTH]
+        if pcs.p4_bits_extracted + curr_reqmt > pcs.hp4_bits_extracted:
+          pcs.hp4_bits_extracted += curr_reqmt
+        hp4_criteria_offset = criteria[OFFSET] + pcs.p4_bits_extracted
+        pcs.select_criteria.append((hp4_criteria_offset, criteria[WIDTH]))
+      else:
+        hdr_name, fld_name = criteria.split('.')
+        hp4_criteria_offset = h.p4_fields[criteria].offset + pcs.header_offsets[hdr_name]
+        pcs.select_criteria.append((hp4_criteria_offset, h.p4_fields[criteria].width))
+
+    next_parse_states = []
+    for branch in pcs.parse_state.return_statement[PS_RET_BRANCHES]:
+      # e.g., ([('value', 1108152157446)], 'parse_A')
+      values = []
+      for value in branch[BRANCH_VALUES]:
+        if value[VAL_TYPE] != 'value' and value[VAL_TYPE] != 'default':
+          raise Exception('Unsupported branch value type: %s' % value[VAL_TYPE])
+        if value[VAL_TYPE] == 'default':
+          values.append('default')
+        else:
+          values.append(value[VAL_VALUE])
+      pcs.select_values.append( values )
+      if branch[BRANCH_STATE] != 'ingress':
+        next_parse_state = h.p4_parse_states[branch[BRANCH_STATE]]
+        if next_parse_state not in next_parse_states:
+          next_parse_states.append(next_parse_state)
+          next_pcs = add_next(next_parse_state)
+          process_parse_tree_clr(next_pcs, h)
+  elif pcs.parse_state.return_statement[PS_RET_TYPE] == 'immediate':
+      next_parse_state_name = pcs.parse_state.return_statement[PS_RET_IMM_STATE]
+      if next_parse_state_name != 'ingress':
+        next_parse_state = h.p4_parse_states[next_parse_state_name]
+        next_pcs = add_next(next_parse_state)
+        process_parse_tree_clr(next_pcs, h)
+  else:
+    raise Exception('Unsupported return type: %s' % \
+                    pcs.parse_state.return_statement[PS_RET_TYPE])
+
+def consolidate_parse_tree_clr(pcs, h):
+  if pcs.parse_state.return_statement[PS_RET_TYPE] == 'immediate':
+    next_parse_state_name = pcs.parse_state.return_statement[PS_RET_IMM_STATE]
+    if next_parse_state_name != 'ingress':
+      next_pc_state = pcs.children[0]
+      next_parse_state = next_pc_state.parse_state
+      old_ps_name = pcs.parse_state.name
+      new_ps_name = pcs.parse_state.name + '-' + next_parse_state.name
+      new_ps_call_sequence = list(pcs.parse_state.call_sequence)
+      new_ps_call_sequence += next_parse_state.call_sequence
+      new_ps = p4_parse_state(h,
+                              new_ps_name,
+                              call_sequence=new_ps_call_sequence,
+                              return_statement=next_parse_state.return_statement)
+      hp4_bits_diff = next_pc_state.hp4_bits_extracted - pcs.hp4_bits_extracted
+      pcs.hp4_bits_extracted += hp4_bits_diff
+      p4_bits_diff = next_pc_state.p4_bits_extracted - pcs.p4_bits_extracted
+      pcs.p4_bits_extracted += p4_bits_diff
+      pcs.parse_state = new_ps
+      pcs.children = list(next_pc_state.children)
+      prev_ps = pcs.ps_path[-1]
+      for i, branch in enumerate(prev_ps.return_statement[PS_RET_BRANCHES]):
+        if branch[BRANCH_STATE] == old_ps_name:
+          prev_ps.return_statement[PS_RET_BRANCHES][i] = (branch[BRANCH_VALUES], new_ps_name)
+  for child in pcs.children:
+    consolidate_parse_tree_clr(child, h)
+
+def collect_header_offsets(pcs, header_offsets={}):
+  for header in pcs.header_offsets:
+    if header in header_offsets:
+      if pcs.header_offsets[header] != header_offsets[header]:
+        unsupported("Unsupported: %s has multiple potential offsets; %db and %db" \
+                    % (header, pcs.header_offsets[header], header_offsets[header]))
+  header_offsets.update(pcs.header_offsets)
+  for child in pcs.children:
+    header_offsets = collect_header_offsets(child, header_offsets)
+
+  return header_offsets
+
+def collect_field_offsets(header_offsets, header_instances):
+  field_offsets = {}
+  for header in header_offsets:
+    hinst = header_instances[header]
+    for field in hinst.fields:
+      field_offsets[header + '.' + field.name] = field.offset + header_offsets[header]
+
+  return field_offsets
+
+def gen_action_aparams(p4_call, call, field_offsets):
+    aparams = []
+    primtype = call[PRIM_TYPE]
+    subtype = call[PRIM_SUBTYPE]
+    p4_call_params = p4_call[P4_CALL_PARAMS]
+
+    if primtype == 'drop':
+      return aparams
+    if primtype == 'add_to_field':
+      if (a2f_prim_subtype_action[subtype] == 'a_add2f_extracted_const_u' or
+          a2f_prim_subtype_action[subtype] == 'a_subff_extracted_const_u'):
+        # aparams: leftshift, val
+        dst_offset = field_offsets[str(p4_call_params[0])]
+        leftshift = 800 - (dst_offset + p4_call_params[0].width)
+        if type(p4_call_params[1]) is int:
+          val = str(p4_call_params[1])
+          if a2f_prim_subtype_action[subtype] == 'a_subff_extracted_const_u':
+            val = str(p4_call_params[1]*-1)
+        else:
+          val = '[val]'
+        aparams.append(str(leftshift))
+        aparams.append(val)
+    if primtype == 'modify_field':
+      instance_name = p4_call_params[0].instance.name
+      dst_field_name = p4_call_params[0].name
+      if instance_name == 'intrinsic_metadata':
+        if dst_field_name == 'mcast_grp':
+          instance_name = 'standard_metadata'
+          dst_field_name = 'egress_spec'
+        else:
+          print("Not supported: modify_field(" + instance_name + '.' \
+                + dst_field_name + ", *)")
+          exit()
+      if type(p4_call_params[1]) is p4_hlir.hlir.p4_headers.p4_field:
+        if p4_call_params[1].width > p4_call_params[0].width:
+          dst = instance_name + '.' + dst_field_name
+          src = p4_call_params[1].instance.name + '.' + p4_call_params[1].name
+          print("WARNING: modify_field(%s, %s): %s width (%i) > %s width (%i)" \
+              % (dst, src, src, p4_call_params[1].width, dst, p4_call_params[0].width))
+      if mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_ingressport':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_packetlength':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressspec':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressport':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressinst':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_insttype':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_meta':
+        # aparams: rightshift, tmask
+        rshift = 256 - (field_offsets[str(p4_call_params[1])] + p4_call_params[1].width)
+        mask = 0
+        if p4_call_params[1].width < p4_call_params[0].width:
+          mask = hex(int(math.pow(2, p4_call_params[1].width)) - 1)
+        else:
+          mask = hex(int(math.pow(2, p4_call_params[0].width)) - 1)
+        aparams.append(str(rshift))
+        aparams.append(mask)
+      elif (mf_prim_subtype_action[subtype] == 'mod_meta_const' or
+            mf_prim_subtype_action[subtype] == 'mod_extracted_const'):
+        # aparams: leftshift, mask, val
+        if type(p4_call_params[1]) is int:
+          val = str(p4_call_params[1])
+        else:
+          val = '[val]'
+        fo = field_offsets[str(p4_call_params[0])]
+        fw = p4_call_params[0].width
+        maskwidthbits = 800
+        if mf_prim_subtype_action[subtype] == 'mod_meta_const':
+          maskwidthbits = 256
+        leftshift = str(maskwidthbits - (fo + fw))
+        mask = gen_bitmask(p4_call_params[0].width,
+                                field_offsets[str(p4_call_params[0])],
+                                maskwidthbits / 8)
+        aparams.append(leftshift)
+        aparams.append(mask)
+        aparams.append(val)
+      elif (mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_const'):
+        if type(p4_call_params[1]) is int:
+          aparams.append(str(p4_call_params[1]))
+        else:
+          aparams.append('[val]')
+      elif (mf_prim_subtype_action[subtype] == 'mod_intmeta_mcast_grp_const'):
+        if type(p4_call_params[1]) is int:
+          print("Not yet supported: mod_intmeta_mcast_grp_const w/ explicit const")
+          exit()
+        else:
+          aparams.append('[MCAST_GRP]')
+
+      #elif mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_stdmeta_ingressport':
+      #  return aparams
+      elif mf_prim_subtype_action[subtype] == 'mod_extracted_extracted':
+        # aparams:
+        # - leftshift (how far should src field be shifted to align w/ dst)
+        # - rightshift (how far should src field be shifted to align w/ dst)
+        # - msk (bitmask for dest field)
+        dst_offset = field_offsets[str(p4_call_params[0])]
+        src_offset = field_offsets[str(p4_call_params[1])]
+        lshift = 0
+        rshift = 0
+        # *_revo = revised offset; right-aligned instead of left-aligned
+        dst_revo = 800 - (dst_offset + p4_call_params[0].width)
+        src_revo = 800 - (src_offset + p4_call_params[1].width)
+        if src_revo > dst_revo:
+          rshift = src_revo - dst_revo
+        else:
+          lshift = dst_revo - src_revo
+        aparams.append(str(lshift))
+        aparams.append(str(rshift))
+        aparams.append(gen_bitmask(p4_call_params[0].width, dst_offset, 100))
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_extracted':
+        dst_offset = field_offsets[str(p4_call_params[0])]
+        src_offset = field_offsets[str(p4_call_params[1])]
+        lshift = 0
+        rshift = 0
+        dstmaskwidthbits = 256
+        srcmaskwidthbits = 800
+        # *_revo = revised offset; right-aligned instead of left-aligned
+        dst_revo = dstmaskwidthbits - (dst_offset + p4_call_params[0].width)
+        src_revo = srcmaskwidthbits - (src_offset + p4_call_params[1].width)
+        if src_revo > dst_revo:
+          rshift = src_revo - dst_revo
+        else:
+          lshift = dst_revo - src_revo
+        dstmask = gen_bitmask(p4_call_params[0].width, dst_offset,
+                                   dstmaskwidthbits / 8)
+        srcmask = dstmask
+        if p4_call_params[1].width < p4_call_params[0].width:
+          srcmask = gen_bitmask(p4_call_params[1].width, dst_offset,
+                                     dstmaskwidthbits / 8)
+        aparams.append(str(lshift))
+        aparams.append(str(rshift))
+        aparams.append(dstmask)
+        aparams.append(srcmask)
+      elif mf_prim_subtype_action[subtype] == 'mod_extracted_meta':
+        dst_offset = field_offsets[str(p4_call_params[0])]
+        src_offset = field_offsets[str(p4_call_params[1])]
+        lshift = 0
+        rshift = 0
+        dstmaskwidthbits = 800
+        srcmaskwidthbits = 256
+        # *_revo = revised offset; right-aligned instead of left-aligned
+        dst_revo = dstmaskwidthbits - (dst_offset + p4_call_params[0].width)
+        src_revo = srcmaskwidthbits - (src_offset + p4_call_params[1].width)
+        if src_revo > dst_revo:
+          rshift = src_revo - dst_revo
+        else:
+          lshift = dst_revo - src_revo
+        dstmask = gen_bitmask(p4_call_params[0].width, dst_offset,
+                                   dstmaskwidthbits / 8)
+        srcmask = dstmask
+        if p4_call_params[1].width < p4_call_params[0].width:
+          srcmask = gen_bitmask(p4_call_params[1].width, dst_offset,
+                                     dstmaskwidthbits / 8)
+        aparams.append(str(lshift))
+        aparams.append(str(rshift))
+        aparams.append(dstmask)
+        aparams.append(srcmask)
+
+    return aparams
+
+def gen_action_entries(action_to_arep, action_ID, field_offsets):
+  commands = []
+  command_templates = []
+  for action in action_to_arep:
+    for stage in action_to_arep[action].stages:
+      table_name = action_to_arep[action].tables[stage]
+      for p4_call in action.call_sequence:
+        p4_call_params = p4_call[P4_CALL_PARAMS]
+        istemplate = False
+        idx = action.call_sequence.index(p4_call)
+        call = action_to_arep[action].call_sequence[idx]
+        primtype = call[PRIM_TYPE]
+        subtype = call[PRIM_SUBTYPE]
+        rank = idx + 1
+        tname = 't_' + primitive_tnames[primtype] + '_' + str(stage) + str(rank)
+
+        if primtype == 'modify_field':
+          aname = mf_prim_subtype_action[subtype]
+        elif primtype == 'add_to_field':
+          aname = a2f_prim_subtype_action[subtype]
+        else:
+          aname = gen_prim_subtype_action[primtype]
+        mparams = ['[vdev ID]']
+        if primtype != 'drop':
+          if primtype == 'modify_field' or primtype == 'add_to_field':
+            mparams.append( subtype )
+          mparams.append(str(action_ID[action]))
+          # If the parameter passed to the primitive in the source code is an
+          # action parameter reference, the match_ID parameter should be
+          # [val]&&&0x7FFFFF because each distinct match could have a different
+          # value for the action parameter.  Otherwise, we don't care what the
+          # match_ID is so use 0&&&0.
+          match_ID_param = '0&&&0'
+          for param in p4_call_params:
+            if type(param) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
+              match_ID_param = '[match ID]&&&0x7FFFFF'
+              istemplate = True
+              break
+          mparams.append(match_ID_param)
+
+        aparams = gen_action_aparams(p4_call, call, field_offsets)
+
+        if istemplate == True:
+          aparams.append('0') # meta_primitive_state.match_ID mparam matters
+          idx = -1
+          if type(p4_call_params[1]) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
+            idx = p4_call_params[1].idx
+          command_templates.append(HP4_Primitive_Command(table_name,
+                                          action.name,
+                                          "table_add",
+                                          tname,
+                                          aname,
+                                          mparams,
+                                          aparams,
+                                          str(idx)))
+        else:
+          # meta_primitive_state.match_ID mparam does not matter
+          # only append priority if the table involves ternary matching
+          #  e.g., drop tables do not
+          if len(mparams) > 0:
+            for param in mparams:
+              if '&&&' in param:
+                aparams.append(str(LOWEST_PRIORITY))
+                break
+          commands.append(HP4_Command("table_add",
+                                      tname,
+                                      aname,
+                                      mparams,
+                                      aparams))
+
+  return commands, command_templates
+
+def get_table_from_cs(control_statement):
+    if type(control_statement) is p4_table:
+      return control_statement
+    elif type(control_statement) is tuple:
+      return control_statement[0]
+    else:
+      unsupported("Error (get_table_from_cs): unsupported control statement type: " \
+            + str(type(control_statement)))
+
+def walk_control_block(control_block, table):
+    for control_statement in control_block:
+      cs_idx = control_block.index(control_statement)
+      if type(control_statement) is p4_table:
+        # apply_table_call
+        if control_statement == table:
+          if cs_idx == len(control_block) - 1:
+            return True, None
+          return True, get_table_from_cs(control_block[cs_idx + 1])
+      elif type(control_statement) is tuple:
+        # apply_and_select_block
+        if control_statement[0] == table:
+          if cs_idx == len(control_block) - 1:
+            return True, None
+          return True, get_table_from_cs(control_block[cs_idx + 1])
+        else:
+          for case in control_statement[1]:
+            found, next_table = walk_control_block(case[1], table)
+            if found:
+              if next_table != None:
+                return True, next_table
+              elif cs_idx < len(control_block) - 1:
+                return True, get_table_from_cs(control_block[cs_idx + 1])
+              else:
+                return True, None
+      else:
+        unsupported("Error: unsupported call_sequence entry type: " + str(type(entry)))
+
+    return False, None
+
+def gen_tmiss_entries(tables, table_to_trep, ingress, numprimitives):
+  commands = []
+
+  for table_name in tables:
+
+    table = tables[table_name]
+    trep = table_to_trep[table]
+    tname = trep.name
+    stage = trep.stage # int
+    aname = 'init_program_state'
+    mparams = ['[vdev ID]']
+    if 'matchless' not in tname:
+      mparams.append('0&&&0')
+                 
+    # identify next_table so we can look up stage for aparams[0]
+    #   aparams[0]: 'next_stage' parameter in finish_action (stages.p4/p4t)
+    if 'miss' in table.next_:
+      next_table = table.next_['miss']
+    else:
+      found, next_table = walk_control_block(ingress.call_sequence, table)
+
+    if next_table == None:
+      next_stage = '0'
+      next_table_type = '0'
+    else:
+      next_stage = str(table_to_trep[next_table].stage)
+      next_table_type = table_to_trep[next_table].table_type()
+
+    aparams = ['0', # action_ID
+               '0', # match_ID
+               next_stage,
+               next_table_type]
+      
+    # zeros for remaining type / subtype parameters of init_program_state
+    for i in range(numprimitives):
+      aparams.append('0')
+      aparams.append('0')
+
+    if 'matchless' not in tname:
+      aparams.append(str(LOWEST_PRIORITY))
+
+    commands.append(HP4_Command(command="table_add",
+                                table=tname,
+                                action=aname,
+                                match_params=mparams,
+                                action_params=aparams))
+
+  return commands
+
+# gen_t_checksum_entries(h.calculated_fields)
+def gen_t_checksum_entries(calculated_fields, p4_field_list_calculations,
+                           field_offsets, vbits):
+    """ detect and handle ipv4 checksum """
+    commands = []
+
+    cf_none_types = 0
+    cf_valid_types = 0
+    checksum_detected = False
+    for cf in calculated_fields:
+      for statement in cf[1]:
+        if statement[0] == 'update':
+          flc = p4_field_list_calculations[statement[1]]
+          for fl in flc.input:
+            count = 0
+            max_field_offset = 0
+            max_field = None
+            for field in fl.fields:
+              count += field.width
+              if field.offset > max_field_offset:
+                max_field_offset = field.offset
+                max_field = field
+            if count == 144:
+              if flc.algorithm == 'csum16' and flc.output_width == 16:
+                # Calculate rshift_base parameter
+                #  This is the amount to R-shift extracted.data such
+                #  that the ipv4 header is right aligned
+                key = max_field.instance.name + '.' + max_field.name
+                # TODO: remove assumption that extracted.data is 800 bits
+                aparam = str(800 - field_offsets[key] - max_field.width)
+                if statement[2] == None:
+                  cf_none_types += 1
+                  if (cf_none_types + cf_valid_types) > 1:
+                    print("ERROR: Unsupported: multiple checksums")
+                    exit()
+                  else:
+                    checksum_detected = True
+                    commands.append(HP4_Command("table_add",
+                                                "t_checksum",
+                                                "a_ipv4_csum16",
+                                                ['[vdev ID]', '0&&&0'],
+                                                [aparam, str(LOWEST_PRIORITY)]))
+                else:
+                  if statement[2].op == 'valid':
+                    cf_valid_types += 1
+                    if (cf_none_types + cf_valid_types) > 1:
+                      print("ERROR: Unsupported: multiple checksums")
+                      exit()
+                    else:
+                      # TODO: reduce entries by isolating relevant bit
+                      for key in vbits.keys():
+                        if statement[2].right == key[1]:
+                          mparams = ['[vdev ID]']
+                          val = format(vbits[key], '#x')
+                          mparams.append(val + '&&&' + val)
+                          checksum_detected = True
+                          commands.append(HP4_Command("table_add",
+                                                      "t_checksum",
+                                                      "a_ipv4_csum16",
+                                                       mparams,
+                                                       [aparam, '0']))
+                  else:
+                    unsupported("ERROR: Unsupported if_cond op " \
+                                + "in calculated field: %s" % statement[2].op)
+
+              else:
+                unsupported("ERROR: Unsupported checksum (%s, %i)" \
+                            % (flc.algorithm, flc.output_width))
+
+            else:
+              unsupported("ERROR: Unsupported checksum - field list of %i bits" \
+                          % count)
+
+        else:
+          unsupported("WARNING: Unsupported update_verify_spec " \
+                      + "for calculated field: %s" % statement[0])
+
+    if checksum_detected == False:
+      commands.append(HP4_Command("table_add",
+                                      "t_checksum",
+                                      "_no_op",
+                                      ['[vdev ID]', '0&&&0'],
+                                      [str(LOWEST_PRIORITY)]))
+
+    return commands
+
+def gen_t_resize_pr_entries():
+    commands = []
+    # TODO: full implementation as the following primitives get support:
+    # - add_header | remove_header | truncate | push | pop | copy_header*
+    # * maybe (due to possibility of making previously invalid header
+    #   valid)
+    # default entry handled by controller
+
+    return commands
+
+def print_processed_parse_tree(pcs, level=0):
+  for line in str(pcs).split('\n'):
+    print '\t' * level + line
+  for child in pcs.children:
+    print_processed_parse_tree(child, level+1)
+
+def print_commands(commands):
+  for command in commands:
+    print(command)
+
+def launch_process_parse_tree_clr(pcs, h):
+  start_pcs = PC_State(pcs_path=[pcs],
+                       parse_state=pcs.parse_state)
+  pcs.children.append(start_pcs)
+  process_parse_tree_clr(start_pcs, h)
+
 def parse_args(args):
-  parser = argparse.ArgumentParser(description='P4->HP4 Compiler')
-  parser.add_argument('input', help='path for input .p4',
-                    type=str)
+  parser = argparse.ArgumentParser(description='Recursive Parse Tree Processing')
+  parser.add_argument('input', help='path for input .p4', type=str)
   parser.add_argument('-o', '--output', help='path for output .hp4t file',
-                    type=str, action="store", required=True)
+                    type=str, action="store", default='output.hp4t')
   parser.add_argument('-m', '--mt_output', help='path for match template output',
                     type=str, action="store", default='output.hp4mt')
-  parser.add_argument('-s', '--seb', help='set standard extracted bytes',
-                    type=int, action="store", default=40)
   parser.add_argument('--numprimitives', help='maximum number of primitives \
                        for which HyPer4 is configured',
                       type=int, action="store", default=9)
@@ -1533,8 +1839,7 @@ def parse_args(args):
 def main():
   args = parse_args(sys.argv[1:])
   hp4c = P4_to_HP4()
-  hp4c.compile_to_hp4(args.input, args.output, args.mt_output, args.seb, args.numprimitives)
-  #code.interact(local=dict(globals(), **locals()))
+  hp4c.compile_to_hp4(args.input, args.output, args.mt_output, args.numprimitives)
 
 if __name__ == '__main__':
   main()
