@@ -13,6 +13,7 @@ import sys
 import math
 from math import ceil
 import json
+import pkg_resources
 
 SEB = 320
 METADATA_WIDTH = 256
@@ -128,7 +129,7 @@ a2f_prim_subtype_action = {'1': 'a_add2f_extracted_const_u',
 
 gen_prim_subtype_action = {'add_header': 'a_addh',
                            'copy_header': '',
-                           'remove_header': '',
+                           'remove_header': 'a_removeh',
                            'modify_field_with_hash_based_offset': '',
                            'truncate': 'a_truncate',
                            'drop': 'a_drop',
@@ -364,6 +365,9 @@ def collect_meta(headers):
     header = headers[header_key]
 
     if header.name == 'standard_metadata':
+      continue
+
+    if header.name == 'intrinsic_metadata':
       continue
 
     if header.metadata == True:
@@ -619,6 +623,259 @@ class P4_to_HP4(HP4Compiler):
                                                    action_params=aparams))
     return command_templates
 
+  def gen_action_aparams(self, p4_call, call, field_offsets):
+    aparams = []
+    primtype = call[PRIM_TYPE]
+    subtype = call[PRIM_SUBTYPE]
+    p4_call_params = p4_call[P4_CALL_PARAMS]
+
+    if primtype == 'drop':
+      return aparams
+    if primtype == 'add_to_field':
+      if (a2f_prim_subtype_action[subtype] == 'a_add2f_extracted_const_u' or
+          a2f_prim_subtype_action[subtype] == 'a_subff_extracted_const_u'):
+        # aparams: leftshift, val
+        dst_offset = field_offsets[str(p4_call_params[0])]
+        leftshift = 800 - (dst_offset + p4_call_params[0].width)
+        if type(p4_call_params[1]) is int:
+          val = str(p4_call_params[1])
+          if a2f_prim_subtype_action[subtype] == 'a_subff_extracted_const_u':
+            val = str(p4_call_params[1]*-1)
+        else:
+          val = '[val]'
+        aparams.append(str(leftshift))
+        aparams.append(val)
+    if primtype == 'add_header':
+      # aparams: sz, offset, msk, vbits
+      debug()
+    
+    if primtype == 'remove_header':
+      # aparams: sz, msk, vbits
+      debug()
+
+    if primtype == 'modify_field':
+      instance_name = p4_call_params[0].instance.name
+      dst_field_name = p4_call_params[0].name
+      if instance_name == 'intrinsic_metadata':
+        if dst_field_name == 'mcast_grp':
+          instance_name = 'standard_metadata'
+          dst_field_name = 'egress_spec'
+        else:
+          print("Not supported: modify_field(" + instance_name + '.' \
+                + dst_field_name + ", *)")
+          exit()
+      if type(p4_call_params[1]) is p4_hlir.hlir.p4_headers.p4_field:
+        if p4_call_params[1].width > p4_call_params[0].width:
+          dst = instance_name + '.' + dst_field_name
+          src = p4_call_params[1].instance.name + '.' + p4_call_params[1].name
+          print("WARNING: modify_field(%s, %s): %s width (%i) > %s width (%i)" \
+              % (dst, src, src, p4_call_params[1].width, dst, p4_call_params[0].width))
+      if mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_ingressport':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_packetlength':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressspec':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressport':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressinst':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_insttype':
+        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+        exit()
+      elif mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_meta':
+        # aparams: rightshift, tmask
+        rshift = 256 - (field_offsets[str(p4_call_params[1])] + p4_call_params[1].width)
+        mask = 0
+        if p4_call_params[1].width < p4_call_params[0].width:
+          mask = hex(int(math.pow(2, p4_call_params[1].width)) - 1)
+        else:
+          mask = hex(int(math.pow(2, p4_call_params[0].width)) - 1)
+        aparams.append(str(rshift))
+        aparams.append(mask)
+      elif (mf_prim_subtype_action[subtype] == 'mod_meta_const' or
+            mf_prim_subtype_action[subtype] == 'mod_extracted_const'):
+        # aparams: leftshift, mask, val
+        if type(p4_call_params[1]) is int:
+          val = str(p4_call_params[1])
+        else:
+          val = '[val]'
+        fo = field_offsets[str(p4_call_params[0])]
+        fw = p4_call_params[0].width
+        maskwidthbits = 800
+        if mf_prim_subtype_action[subtype] == 'mod_meta_const':
+          maskwidthbits = 256
+        leftshift = str(maskwidthbits - (fo + fw))
+        mask = gen_bitmask(p4_call_params[0].width,
+                                field_offsets[str(p4_call_params[0])],
+                                maskwidthbits / 8)
+        aparams.append(leftshift)
+        aparams.append(mask)
+        aparams.append(val)
+      elif (mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_const'):
+        if type(p4_call_params[1]) is int:
+          aparams.append(str(p4_call_params[1]))
+        else:
+          aparams.append('[val]')
+      elif (mf_prim_subtype_action[subtype] == 'mod_intmeta_mcast_grp_const'):
+        if type(p4_call_params[1]) is int:
+          print("Not yet supported: mod_intmeta_mcast_grp_const w/ explicit const")
+          exit()
+        else:
+          aparams.append('[MCAST_GRP]')
+
+      #elif mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_stdmeta_ingressport':
+      #  return aparams
+      elif mf_prim_subtype_action[subtype] == 'mod_extracted_extracted':
+        # aparams:
+        # - leftshift (how far should src field be shifted to align w/ dst)
+        # - rightshift (how far should src field be shifted to align w/ dst)
+        # - msk (bitmask for dest field)
+        dst_offset = field_offsets[str(p4_call_params[0])]
+        src_offset = field_offsets[str(p4_call_params[1])]
+        lshift = 0
+        rshift = 0
+        # *_revo = revised offset; right-aligned instead of left-aligned
+        dst_revo = 800 - (dst_offset + p4_call_params[0].width)
+        src_revo = 800 - (src_offset + p4_call_params[1].width)
+        if src_revo > dst_revo:
+          rshift = src_revo - dst_revo
+        else:
+          lshift = dst_revo - src_revo
+        aparams.append(str(lshift))
+        aparams.append(str(rshift))
+        aparams.append(gen_bitmask(p4_call_params[0].width, dst_offset, 100))
+      elif mf_prim_subtype_action[subtype] == 'mod_meta_extracted':
+        dst_offset = field_offsets[str(p4_call_params[0])]
+        src_offset = field_offsets[str(p4_call_params[1])]
+        lshift = 0
+        rshift = 0
+        dstmaskwidthbits = 256
+        srcmaskwidthbits = 800
+        # *_revo = revised offset; right-aligned instead of left-aligned
+        dst_revo = dstmaskwidthbits - (dst_offset + p4_call_params[0].width)
+        src_revo = srcmaskwidthbits - (src_offset + p4_call_params[1].width)
+        if src_revo > dst_revo:
+          rshift = src_revo - dst_revo
+        else:
+          lshift = dst_revo - src_revo
+        dstmask = gen_bitmask(p4_call_params[0].width, dst_offset,
+                                   dstmaskwidthbits / 8)
+        srcmask = dstmask
+        if p4_call_params[1].width < p4_call_params[0].width:
+          srcmask = gen_bitmask(p4_call_params[1].width, dst_offset,
+                                     dstmaskwidthbits / 8)
+        aparams.append(str(lshift))
+        aparams.append(str(rshift))
+        aparams.append(dstmask)
+        aparams.append(srcmask)
+      elif mf_prim_subtype_action[subtype] == 'mod_extracted_meta':
+        dst_offset = field_offsets[str(p4_call_params[0])]
+        src_offset = field_offsets[str(p4_call_params[1])]
+        lshift = 0
+        rshift = 0
+        dstmaskwidthbits = 800
+        srcmaskwidthbits = 256
+        # *_revo = revised offset; right-aligned instead of left-aligned
+        dst_revo = dstmaskwidthbits - (dst_offset + p4_call_params[0].width)
+        src_revo = srcmaskwidthbits - (src_offset + p4_call_params[1].width)
+        if src_revo > dst_revo:
+          rshift = src_revo - dst_revo
+        else:
+          lshift = dst_revo - src_revo
+        dstmask = gen_bitmask(p4_call_params[0].width, dst_offset,
+                                   dstmaskwidthbits / 8)
+        srcmask = dstmask
+        if p4_call_params[1].width < p4_call_params[0].width:
+          srcmask = gen_bitmask(p4_call_params[1].width, dst_offset,
+                                     dstmaskwidthbits / 8)
+        aparams.append(str(lshift))
+        aparams.append(str(rshift))
+        aparams.append(dstmask)
+        aparams.append(srcmask)
+
+    return aparams
+
+  def gen_action_entries(self, action_to_arep, action_ID, field_offsets):
+    commands = []
+    command_templates = []
+    for action in action_to_arep:
+      for stage in action_to_arep[action].stages:
+        table_name = action_to_arep[action].tables[stage]
+        for p4_call in action.call_sequence:
+          p4_call_params = p4_call[P4_CALL_PARAMS]
+          istemplate = False
+          idx = action.call_sequence.index(p4_call)
+          call = action_to_arep[action].call_sequence[idx]
+          primtype = call[PRIM_TYPE]
+          subtype = call[PRIM_SUBTYPE]
+          rank = idx + 1
+          tname = 't_' + primitive_tnames[primtype] + '_' + str(stage) + str(rank)
+
+          if primtype == 'modify_field':
+            aname = mf_prim_subtype_action[subtype]
+          elif primtype == 'add_to_field':
+            aname = a2f_prim_subtype_action[subtype]
+          else:
+            aname = gen_prim_subtype_action[primtype]
+          mparams = ['[vdev ID]']
+          if primtype != 'drop':
+            if primtype == 'modify_field' or primtype == 'add_to_field':
+              mparams.append( subtype )
+            mparams.append(str(action_ID[action]))
+            # If the parameter passed to the primitive in the source code is an
+            # action parameter reference, the match_ID parameter should be
+            # [val]&&&0x7FFFFF because each distinct match could have a different
+            # value for the action parameter.  Otherwise, we don't care what the
+            # match_ID is so use 0&&&0.
+            match_ID_param = '0&&&0'
+            for param in p4_call_params:
+              if type(param) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
+                match_ID_param = '[match ID]&&&0x7FFFFF'
+                istemplate = True
+                break
+            mparams.append(match_ID_param)
+
+          aparams = self.gen_action_aparams(p4_call, call, field_offsets)
+          if primtype == 'remove_header':
+            debug()
+
+          if istemplate == True:
+            aparams.append('0') # meta_primitive_state.match_ID mparam matters
+            idx = -1
+            if type(p4_call_params[1]) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
+              idx = p4_call_params[1].idx
+            command_templates.append(HP4_Primitive_Command(table_name,
+                                            action.name,
+                                            "table_add",
+                                            tname,
+                                            aname,
+                                            mparams,
+                                            aparams,
+                                            str(idx)))
+          else:
+            # meta_primitive_state.match_ID mparam does not matter
+            # only append priority if the table involves ternary matching
+            #  e.g., drop tables do not
+            if len(mparams) > 0:
+              for param in mparams:
+                if '&&&' in param:
+                  aparams.append(str(LOWEST_PRIORITY))
+                  break
+            commands.append(HP4_Command("table_add",
+                                        tname,
+                                        aname,
+                                        mparams,
+                                        aparams))
+
+    return commands, command_templates
+
+
   def build(self, h):
 
     self.field_offsets = collect_meta(h.p4_header_instances)
@@ -650,9 +907,9 @@ class P4_to_HP4(HP4Compiler):
 
     self.table_to_trep, self.action_to_arep = self.walk_ingress_pipeline(h.p4_tables)
     self.command_templates = self.gen_tX_templates(h.p4_tables)
-    action_commands, action_templates = gen_action_entries(self.action_to_arep,
-                                                           self.action_ID,
-                                                           self.field_offsets)
+    action_commands, action_templates = self.gen_action_entries(self.action_to_arep,
+                                                               self.action_ID,
+                                                               self.field_offsets)
     self.commands += action_commands
     self.command_templates += action_templates
 
@@ -673,6 +930,7 @@ class P4_to_HP4(HP4Compiler):
     self.mt_out_path = mt_out_path
     self.numprimitives = numprimitives
     h = HLIR(program_path)
+    h.add_primitives(json.loads(pkg_resources.resource_string('p4c_bm', 'primitives.json')))
     h.build()
     do_support_checks(h)
     self.build(h)
@@ -1380,248 +1638,6 @@ def collect_field_offsets(header_offsets, header_instances):
       field_offsets[header + '.' + field.name] = field.offset + header_offsets[header]
 
   return field_offsets
-
-def gen_action_aparams(p4_call, call, field_offsets):
-    aparams = []
-    primtype = call[PRIM_TYPE]
-    subtype = call[PRIM_SUBTYPE]
-    p4_call_params = p4_call[P4_CALL_PARAMS]
-
-    if primtype == 'drop':
-      return aparams
-    if primtype == 'add_to_field':
-      if (a2f_prim_subtype_action[subtype] == 'a_add2f_extracted_const_u' or
-          a2f_prim_subtype_action[subtype] == 'a_subff_extracted_const_u'):
-        # aparams: leftshift, val
-        dst_offset = field_offsets[str(p4_call_params[0])]
-        leftshift = 800 - (dst_offset + p4_call_params[0].width)
-        if type(p4_call_params[1]) is int:
-          val = str(p4_call_params[1])
-          if a2f_prim_subtype_action[subtype] == 'a_subff_extracted_const_u':
-            val = str(p4_call_params[1]*-1)
-        else:
-          val = '[val]'
-        aparams.append(str(leftshift))
-        aparams.append(val)
-    if primtype == 'modify_field':
-      instance_name = p4_call_params[0].instance.name
-      dst_field_name = p4_call_params[0].name
-      if instance_name == 'intrinsic_metadata':
-        if dst_field_name == 'mcast_grp':
-          instance_name = 'standard_metadata'
-          dst_field_name = 'egress_spec'
-        else:
-          print("Not supported: modify_field(" + instance_name + '.' \
-                + dst_field_name + ", *)")
-          exit()
-      if type(p4_call_params[1]) is p4_hlir.hlir.p4_headers.p4_field:
-        if p4_call_params[1].width > p4_call_params[0].width:
-          dst = instance_name + '.' + dst_field_name
-          src = p4_call_params[1].instance.name + '.' + p4_call_params[1].name
-          print("WARNING: modify_field(%s, %s): %s width (%i) > %s width (%i)" \
-              % (dst, src, src, p4_call_params[1].width, dst, p4_call_params[0].width))
-      if mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_ingressport':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
-      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_packetlength':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
-      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressspec':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
-      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressport':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
-      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressinst':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
-      elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_insttype':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
-      elif mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_meta':
-        # aparams: rightshift, tmask
-        rshift = 256 - (field_offsets[str(p4_call_params[1])] + p4_call_params[1].width)
-        mask = 0
-        if p4_call_params[1].width < p4_call_params[0].width:
-          mask = hex(int(math.pow(2, p4_call_params[1].width)) - 1)
-        else:
-          mask = hex(int(math.pow(2, p4_call_params[0].width)) - 1)
-        aparams.append(str(rshift))
-        aparams.append(mask)
-      elif (mf_prim_subtype_action[subtype] == 'mod_meta_const' or
-            mf_prim_subtype_action[subtype] == 'mod_extracted_const'):
-        # aparams: leftshift, mask, val
-        if type(p4_call_params[1]) is int:
-          val = str(p4_call_params[1])
-        else:
-          val = '[val]'
-        fo = field_offsets[str(p4_call_params[0])]
-        fw = p4_call_params[0].width
-        maskwidthbits = 800
-        if mf_prim_subtype_action[subtype] == 'mod_meta_const':
-          maskwidthbits = 256
-        leftshift = str(maskwidthbits - (fo + fw))
-        mask = gen_bitmask(p4_call_params[0].width,
-                                field_offsets[str(p4_call_params[0])],
-                                maskwidthbits / 8)
-        aparams.append(leftshift)
-        aparams.append(mask)
-        aparams.append(val)
-      elif (mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_const'):
-        if type(p4_call_params[1]) is int:
-          aparams.append(str(p4_call_params[1]))
-        else:
-          aparams.append('[val]')
-      elif (mf_prim_subtype_action[subtype] == 'mod_intmeta_mcast_grp_const'):
-        if type(p4_call_params[1]) is int:
-          print("Not yet supported: mod_intmeta_mcast_grp_const w/ explicit const")
-          exit()
-        else:
-          aparams.append('[MCAST_GRP]')
-
-      #elif mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_stdmeta_ingressport':
-      #  return aparams
-      elif mf_prim_subtype_action[subtype] == 'mod_extracted_extracted':
-        # aparams:
-        # - leftshift (how far should src field be shifted to align w/ dst)
-        # - rightshift (how far should src field be shifted to align w/ dst)
-        # - msk (bitmask for dest field)
-        dst_offset = field_offsets[str(p4_call_params[0])]
-        src_offset = field_offsets[str(p4_call_params[1])]
-        lshift = 0
-        rshift = 0
-        # *_revo = revised offset; right-aligned instead of left-aligned
-        dst_revo = 800 - (dst_offset + p4_call_params[0].width)
-        src_revo = 800 - (src_offset + p4_call_params[1].width)
-        if src_revo > dst_revo:
-          rshift = src_revo - dst_revo
-        else:
-          lshift = dst_revo - src_revo
-        aparams.append(str(lshift))
-        aparams.append(str(rshift))
-        aparams.append(gen_bitmask(p4_call_params[0].width, dst_offset, 100))
-      elif mf_prim_subtype_action[subtype] == 'mod_meta_extracted':
-        dst_offset = field_offsets[str(p4_call_params[0])]
-        src_offset = field_offsets[str(p4_call_params[1])]
-        lshift = 0
-        rshift = 0
-        dstmaskwidthbits = 256
-        srcmaskwidthbits = 800
-        # *_revo = revised offset; right-aligned instead of left-aligned
-        dst_revo = dstmaskwidthbits - (dst_offset + p4_call_params[0].width)
-        src_revo = srcmaskwidthbits - (src_offset + p4_call_params[1].width)
-        if src_revo > dst_revo:
-          rshift = src_revo - dst_revo
-        else:
-          lshift = dst_revo - src_revo
-        dstmask = gen_bitmask(p4_call_params[0].width, dst_offset,
-                                   dstmaskwidthbits / 8)
-        srcmask = dstmask
-        if p4_call_params[1].width < p4_call_params[0].width:
-          srcmask = gen_bitmask(p4_call_params[1].width, dst_offset,
-                                     dstmaskwidthbits / 8)
-        aparams.append(str(lshift))
-        aparams.append(str(rshift))
-        aparams.append(dstmask)
-        aparams.append(srcmask)
-      elif mf_prim_subtype_action[subtype] == 'mod_extracted_meta':
-        dst_offset = field_offsets[str(p4_call_params[0])]
-        src_offset = field_offsets[str(p4_call_params[1])]
-        lshift = 0
-        rshift = 0
-        dstmaskwidthbits = 800
-        srcmaskwidthbits = 256
-        # *_revo = revised offset; right-aligned instead of left-aligned
-        dst_revo = dstmaskwidthbits - (dst_offset + p4_call_params[0].width)
-        src_revo = srcmaskwidthbits - (src_offset + p4_call_params[1].width)
-        if src_revo > dst_revo:
-          rshift = src_revo - dst_revo
-        else:
-          lshift = dst_revo - src_revo
-        dstmask = gen_bitmask(p4_call_params[0].width, dst_offset,
-                                   dstmaskwidthbits / 8)
-        srcmask = dstmask
-        if p4_call_params[1].width < p4_call_params[0].width:
-          srcmask = gen_bitmask(p4_call_params[1].width, dst_offset,
-                                     dstmaskwidthbits / 8)
-        aparams.append(str(lshift))
-        aparams.append(str(rshift))
-        aparams.append(dstmask)
-        aparams.append(srcmask)
-
-    return aparams
-
-def gen_action_entries(action_to_arep, action_ID, field_offsets):
-  commands = []
-  command_templates = []
-  for action in action_to_arep:
-    for stage in action_to_arep[action].stages:
-      table_name = action_to_arep[action].tables[stage]
-      for p4_call in action.call_sequence:
-        p4_call_params = p4_call[P4_CALL_PARAMS]
-        istemplate = False
-        idx = action.call_sequence.index(p4_call)
-        call = action_to_arep[action].call_sequence[idx]
-        primtype = call[PRIM_TYPE]
-        subtype = call[PRIM_SUBTYPE]
-        rank = idx + 1
-        tname = 't_' + primitive_tnames[primtype] + '_' + str(stage) + str(rank)
-
-        if primtype == 'modify_field':
-          aname = mf_prim_subtype_action[subtype]
-        elif primtype == 'add_to_field':
-          aname = a2f_prim_subtype_action[subtype]
-        else:
-          aname = gen_prim_subtype_action[primtype]
-        mparams = ['[vdev ID]']
-        if primtype != 'drop':
-          if primtype == 'modify_field' or primtype == 'add_to_field':
-            mparams.append( subtype )
-          mparams.append(str(action_ID[action]))
-          # If the parameter passed to the primitive in the source code is an
-          # action parameter reference, the match_ID parameter should be
-          # [val]&&&0x7FFFFF because each distinct match could have a different
-          # value for the action parameter.  Otherwise, we don't care what the
-          # match_ID is so use 0&&&0.
-          match_ID_param = '0&&&0'
-          for param in p4_call_params:
-            if type(param) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
-              match_ID_param = '[match ID]&&&0x7FFFFF'
-              istemplate = True
-              break
-          mparams.append(match_ID_param)
-
-        aparams = gen_action_aparams(p4_call, call, field_offsets)
-
-        if istemplate == True:
-          aparams.append('0') # meta_primitive_state.match_ID mparam matters
-          idx = -1
-          if type(p4_call_params[1]) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
-            idx = p4_call_params[1].idx
-          command_templates.append(HP4_Primitive_Command(table_name,
-                                          action.name,
-                                          "table_add",
-                                          tname,
-                                          aname,
-                                          mparams,
-                                          aparams,
-                                          str(idx)))
-        else:
-          # meta_primitive_state.match_ID mparam does not matter
-          # only append priority if the table involves ternary matching
-          #  e.g., drop tables do not
-          if len(mparams) > 0:
-            for param in mparams:
-              if '&&&' in param:
-                aparams.append(str(LOWEST_PRIORITY))
-                break
-          commands.append(HP4_Command("table_add",
-                                      tname,
-                                      aname,
-                                      mparams,
-                                      aparams))
-
-  return commands, command_templates
 
 def get_table_from_cs(control_statement):
     if type(control_statement) is p4_table:

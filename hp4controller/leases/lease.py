@@ -7,7 +7,16 @@ from hp4controller.errors import AddRuleError, LoadError, VirtnetError
 import copy
 
 import code
-# code.interact(local=dict(globals(), **locals()))
+from inspect import currentframe, getframeinfo
+
+def debug():
+  """ Break and enter interactive method after printing location info """
+  # written before I knew about the pdb module
+  caller = currentframe().f_back
+  method_name = caller.f_code.co_name
+  line_no = getframeinfo(caller).lineno
+  print(method_name + ": line " + str(line_no))
+  code.interact(local=dict(globals(), **caller.f_locals))
 
 FILTERED = 1
 UNFILTERED = 0
@@ -113,6 +122,7 @@ class Lease(object):
                      'mparams': rule.mparams,
                      'aparams': aparams}
 
+          debug()
           handle = self.send_command(P4Command(command_type, attribs))
           vdev.hp4_code_and_rules[(table, handle)] = rule
 

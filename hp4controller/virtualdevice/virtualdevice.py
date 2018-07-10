@@ -326,8 +326,7 @@ class VirtualDeviceFactory():
           mt_out_path = program_path.split('.p4')[0] + '.hp4mt'
           # TODO: replace the '9' (max primitives / action for which HP4 is configured
           self.compiled_programs[program_path] = \
-             self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, 
-                                      STANDARD_EXTRACTION, 9)
+             self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, 9)
         except CompileError as e:
           return "Compile Error: " + str(e)
       else:
