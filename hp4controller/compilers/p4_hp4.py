@@ -57,6 +57,7 @@ primitive_ID = {'modify_field': '[MODIFY_FIELD]',
                 'copy_header': '[COPY_HEADER]',
                 'remove_header': '[REMOVE_HEADER]',
                 'modify_field_with_hash_based_offset': '[MODIFY_FIELD_WITH_HBO]',
+                'modify_field_rng_uniform': '[MODIFY_FIELD_RNG_U]',
                 'truncate': '[TRUNCATE]',
                 'drop': '[DROP]',
                 'no_op': '[NO_OP]',
@@ -77,6 +78,7 @@ primitive_tnames = {'modify_field': 'mod',
                     'copy_header': '',
                     'remove_header': 'removeh',
                     'modify_field_with_hash_based_offset': '',
+                    'modify_field_rng_uniform': 'mod_rng',
                     'truncate' : 'truncate',
                     'drop' : 'drop',
                     'no_op' : '',
@@ -131,6 +133,7 @@ gen_prim_subtype_action = {'add_header': 'a_addh',
                            'copy_header': '',
                            'remove_header': 'a_removeh',
                            'modify_field_with_hash_based_offset': '',
+                           'modify_field_rng_uniform': 'mod_extracted_rng',
                            'truncate': 'a_truncate',
                            'drop': 'a_drop',
                            'no_op': '',
@@ -396,7 +399,10 @@ def get_prim_subtype(p4_call):
   """
   primitive = p4_call[P4_CALL_PRIMITIVE]
   params = p4_call[P4_CALL_PARAMS]
-  if primitive.name == 'drop':
+  if (primitive.name == 'drop' or 
+      primitive.name == 'add_header' or 
+      primitive.name == 'remove_header' or
+      primitive.name == 'modify_field_rng_uniform'):
     return '0'
   elif primitive.name == 'add_to_field':
     if type(params[0]) is p4_hlir.hlir.p4_headers.p4_field:
@@ -434,7 +440,7 @@ def get_prim_subtype(p4_call):
           first = 'egress_spec'
         else:
           unsupported("ERROR: Unexpected intmeta field %s as dst in \
-                        mmmmodify_field primitive" % params[0].name)
+                        modify_field primitive" % params[0].name)
 
       else: # user-defined metadata
         first = 'meta'
@@ -484,6 +490,12 @@ def gen_bitmask(fieldwidth, offset, maskwidth):
   mask += '[' + str(maskwidth - bytes_written) + 'x00s]'
 
   return mask
+
+def gen_addremove_header_bitmask(offset, maskwidth):
+  """offset: bits; maskwidth: bytes"""
+
+  bytes_written = offset / 8
+  return '0x[' + str(maskwidth - bytes_written) + 'xFFs]'
 
 class P4_to_HP4(HP4Compiler):
 
@@ -595,6 +607,8 @@ class P4_to_HP4(HP4Compiler):
         for call in action.call_sequence:
           prim_type = primitive_ID[call[P4_CALL_PRIMITIVE].name]
           prim_subtype = get_prim_subtype(call)
+          if not prim_subtype:
+            unsupported("Error: couldn't get the prim_subtype for " + prim_type)
           aparams.append(prim_type)
           aparams.append(prim_subtype)
           idx += 1
@@ -645,14 +659,62 @@ class P4_to_HP4(HP4Compiler):
           val = '[val]'
         aparams.append(str(leftshift))
         aparams.append(val)
-    if primtype == 'add_header':
-      # aparams: sz, offset, msk, vbits
-      debug()
-    
-    if primtype == 'remove_header':
-      # aparams: sz, msk, vbits
-      debug()
 
+    if primtype == 'add_header' or primtype == 'remove_header':
+
+      hdr = p4_call_params[0]
+      offset = self.header_offsets[hdr.name]
+      byte_offset = int(ceil(offset / 8.0))
+      sz = hdr.header_type.length
+
+      vb = 0
+      for key in self.vbits:
+        if hdr.name == key[1]:
+          vb = self.vbits[key]
+          break
+      if vb == 0:
+        print('Fail: didn\'t find vbits entry for ' + hdr.name)
+        exit()
+
+      mask = gen_addremove_header_bitmask(offset, MAX_BYTE)
+
+      if primtype == 'add_header':
+        # aparams: sz, offset, msk, vbits    
+        aparams.append(str(sz))
+        aparams.append(str(byte_offset))
+        aparams.append(mask)
+        aparams.append('0x%x' % vb)
+      else: # 'remove_header'
+        # aparams: sz, msk, vbits
+        aparams.append(str(sz))
+        aparams.append(mask)
+        vbinv = ~vb & (2**VBITS_WIDTH - 1)
+        aparams.append('0x%x' % vbinv)
+
+    if primtype == 'modify_field_rng_uniform':
+      # aparams: leftshift, emask, lowerbound, upperbound
+      if type(p4_call_params[1]) is int:
+        val1 = str(p4_call_params[1])
+      else:
+        val1 = '[val]'
+      if type(p4_call_params[2]) is int:
+        val2 = str(p4_call_params[2])
+      else:
+        val2 = '[val]'
+
+      fo = field_offsets[str(p4_call_params[0])]
+      fw = p4_call_params[0].width
+      maskwidthbits = 800
+      leftshift = str(maskwidthbits - (fo + fw))
+      mask = gen_bitmask(p4_call_params[0].width,
+                              field_offsets[str(p4_call_params[0])],
+                              maskwidthbits / 8)
+      aparams.append(leftshift)
+      aparams.append(mask)
+      aparams.append(val1)
+      aparams.append(val2)
+      #debug()
+      
     if primtype == 'modify_field':
       instance_name = p4_call_params[0].instance.name
       dst_field_name = p4_call_params[0].name
@@ -842,8 +904,6 @@ class P4_to_HP4(HP4Compiler):
             mparams.append(match_ID_param)
 
           aparams = self.gen_action_aparams(p4_call, call, field_offsets)
-          if primtype == 'remove_header':
-            debug()
 
           if istemplate == True:
             aparams.append('0') # meta_primitive_state.match_ID mparam matters
