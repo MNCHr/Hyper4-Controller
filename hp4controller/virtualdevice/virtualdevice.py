@@ -310,6 +310,11 @@ class VirtualDeviceFactory():
           for i in range(numzeros):
             replace += "00"   
           line = line.replace(token, replace)
+        elif re.search("\[[0-9]*xFFs\]", token):
+          numFFs = int(re.search("[0-9]+", token).group())
+          for i in range(numFFs):
+            replace += "FF"
+          line = line.replace(token, replace)
 
       hp4code.append(line)
 
