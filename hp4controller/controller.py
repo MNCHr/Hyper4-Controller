@@ -18,7 +18,16 @@ import signal
 import errno
 
 import code
-# code.interact(local=dict(globals(), **locals()))
+from inspect import currentframe, getframeinfo
+
+def debug():
+  """ Break and enter interactive method after printing location info """
+  # written before I knew about the pdb module
+  caller = currentframe().f_back
+  method_name = caller.f_code.co_name
+  line_no = getframeinfo(caller).lineno
+  print(method_name + ": line " + str(line_no))
+  code.interact(local=dict(globals(), **caller.f_locals))
 
 BUFFSIZE = 4096
 BACKLOG = 5
