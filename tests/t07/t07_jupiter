@@ -1,0 +1,8 @@
+vdev_create tests/addheader3.p4 ah3_s1
+lease_insert alpha ah3_s1 0 etrue
+vdev_create tests/addheader3.p4 ah3_s2
+lease_insert bravo ah3_s2 0 etrue
+lease_config_egress alpha 5 mcast filtered
+lease_config_egress bravo 5 mcast filtered
+vdev_interpretf ah3_s1 bmv2 tests/t07/commands.txt
+vdev_interpretf ah3_s2 bmv2 tests/t07/commands.txt

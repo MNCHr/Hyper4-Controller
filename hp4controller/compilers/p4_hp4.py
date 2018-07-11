@@ -697,7 +697,7 @@ class P4_to_HP4(HP4Compiler):
         val1 = str(p4_call_params[1])
       else:
         val1 = '[val]'
-      if type(p4_call_params[2]) is int:
+      if (type(p4_call_params[2]) is int) or (type(p4_call_params[2]) is long):
         val2 = str(p4_call_params[2])
       else:
         val2 = '[val]'
@@ -713,7 +713,6 @@ class P4_to_HP4(HP4Compiler):
       aparams.append(mask)
       aparams.append(val1)
       aparams.append(val2)
-      #debug()
       
     if primtype == 'modify_field':
       instance_name = p4_call_params[0].instance.name

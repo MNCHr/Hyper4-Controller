@@ -44,7 +44,8 @@ primitive_types = {'[ADD_HEADER]':'1',
 									 '[CLONE_EGRESS_EGRESS]':'18',
 									 '[MULTICAST]':'19',
 									 '[MATH_ON_FIELD]':'20',
-                   '[MODIFY_FIELD]':'21'}
+                   '[MODIFY_FIELD]':'21',
+                   '[MODIFY_FIELD_RNG_U]': '22'}
 
 class Interpreter(object):
   @staticmethod

@@ -273,6 +273,7 @@ class VirtualDeviceFactory():
     sr['[MULTICAST]'] = '19'
     sr['[MATH_ON_FIELD]'] = '20'
     sr['[MODIFY_FIELD]'] = '21'
+    sr['[MODIFY_FIELD_RNG_U]'] = '22'
 
     found_sr = False
 
