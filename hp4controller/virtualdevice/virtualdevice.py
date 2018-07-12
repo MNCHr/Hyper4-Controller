@@ -6,7 +6,6 @@ from hp4controller.compilers.compiler import CodeRepresentation
 import re
 
 import code
-# code.interact(local=dict(globals(), **locals()))
 
 """
 VirtualDevice::hp4code
@@ -274,6 +273,7 @@ class VirtualDeviceFactory():
     sr['[MATH_ON_FIELD]'] = '20'
     sr['[MODIFY_FIELD]'] = '21'
     sr['[MODIFY_FIELD_RNG_U]'] = '22'
+    sr['[BIT_XOR]'] = '23'
 
     found_sr = False
 

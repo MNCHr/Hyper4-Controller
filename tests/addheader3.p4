@@ -1,17 +1,25 @@
-#define FLAG_PRESENT 0x313131313131
+#define FLAG_PRESENT 0x3131
 
 header_type flag_t {
   fields {
-    f1 : 48;
+    f1 : 16;
     f2 : 64;
     f3 : 16;
+    f4 : 16;
+  }
+}
+
+header_type meta_t {
+  fields {
+    f1 : 16;
   }
 }
 
 header flag_t flag;
+metadata meta_t meta;
 
 parser start {
-  return select(current(0, 48)) {
+  return select(current(0, 16)) {
     FLAG_PRESENT : parse_flag;
     default : ingress;
   }
@@ -35,11 +43,13 @@ table fwd {
   }
 }
 
-action add_flag() {
+action add_flag(xorval) {
   add_header(flag);
   modify_field(flag.f1, FLAG_PRESENT);
   modify_field_rng_uniform(flag.f2, 0, 0xFFFFFFFFFFFFFFFF);
-  modify_field(flag.f3, 0xAABB);
+  bit_xor(meta.f1, flag.f1, 0x7564);
+  modify_field(flag.f3, meta.f1);
+  bit_xor(flag.f4, flag.f3, xorval);
 }
 
 action remove_flag() {

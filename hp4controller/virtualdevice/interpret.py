@@ -45,7 +45,8 @@ primitive_types = {'[ADD_HEADER]':'1',
 									 '[MULTICAST]':'19',
 									 '[MATH_ON_FIELD]':'20',
                    '[MODIFY_FIELD]':'21',
-                   '[MODIFY_FIELD_RNG_U]': '22'}
+                   '[MODIFY_FIELD_RNG_U]': '22',
+                   '[BIT_XOR]': '23'}
 
 class Interpreter(object):
   @staticmethod

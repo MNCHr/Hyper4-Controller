@@ -8,7 +8,16 @@ import re
 import sys
 from cStringIO import StringIO
 import code
-# code.interact(local=dict(globals(), **locals()))
+from inspect import currentframe, getframeinfo
+
+def debug():
+  """ Break and enter interactive method after printing location info """
+  # written before I knew about the pdb module
+  caller = currentframe().f_back
+  method_name = caller.f_code.co_name
+  line_no = getframeinfo(caller).lineno
+  print(method_name + ": line " + str(line_no))
+  code.interact(local=dict(globals(), **caller.f_locals))
 
 # http://stackoverflow.com/questions/16571150/how-to-capture-stdout-output-from-a-python-function-call
 class Capturing(list):
@@ -155,6 +164,10 @@ class Bmv2_SSwitch(Device):
     # rta.do_table_add expects '<table> <action> <[mparams]> => <[aparams]>'
     bmv2_rule = rule.table + ' ' + rule.action + ' ' + ' '.join(rule.mparams) \
                            + ' => ' + ' '.join(rule.aparams)
+
+    #if rule.table == 't_bit_xor_24':
+    #  debug()
+
     with Capturing() as output:
       try:
         self.rta.do_table_add(bmv2_rule)

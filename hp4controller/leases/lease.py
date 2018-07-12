@@ -122,6 +122,9 @@ class Lease(object):
                      'mparams': rule.mparams,
                      'aparams': aparams}
 
+          #if table == 't_bit_xor_24':
+          #  debug()
+
           handle = self.send_command(P4Command(command_type, attribs))
           vdev.hp4_code_and_rules[(table, handle)] = rule
 

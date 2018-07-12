@@ -71,7 +71,8 @@ primitive_ID = {'modify_field': '[MODIFY_FIELD]',
                 'clone_ingress_pkt_to_egress': '[CLONE_INGRESS_EGRESS]',
                 'clone_egress_pkt_to_egress': '[CLONE_EGRESS_EGRESS]',
                 'multicast': '[MULTICAST]',
-                'add_to_field': '[MATH_ON_FIELD]'}
+                'add_to_field': '[MATH_ON_FIELD]',
+                'bit_xor': '[BIT_XOR]'}
 
 primitive_tnames = {'modify_field': 'mod',
                     'add_header': 'addh',
@@ -92,7 +93,8 @@ primitive_tnames = {'modify_field': 'mod',
                     'clone_ingress_pkt_to_egress': '',
                     'clone_egress_pkt_to_egress': '',
                     'multicast': 'multicast',
-                    'add_to_field': 'math_on_field'}
+                    'add_to_field': 'math_on_field',
+                    'bit_xor': 'bit_xor'}
 
 mf_prim_subtype_ID = {('meta', 'ingress_port'): '1',
                       ('meta', 'packet_length'): '2',
@@ -128,6 +130,14 @@ a2f_prim_subtype_ID = {'add': '1', 'sub': '2'}
 
 a2f_prim_subtype_action = {'1': 'a_add2f_extracted_const_u',
                            '2': 'a_subff_extracted_const_u'}
+
+bx_prim_subtype_ID = {('meta', 'meta', 'const'): '1',
+                      ('ext', 'ext', 'const'): '2',
+                      ('meta', 'ext', 'const'): '3'}
+
+bx_prim_subtype_action = {'1': 'bit_xor_meta_meta_const',
+                          '2': 'bit_xor_extracted_extracted_const',
+                          '3': 'bit_xor_meta_extracted_const'}
 
 gen_prim_subtype_action = {'add_header': 'a_addh',
                            'copy_header': '',
@@ -423,6 +433,28 @@ def get_prim_subtype(p4_call):
     else:
       unsupported("ERROR: dst field type %s in add_to_field" % type(params[0]))
 
+  elif primitive.name == 'bit_xor':
+    first = 0
+    second = 0
+    third = 0
+    if params[0].instance.metadata == True:
+      first = 'meta' # user-defined metadata
+    else: # parsed representation
+      first = 'ext'
+    if params[1].instance.metadata == True:
+      second = 'meta' # user-defined metadata
+    else: # parsed representation
+      second = 'ext'
+    if type(params[2]) in [int, long]:
+      third = 'const'
+    elif type(params[2]) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
+      third = 'const'
+    else:
+      unsupported("ERROR: Unexpected type %s as third param in \
+                    bit_xor call" % type(params[2]))
+
+    return bx_prim_subtype_ID[(first, second, third)]
+
   elif primitive.name == 'modify_field':
     first = 0
     second = 0
@@ -446,7 +478,7 @@ def get_prim_subtype(p4_call):
         first = 'meta'
     else: # parsed representation
       first = 'ext'
-    if type(params[1]) is int:
+    if type(params[1]) in [int, long]:
       second = 'const'
     elif type(params[1]) is p4_hlir.hlir.p4_headers.p4_field:
       if params[1].instance.metadata == True:
@@ -693,11 +725,11 @@ class P4_to_HP4(HP4Compiler):
 
     if primtype == 'modify_field_rng_uniform':
       # aparams: leftshift, emask, lowerbound, upperbound
-      if type(p4_call_params[1]) is int:
+      if type(p4_call_params[1]) in [int, long]:
         val1 = str(p4_call_params[1])
       else:
         val1 = '[val]'
-      if (type(p4_call_params[2]) is int) or (type(p4_call_params[2]) is long):
+      if type(p4_call_params[2]) in [int, long]:
         val2 = str(p4_call_params[2])
       else:
         val2 = '[val]'
@@ -713,6 +745,52 @@ class P4_to_HP4(HP4Compiler):
       aparams.append(mask)
       aparams.append(val1)
       aparams.append(val2)
+
+    if primtype == 'bit_xor':
+      # aparams: elshift, ershift, vlshift, dest_mask, src_mask, val
+      fo_intermediate = field_offsets[str(p4_call_params[1])]
+      fw_intermediate = p4_call_params[1].width
+      fo_final = field_offsets[str(p4_call_params[0])]
+      fw_final = p4_call_params[0].width
+      if bx_prim_subtype_action[subtype] == 'bit_xor_meta_meta_const':
+        unsupported("Not yet supported: bit_xor_meta_meta_const")
+        dest_maskwidthbits = 256
+        src_maskwidthbits = 256
+
+      elif bx_prim_subtype_action[subtype] == 'bit_xor_extracted_extracted_const':
+        dest_maskwidthbits = 800
+        src_maskwidthbits = 800
+
+      elif bx_prim_subtype_action[subtype] == 'bit_xor_meta_extracted_const':
+        dest_maskwidthbits = 256
+        src_maskwidthbits = 800
+
+      elshift = 0
+      ershift = 0
+      dst_revo = dest_maskwidthbits - (fo_final + fw_final)
+      src_revo = src_maskwidthbits - (fo_intermediate + fw_intermediate)
+      if src_revo > dst_revo:
+        ershift = src_revo - dst_revo
+      else:
+        elshift = dst_revo - src_revo
+
+      vlshift = str(src_maskwidthbits - (fo_intermediate + fw_intermediate))
+
+      dest_mask = gen_bitmask(fw_final, fo_final, dest_maskwidthbits / 8)
+      src_mask = gen_bitmask(fw_intermediate, fo_intermediate, src_maskwidthbits / 8)
+      src_mask = src_mask.split('[')[0]
+
+      if type(p4_call_params[2]) in [int, long]:
+        val = str(p4_call_params[2])
+      else:
+        val = '[val]'
+
+      aparams.append(str(elshift))
+      aparams.append(str(ershift))
+      aparams.append(vlshift)
+      aparams.append(dest_mask)
+      aparams.append(src_mask)
+      aparams.append(val)
       
     if primtype == 'modify_field':
       instance_name = p4_call_params[0].instance.name
@@ -722,33 +800,34 @@ class P4_to_HP4(HP4Compiler):
           instance_name = 'standard_metadata'
           dst_field_name = 'egress_spec'
         else:
-          print("Not supported: modify_field(" + instance_name + '.' \
+          unsupported("Not supported: modify_field(" + instance_name + '.' \
                 + dst_field_name + ", *)")
-          exit()
+
       if type(p4_call_params[1]) is p4_hlir.hlir.p4_headers.p4_field:
         if p4_call_params[1].width > p4_call_params[0].width:
           dst = instance_name + '.' + dst_field_name
           src = p4_call_params[1].instance.name + '.' + p4_call_params[1].name
           print("WARNING: modify_field(%s, %s): %s width (%i) > %s width (%i)" \
               % (dst, src, src, p4_call_params[1].width, dst, p4_call_params[0].width))
+
       if mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_ingressport':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
+        unsupported("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+
       elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_packetlength':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
+        unsupported("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+
       elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressspec':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
+        unsupported("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+
       elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressport':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
+        unsupported("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+
       elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_egressinst':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
+        unsupported("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+
       elif mf_prim_subtype_action[subtype] == 'mod_meta_stdmeta_insttype':
-        print("Not yet supported: %s" % mf_prim_subtype_action[subtype])
-        exit()
+        unsupported("Not yet supported: %s" % mf_prim_subtype_action[subtype])
+
       elif mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_meta':
         # aparams: rightshift, tmask
         rshift = 256 - (field_offsets[str(p4_call_params[1])] + p4_call_params[1].width)
@@ -759,10 +838,11 @@ class P4_to_HP4(HP4Compiler):
           mask = hex(int(math.pow(2, p4_call_params[0].width)) - 1)
         aparams.append(str(rshift))
         aparams.append(mask)
+
       elif (mf_prim_subtype_action[subtype] == 'mod_meta_const' or
             mf_prim_subtype_action[subtype] == 'mod_extracted_const'):
         # aparams: leftshift, mask, val
-        if type(p4_call_params[1]) is int:
+        if type(p4_call_params[1]) in [int, long]:
           val = str(p4_call_params[1])
         else:
           val = '[val]'
@@ -778,15 +858,17 @@ class P4_to_HP4(HP4Compiler):
         aparams.append(leftshift)
         aparams.append(mask)
         aparams.append(val)
+
       elif (mf_prim_subtype_action[subtype] == 'mod_stdmeta_egressspec_const'):
         if type(p4_call_params[1]) is int:
           aparams.append(str(p4_call_params[1]))
         else:
           aparams.append('[val]')
+
       elif (mf_prim_subtype_action[subtype] == 'mod_intmeta_mcast_grp_const'):
         if type(p4_call_params[1]) is int:
-          print("Not yet supported: mod_intmeta_mcast_grp_const w/ explicit const")
-          exit()
+          unsupported("Not yet supported: mod_intmeta_mcast_grp_const w/ explicit const")
+
         else:
           aparams.append('[MCAST_GRP]')
 
@@ -882,11 +964,13 @@ class P4_to_HP4(HP4Compiler):
             aname = mf_prim_subtype_action[subtype]
           elif primtype == 'add_to_field':
             aname = a2f_prim_subtype_action[subtype]
+          elif primtype == 'bit_xor':
+            aname = bx_prim_subtype_action[subtype]
           else:
             aname = gen_prim_subtype_action[primtype]
           mparams = ['[vdev ID]']
           if primtype != 'drop':
-            if primtype == 'modify_field' or primtype == 'add_to_field':
+            if primtype in ['modify_field', 'add_to_field', 'bit_xor']:
               mparams.append( subtype )
             mparams.append(str(action_ID[action]))
             # If the parameter passed to the primitive in the source code is an

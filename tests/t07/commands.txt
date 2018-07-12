@@ -1,4 +1,4 @@
 table_add fwd a_fwd 1 => 2
 table_add fwd a_fwd 2 => 1
-table_add is_flag_present add_flag 0 =>
+table_add is_flag_present add_flag 0 => 0x2222
 table_add is_flag_present remove_flag 1 =>
