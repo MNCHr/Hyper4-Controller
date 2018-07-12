@@ -950,6 +950,7 @@ class P4_to_HP4(HP4Compiler):
     for action in action_to_arep:
       for stage in action_to_arep[action].stages:
         table_name = action_to_arep[action].tables[stage]
+
         for p4_call in action.call_sequence:
           p4_call_params = p4_call[P4_CALL_PARAMS]
           istemplate = False
@@ -991,8 +992,9 @@ class P4_to_HP4(HP4Compiler):
           if istemplate == True:
             aparams.append('0') # meta_primitive_state.match_ID mparam matters
             idx = -1
-            if type(p4_call_params[1]) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
-              idx = p4_call_params[1].idx
+
+            if type(p4_call_params[-1]) is p4_hlir.hlir.p4_imperatives.p4_signature_ref:
+              idx = p4_call_params[-1].idx
             command_templates.append(HP4_Primitive_Command(table_name,
                                             action.name,
                                             "table_add",
@@ -1050,6 +1052,7 @@ class P4_to_HP4(HP4Compiler):
 
     self.table_to_trep, self.action_to_arep = self.walk_ingress_pipeline(h.p4_tables)
     self.command_templates = self.gen_tX_templates(h.p4_tables)
+
     action_commands, action_templates = self.gen_action_entries(self.action_to_arep,
                                                                self.action_ID,
                                                                self.field_offsets)

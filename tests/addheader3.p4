@@ -43,13 +43,13 @@ table fwd {
   }
 }
 
-action add_flag(xorval) {
+action add_flag(xorval1, xorval2) {
   add_header(flag);
   modify_field(flag.f1, FLAG_PRESENT);
   modify_field_rng_uniform(flag.f2, 0, 0xFFFFFFFFFFFFFFFF);
-  bit_xor(meta.f1, flag.f1, 0x7564);
+  bit_xor(meta.f1, flag.f1, xorval1);
   modify_field(flag.f3, meta.f1);
-  bit_xor(flag.f4, flag.f3, xorval);
+  bit_xor(flag.f4, flag.f3, xorval2);
 }
 
 action remove_flag() {
