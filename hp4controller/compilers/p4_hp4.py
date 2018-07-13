@@ -696,7 +696,6 @@ class P4_to_HP4(HP4Compiler):
 
       hdr = p4_call_params[0]
       offset = self.header_offsets[hdr.name]
-      byte_offset = int(ceil(offset / 8.0))
       sz = hdr.header_type.length
 
       vb = 0
@@ -713,7 +712,6 @@ class P4_to_HP4(HP4Compiler):
       if primtype == 'add_header':
         # aparams: sz, offset, msk, vbits    
         aparams.append(str(sz))
-        aparams.append(str(byte_offset))
         aparams.append(mask)
         aparams.append('0x%x' % vb)
       else: # 'remove_header'
@@ -1545,7 +1543,12 @@ def process_parse_select_entries(ps_entries):
       new_mp_mask += '00'
 
     new_mp = command.match_params[0:EXT_START_INDEX]
-    new_mp.append('0x' + new_mp_val + '&&&0x' + new_mp_mask)
+    if new_mp_val == '':
+      assert(new_mp_mask == '')
+      new_mp.append('0&&&0')
+    else:
+      new_mp.append('0x' + new_mp_val + '&&&0x' + new_mp_mask)
+
     ret.append(HP4_Command(command='table_add',
                            table=command.table,
                            action=command.action,
