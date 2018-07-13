@@ -173,6 +173,7 @@ class Bmv2_SSwitch(Device):
         self.rta.do_table_add(bmv2_rule)
       except:
         raise AddRuleError("table_add raised an exception (rule: " + rule + ")")
+
     for out in output:
       self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):

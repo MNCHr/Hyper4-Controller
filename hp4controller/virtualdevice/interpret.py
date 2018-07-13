@@ -7,7 +7,17 @@ import json
 import copy
 import re
 import code
-# code.interact(local=dict(globals(), **locals()))
+from inspect import currentframe, getframeinfo
+
+def debug():
+  """ Break and enter interactive method after printing location info """
+  # written before I knew about the pdb module
+  caller = currentframe().f_back
+  method_name = caller.f_code.co_name
+  line_no = getframeinfo(caller).lineno
+  print(method_name + ": line " + str(line_no))
+  code.interact(local=dict(globals(), **caller.f_locals))
+
 
 MAX_PRIORITY = 2147483646
 
@@ -144,10 +154,12 @@ class Interpreter(object):
     mrule = copy.deepcopy(guide.templates[key]['match'])
     ## match parameters
     mrule_match_params = mrule.attributes['mparams']
+
     for i in range(len(mrule_match_params)):
       if mrule_match_params[i] == '[vdev ID]':
         mrule_match_params[i] = str(vdev_ID)
       if '[val]' in mrule_match_params[i]:
+
         if '0x' in rule.mparams[0]:
           leftside = rule.mparams[0]
         elif ':' in rule.mparams[0]:
@@ -155,17 +167,35 @@ class Interpreter(object):
           exit()
         else:
           leftside = format(int(rule.mparams[0]), '#x')
-        if re.search("\[[0-9]*x00s\]", mrule_match_params[i]):
-          to_replace = re.search("\[[0-9]*x00s\]", mrule_match_params[i]).group()
-          numzeros = int(re.search("[0-9]+", to_replace).group())
-          replace = ""
-          for j in range(numzeros):
-            replace += "00"
+
+        if '&&&' in leftside:
+          leftside, mask = leftside.split('&&&')
+          if re.search("\[[0-9]*x00s\]", mrule_match_params[i]):
+            to_replace = re.search("\[[0-9]*x00s\]", mrule_match_params[i]).group()
+            numzeros = int(re.search("[0-9]+", to_replace).group())
+            replace = ""
+            for j in range(numzeros):
+              replace += "00"
+            mrule_match_params[i] = mask + to_replace
+            mrule_match_params[i] = \
+                    mrule_match_params[i].replace(to_replace, replace)
+            leftside += replace
+            mrule_match_params[i] = \
+                    leftside + '&&&' + mrule_match_params[i]
+
+        else:
+          if re.search("\[[0-9]*x00s\]", mrule_match_params[i]):
+            to_replace = re.search("\[[0-9]*x00s\]", mrule_match_params[i]).group()
+            numzeros = int(re.search("[0-9]+", to_replace).group())
+            replace = ""
+            for j in range(numzeros):
+              replace += "00"
+            mrule_match_params[i] = \
+                    mrule_match_params[i].replace(to_replace, replace)
+            leftside += replace
           mrule_match_params[i] = \
-                  mrule_match_params[i].replace(to_replace, replace)
-          leftside += replace
-        mrule_match_params[i] = \
-                mrule_match_params[i].replace('[val]', leftside)
+                  mrule_match_params[i].replace('[val]', leftside)
+
       elif '[valid]' in mrule_match_params[i]:
         # handle valid matching; 0 = 0, 1 = everything right of &&&
         if rule.mparams[0] == '1':
