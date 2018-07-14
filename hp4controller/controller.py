@@ -318,7 +318,11 @@ class Slice():
         new_vdev = self.vdevs[parameters[3]]
         return lease.lease_replace(parameters[2:], vdev, new_vdev)
       else:
-        vdev = self.vdevs[parameters[2]]
+        try:
+          vdev = self.vdevs[parameters[2]]
+        except IndexError as e:
+          print(e)
+          debug()
         try:
           resp = getattr(lease, command)(parameters[2:], vdev)
         except AttributeError as e:
