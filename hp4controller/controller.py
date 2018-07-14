@@ -71,8 +71,8 @@ class Controller(object):
       return "Request format: <slice name | admin> <command> [parameter list]"
     requester = request.split()[0]
     command = request.split()[1]
-    self.dbugprint("Request: " + request)
-    self.dbugprint("Command: " + command)
+    # self.dbugprint("Request: " + request)
+    # self.dbugprint("Command: " + command)
     parameters = [requester] + request.split()[2:]
     if ((requester not in self.slices) and (requester != 'admin')):
       return "Denied; no slice " + requester
@@ -91,7 +91,7 @@ class Controller(object):
     elif command == 'vdev_create':
       resp = self.vdev_create(parameters)
     else:
-      self.dbugprint("SLICE TO HANDLE " + request)
+      # self.dbugprint("SLICE TO HANDLE " + request)
       resp = self.slices[requester].handle_request(request.split()[1:])
 
     return resp
@@ -271,7 +271,7 @@ class Controller(object):
         clientsocket, addr = serversocket.accept()
         self.dbugprint("Got a connection from %s" % str(addr))
         data = clientsocket.recv(BUFFSIZE)
-        self.dbugprint(data)
+        self.dbugprint('Received: ' + data)
         response = self.handle_request(data)
         clientsocket.sendall(response)
         clientsocket.close()

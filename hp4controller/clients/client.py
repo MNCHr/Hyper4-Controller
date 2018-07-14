@@ -3,7 +3,9 @@
 import argparse
 import sys
 import socket
+import readline
 import cmd
+import atexit
 import code
 from inspect import currentframe, getframeinfo
 
@@ -23,7 +25,8 @@ class Client(cmd.Cmd, object):
   prompt = 'HP4$ '
   intro = 'HP4 Controller Client'
 
-  def __init__(self, user='admin', ip='localhost', port=33333, debug=False, **kwargs):
+  def __init__(self, user='admin', ip='localhost', port=33333,
+                     debug=False, histfile=".client-history", **kwargs):
     cmd.Cmd.__init__(self)
     self.user = user
     self.host = ip
@@ -31,6 +34,20 @@ class Client(cmd.Cmd, object):
     self.debug = debug
     self.syntax = {}
     self.syntax_msg = {}
+    self.init_history(histfile)
+
+  def init_history(self, histfile):
+    readline.parse_and_bind("tab: complete")
+    if hasattr(readline, "read_history_file"):
+      try:
+        readline.read_history_file(histfile)
+      except IOError:
+        pass
+      atexit.register(self.save_history, histfile)
+
+  def save_history(self, histfile):
+    readline.set_history_length(1000)
+    readline.write_history_file(histfile)
 
   def confirm_syntax(self, line, minargs, cmd_syntax):
 
