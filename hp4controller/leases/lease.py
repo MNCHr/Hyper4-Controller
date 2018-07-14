@@ -188,6 +188,12 @@ class Lease(object):
 
     return 'Egress ' + str(egress_spec) + ' configured'
 
+  def lease_dump(self):
+    ret = ''
+    for vdev in self.vdevs:
+      ret += self.vdevs[vdev].info()
+    return ret
+
   def print_vdevs(self):
     ret = ''
     for vdev in self.vdevs:

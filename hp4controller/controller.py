@@ -320,11 +320,13 @@ class Slice():
       elif command == 'lease_info':
         resp = str(lease)
         return resp
+      elif command == 'lease_dump':
+        return lease.lease_dump()
       else:
         try:
           vdev = self.vdevs[parameters[2]]
         except IndexError as e:
-          print('IndexError: ' + e)
+          print('IndexError: ' + str(e))
           print('controller.py::Slice::handle_request; parameters: ' + str(parameters))
           debug()
         try:
