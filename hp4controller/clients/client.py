@@ -64,6 +64,9 @@ class Client(cmd.Cmd, object):
     args = line.split()[1:]
 
     for i, arg in enumerate(args):
+      # don't check args beyond cmd_syntax, e.g., vdev_interpret/f
+      if i == len(cmd_syntax):
+        return True
       if arg not in cmd_syntax[i]:
         if type(arg) not in cmd_syntax[i]:
           if int in cmd_syntax[i]:
