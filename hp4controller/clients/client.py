@@ -153,6 +153,12 @@ class SliceManager(Client):
     self.syntax['vdev_dump'] = ([str],)
     self.syntax_msg['vdev_destroy'] = '<virtual device>'
     self.syntax['vdev_destroy'] = ([str],)
+    self.syntax['list_vdev_hp4code'] = ([str],)
+    self.syntax_msg['list_vdev_hp4code'] = '<virtual device>'
+    self.syntax['list_vdev_hp4rules'] = ([str],)
+    self.syntax_msg['list_vdev_hp4rules'] = '<virtual device>'
+    self.syntax['list_vdev_hp4_code_and_rules'] = ([str],)
+    self.syntax_msg['list_vdev_hp4_code_and_rules'] = '<virtual device>'
 
   def do_slice_dump(self, line):
     "Display leases and virtual devices in a slice: slice_dump"
@@ -187,6 +193,27 @@ class SliceManager(Client):
     if self.confirm_syntax('vdev_info ' + line, minargs, self.syntax['vdev_info']):
      resp = self.send_request(self.user + ' vdev_info ' + line)
      self.debug_print(resp)
+
+  def do_list_vdev_hp4code(self, line):
+    "List a vdev's hp4code: list_vdev_hp4code <virtual device>"
+    minargs = 1
+    if self.confirm_syntax('list_vdev_hp4code ' + line, minargs, self.syntax['list_vdev_hp4code']):
+      resp = self.send_request(self.user + ' list_vdev_hp4code ' + line)
+      self.debug_print(resp)
+
+  def do_list_vdev_hp4rules(self, line):
+    "List a vdev's hp4rules: list_vdev_hp4rules <virtual device>"
+    minargs = 1
+    if self.confirm_syntax('list_vdev_hp4rules ' + line, minargs, self.syntax['list_vdev_hp4rules']):
+      resp = self.send_request(self.user + ' list_vdev_hp4rules ' + line)
+      self.debug_print(resp)
+
+  def do_list_vdev_hp4_code_and_rules(self, line):
+    "List a vdev's hp4 code and rules: list_vdev_hp4_code_and_rules <virtual device>"
+    minargs = 1
+    if self.confirm_syntax('list_vdev_hp4_code_and_rules ' + line, minargs, self.syntax['list_vdev_hp4_code_and_rules']):
+      resp = self.send_request(self.user + ' list_vdev_hp4_code_and_rules ' + line)
+      self.debug_print(resp)
 
   def help_vdev_interpret(self):
     print('Interpret API command: vdev_interpret <virtual device> ' \

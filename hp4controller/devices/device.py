@@ -31,7 +31,7 @@ class Capturing(list):
     sys.stdout = self._stdout
 
 class Device():
-  def __init__(self, rta, max_entries, phys_ports, ip, port):
+  def __init__(self, rta, max_entries, phys_ports, ip, port, debug=False):
     self.rta = rta
     self.max_entries = max_entries
     self.reserved_entries = 0
@@ -40,7 +40,7 @@ class Device():
     self.ip = ip # management iface
     self.port = port # management iface
     self.next_mcast_grp_id = 1
-    self.debug = False
+    self.debug = debug
 
   def debug_print(self, s):
     if self.debug:

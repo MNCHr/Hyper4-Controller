@@ -126,7 +126,7 @@ class Controller(object):
 
     # TODO: fix this; Controller must not be required to know every Device subclass
     if dev_type == 'bmv2_SSwitch':
-      self.devices[dev_name] = device.Bmv2_SSwitch(rta, max_entries, ports, ip, port)
+      self.devices[dev_name] = device.Bmv2_SSwitch(rta, max_entries, ports, ip, port, debug=self.debug)
     elif dev_type == 'Agilio':
       self.devices[dev_name] = device.Agilio(rta, max_entries, ports, ip, port)
     else:
@@ -370,20 +370,30 @@ class Slice():
 
   def vdev_dump(self, parameters):
     "Display all pushed entries"
+    if parameters[0] not in self.vdevs:
+      return parameters[0] + ' not recognized'
     return self.vdevs[parameters[0]].dump()
 
   def vdev_info(self, parameters):
+    if parameters[0] not in self.vdevs:
+      return parameters[0] + ' not recognized'
     return self.vdevs[parameters[0]].info()
 
   def list_vdev_hp4code(self, parameters):
+    if parameters[0] not in self.vdevs:
+      return parameters[0] + ' not recognized'
     vdev = self.vdevs[parameters[0]]
     return vdev.str_hp4code()
 
   def list_vdev_hp4rules(self, parameters):
+    if parameters[0] not in self.vdevs:
+      return parameters[0] + ' not recognized'
     vdev = self.vdevs[parameters[0]]
     return vdev.str_hp4rules()
 
   def list_vdev_hp4_code_and_rules(self, parameters):
+    if parameters[0] not in self.vdevs:
+      return parameters[0] + ' not recognized'
     vdev = self.vdevs[parameters[0]]
     return vdev.str_hp4_code_and_rules()
 
