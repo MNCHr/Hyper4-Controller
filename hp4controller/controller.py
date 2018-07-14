@@ -317,11 +317,15 @@ class Slice():
         vdev = self.vdevs[parameters[2]]
         new_vdev = self.vdevs[parameters[3]]
         return lease.lease_replace(parameters[2:], vdev, new_vdev)
+      elif command == 'lease_info':
+        resp = str(lease)
+        return resp
       else:
         try:
           vdev = self.vdevs[parameters[2]]
         except IndexError as e:
-          print(e)
+          print('IndexError: ' + e)
+          print('controller.py::Slice::handle_request; parameters: ' + str(parameters))
           debug()
         try:
           resp = getattr(lease, command)(parameters[2:], vdev)

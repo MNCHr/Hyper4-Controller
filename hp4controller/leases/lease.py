@@ -502,7 +502,8 @@ class Chain(Lease):
     return 'Chain: Egress ' + str(vegress) + ' configured'
 
   def __str__(self):
-    ret = ''
+    ret = super(Chain, self).__str__()
+    ret += 'Chain: \n'
     for i in range(len(self.vdev_chain)):
       ret += ' -> ' + self.vdev_chain[i]
     return ret
