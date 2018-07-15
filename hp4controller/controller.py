@@ -488,6 +488,7 @@ class Slice():
     def get_table_action_rule(hp4command, hp4handle, dev_name):
       table = hp4command.attributes['table']
       action = hp4command.attributes['action']
+
       if hp4command.command_type == 'table_add':
         rule = p4rule.P4Rule(table, action,
                              hp4command.attributes['mparams'],
@@ -500,6 +501,7 @@ class Slice():
         rule = p4rule.P4Rule(table, action,
                              mparams,
                              hp4command.attributes['aparams'])
+
       return table, action, rule
 
     if dev_name == 'none':
@@ -559,6 +561,7 @@ class Slice():
         # return value should be handle for all commands
         hp4handle = int(self.leases[dev_name].send_command(hp4command))
         table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
+
         if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
           vdev.hp4rules[(table, hp4handle)] = rule
           vdev.hp4_code_and_rules[(table, hp4handle)] = rule
@@ -599,7 +602,8 @@ class Slice():
       match_ID = 0
       rule = p4rule.P4Rule(table, native_command.attributes['action'],
                            [],
-                           native_command.attributes['aparams'])
+                           native_command.attributes['aparams'],
+                           default=True)
       vdev.nrules[(table, match_ID)] = Interpretation(rule, match_ID, hp4_rule_keys)
       # print("CHECKPOINT: CC")
 

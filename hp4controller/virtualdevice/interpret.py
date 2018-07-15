@@ -65,7 +65,8 @@ class Interpreter(object):
     rule = P4Rule(p4command.attributes['table'],
                   p4command.attributes['action'],
                   [],
-                  p4command.attributes['aparams'])
+                  p4command.attributes['aparams'],
+                  default=True)
     key = (rule.table, rule.action)
 
     mrule = copy.deepcopy(guide.templates[key]['match'])

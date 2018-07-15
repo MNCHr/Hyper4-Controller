@@ -128,25 +128,6 @@ class Lease(object):
           handle = self.send_command(P4Command(command_type, attribs))
           vdev.hp4_code_and_rules[(table, handle)] = rule
 
-          """
-          This block has been moved to VirtualDevice::__init__
-          # store handle for default rule for native match table
-          if action == 'init_program_state' and aparams[1] == '0':
-            for key in vdev.guide.templates_match:
-              if vdev.guide.templates_match[key].attributes['table'] == rule.table:
-                native_table = key[0]
-
-                init_default_rule = P4Rule(native_table, 'init_default',
-                                           [],
-                                           [])
-
-                hp4_rule_keys = [(rule.table, action, handle)]
-                vdev.nrules[(native_table, 0)] = Interpretation(init_default_rule,
-                                                          0,
-                                                          hp4_rule_keys)
-                break
-          """
-
           if ruleset == 'rules':
             vdev.hp4rules[(table, handle)] = rule
           
@@ -192,7 +173,7 @@ class Lease(object):
     ret = ''
     for vdev in self.vdevs:
       ret += self.vdevs[vdev].info()
-    return ret
+    return ret[:-1]
 
   def print_vdevs(self):
     ret = ''

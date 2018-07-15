@@ -89,7 +89,7 @@ class VirtualDevice():
             native_table = key[0]
             init_default_rule = P4Rule(native_table, 'init_default',
                                        [],
-                                       [])
+                                       [], default=True)
 
             hp4_rule_keys = [(table, action, 0)]
             self.nrules[(native_table, 0)] = Interpretation(init_default_rule,
@@ -134,7 +134,7 @@ class VirtualDevice():
   def dump(self):
     indent = '  '
     ret = self.name + '@' + self.dev_name + '\n'
-    ret += indent + 'handle\trule\n'
+    ret += indent + 'handle\trule (*: default rule)\n'
     indent += '  '
     sorted_rules = sorted(self.nrules.keys(),
                           key=lambda entry: entry[0] + str(entry[1]))
@@ -146,7 +146,7 @@ class VirtualDevice():
   def info(self):
     ret = self.name + '(ID: ' + str(self.virtual_device_ID) + ')@' + self.dev_name + '\n'
     ret += self.program_path + '\n'
-    ret += 'pushed (user-facing : hp4-facing): (' + str(len(self.nrules)) + ' : ' \
+    ret += 'rules (user-facing : hp4-facing): (' + str(len(self.nrules)) + ' : ' \
             + str(len(self.hp4rules)) + ')\n'
     #ret += 'staged (user-facing : hp4-facing): (' + str(len(self.staged_hp4rules)) \
     #        + ' : ' + str(len(self.staged_nrules)) + ')'
