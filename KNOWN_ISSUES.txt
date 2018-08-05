@@ -1,0 +1,6 @@
+KNOWN ISSUES:
+
+- In virtualdevice.py::create_vdev:
+  The call for hp4c.compile_to_hp4 hardcodes '9' as the numprimitives parameter;
+  need to eliminate the magic number and account for the possibility that
+  HyPer4 is configured otherwise

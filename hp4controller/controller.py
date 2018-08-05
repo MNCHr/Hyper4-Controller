@@ -334,6 +334,8 @@ class Slice():
         except AttributeError as e:
           return "AttributeError(handle_request - " + command + "): " + str(e)
         except Exception as e:
+          print "Unexpected error(" + command + "): " + str(e)
+          debug()
           return "Unexpected error(" + command + "): " + str(e)
         return resp
     else:
