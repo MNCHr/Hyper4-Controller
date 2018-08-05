@@ -1024,6 +1024,9 @@ class P4_to_HP4(HP4Compiler):
     self.field_offsets = collect_meta(h.p4_header_instances)
     self.action_ID = collect_actions(h.p4_actions.values())
 
+    # reset id counter
+    PC_State.newid = itertools.count().next
+
     pre_pcs = PC_State(parse_state=h.p4_parse_states['start'])
     launch_process_parse_tree_clr(pre_pcs, h)
 
@@ -1073,6 +1076,17 @@ class P4_to_HP4(HP4Compiler):
     self.out_path = out_path
     self.mt_out_path = mt_out_path
     self.numprimitives = numprimitives
+
+    # reset state
+    self.action_ID = {}
+    self.action_to_arep = {}
+    self.command_templates = []
+    self.commands = []
+    self.field_offsets = {}
+    self.header_offsets = {}
+    self.table_to_trep = {}
+    self.vbits = {}
+
     h = HLIR(program_path)
     h.add_primitives(json.loads(pkg_resources.resource_string('p4c_bm', 'primitives.json')))
     h.build()
@@ -1172,7 +1186,9 @@ def did_rewind(pcs):
     return True
   return False
 
-def gen_parse_control_entries(pcs, commands=[]):
+def gen_parse_control_entries(pcs, commands=None):
+  if commands is None:
+    commands = []
   if pcs.pcs_id == 0:
     cmd = gen_pc_entry_start(pcs)
     commands.append(cmd)
@@ -1183,6 +1199,11 @@ def gen_parse_control_entries(pcs, commands=[]):
         commands = gen_parse_control_entries(child, commands)
   
   else:
+    try:
+      test = pcs.pcs_path[-1].hp4_bits_extracted < pcs.hp4_bits_extracted
+    except IndexError as e:
+      print(e)
+      debug()
     if (pcs.pcs_path[-1].hp4_bits_extracted < pcs.hp4_bits_extracted or
         did_rewind(pcs)):
       mparams = ['[vdev ID]', str(pcs.pcs_id)]
@@ -1485,7 +1506,9 @@ def get_parse_select_entries(pcs,
 
   return commands
 
-def gen_parse_select_entries(pcs, commands=[]):
+def gen_parse_select_entries(pcs, commands=None):
+  if commands is None:
+    commands = []
   # base cases
   if pcs.pcs_id == 0:
     return gen_parse_select_entries(pcs.children[0])
@@ -1557,7 +1580,9 @@ def process_parse_select_entries(ps_entries):
     
   return ret
 
-def collect_ingress_pcs(pcs, ingress_pcs_list=[]):
+def collect_ingress_pcs(pcs, ingress_pcs_list=None):
+  if ingress_pcs_list is None:
+    ingress_pcs_list = []
   if pcs.pcs_id == 0:
     return collect_ingress_pcs(pcs.children[0])
 
@@ -1767,7 +1792,9 @@ def consolidate_parse_tree_clr(pcs, h):
   for child in pcs.children:
     consolidate_parse_tree_clr(child, h)
 
-def collect_header_offsets(pcs, header_offsets={}):
+def collect_header_offsets(pcs, header_offsets=None):
+  if header_offsets is None:
+    header_offsets = {}
   for header in pcs.header_offsets:
     if header in header_offsets:
       if pcs.header_offsets[header] != header_offsets[header]:
@@ -1782,7 +1809,11 @@ def collect_header_offsets(pcs, header_offsets={}):
 def collect_field_offsets(header_offsets, header_instances):
   field_offsets = {}
   for header in header_offsets:
-    hinst = header_instances[header]
+    try:
+      hinst = header_instances[header]
+    except KeyError as e:
+      print(e)
+      debug()
     for field in hinst.fields:
       field_offsets[header + '.' + field.name] = field.offset + header_offsets[header]
 

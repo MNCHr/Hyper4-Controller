@@ -1,4 +1,4 @@
-header_type ethernet_t {
+header_type eth_t {
     fields {
         dstAddr : 48;
         srcAddr : 48;
@@ -17,11 +17,11 @@ header_type intrinsic_metadata_t {
   }
 }
 
-header ethernet_t ethernet;
+header eth_t eth;
 metadata intrinsic_metadata_t intrinsic_metadata;
 
 parser start {
-  extract(ethernet);
+  extract(eth);
   return ingress;
 }
 
@@ -46,7 +46,7 @@ action _no_op() {
 
 table dmac {
   reads {
-      ethernet.dstAddr : exact;
+      eth.dstAddr : exact;
   }
   actions {
       forward;
