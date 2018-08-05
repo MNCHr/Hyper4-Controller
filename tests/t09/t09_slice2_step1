@@ -1,0 +1,12 @@
+vdev_create tests/hp4t_l2_switch.p4 s1_switch
+vdev_create tests/hp4t_l2_switch.p4 s4_switch
+vdev_create tests/hp4t_l2_switch.p4 s5_switch
+lease_insert s1 s1_switch 0 etrue
+lease_insert s4 s4_switch 0 etrue
+lease_insert s5 s5_switch 0 etrue
+lease_config_egress s1 5 mcast filtered
+lease_config_egress s4 5 mcast filtered
+lease_config_egress s5 5 mcast filtered
+vdev_interpretf s1_switch bmv2 tests/t09/commands_slice2_s1_switch.txt
+vdev_interpretf s4_switch bmv2 tests/t09/commands_slice2_s4_switch.txt
+vdev_interpretf s5_switch bmv2 tests/t09/commands_slice2_s5_switch.txt
