@@ -87,6 +87,9 @@ class Lease(object):
     if vdev.dev_name != 'none':
       raise LoadError('first remove ' + vdev_name + ' from ' + vdev.dev_name)
 
+    if 'vib_dec' in vdev_name:
+      debug()
+
     vdev.hp4_code_and_rules = {}
     # vdev.hp4rules needs new handles
     hp4rules = copy.copy(vdev.hp4rules.values())

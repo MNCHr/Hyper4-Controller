@@ -16,6 +16,7 @@ import leases.lease
 from errors import AddRuleError, ModRuleError, DeleteRuleError
 import signal
 import errno
+import traceback
 
 import code
 from inspect import currentframe, getframeinfo
@@ -348,6 +349,8 @@ class Slice():
         debug()
         return "AttributeError(handle_request - " + command + "): " + str(e)
       except Exception as e:
+        print(e)
+        debug()
         return "Unexpected error(" + command + "): " + str(e)
       return resp
 
@@ -485,6 +488,9 @@ class Slice():
     # intepret
     hp4commands = vdev.interpret(native_command)
 
+    if native_command.command_type == 'table_modify':
+      debug()
+
     # destination
     dev_name = vdev.dev_name
 
@@ -578,8 +584,6 @@ class Slice():
           del vdev.hp4_code_and_rules[(table, hp4handle)]
           del vdev.hp4rules[(table, hp4handle)]
           self.leases[dev_name].entry_usage -= 1
-
-    # print("CHECKPOINT: BB")
 
     # record changes to ruleset
     table = native_command.attributes['table']
