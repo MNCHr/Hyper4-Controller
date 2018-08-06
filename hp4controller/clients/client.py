@@ -86,6 +86,13 @@ class Client(cmd.Cmd, object):
     if self.debug:
       print(s)
 
+  def recvall(self, sock, buffer_size=BUFFSIZE):
+    buf = sock.recv(buffer_size)
+    while buf:
+      yield buf
+      if len(buf) < buffer_size: break
+      buf = sock.recv(buffer_size)
+
   def send_request(self, request):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -94,7 +101,9 @@ class Client(cmd.Cmd, object):
       s.close()
       return 'Could not connect to ' + str(self.host) + ':' + str(self.port)
     s.send(request)
-    resp = s.recv(BUFFSIZE)
+
+    resp = b''.join(self.recvall(s))
+
     s.close()
     return resp
 

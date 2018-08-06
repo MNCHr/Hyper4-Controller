@@ -7,6 +7,7 @@ import socket
 import readline
 import cmd
 import atexit
+import thread
 import code
 from inspect import currentframe, getframeinfo
 from client import ChainSliceManager
@@ -30,7 +31,7 @@ class VibrantManager(ChainSliceManager):
     self.dec_path = ""
     self.enc_path = ""
     self.h_width = 64
-    self.k_width = 8
+    self.key_index_width = 8
     self.keys = {} # {key index (int) : keys (list of strs)}
 
   """
@@ -52,17 +53,17 @@ class VibrantManager(ChainSliceManager):
 
   def gen_mask_and_keys(self):
     h_width = self.h_width
-    k_width = self.k_width
+    key_index_width = self.key_index_width
 
     assert(h_width > 0)
-    assert(h_width > k_width)
+    assert(h_width > key_index_width)
 
     dec_rules = []
     enc_rules = []
     bits = []
     mask = 0
 
-    for i in range(k_width):
+    for i in range(key_index_width):
       done = False
       while(done == False):
         bit = random.randint(0, h_width - 1)
@@ -73,15 +74,15 @@ class VibrantManager(ChainSliceManager):
     for bit in bits:
       mask = mask | (1 << bit)
     
-    for i in range(2**k_width):
-      keybits = [0] * k_width
+    for i in range(2**key_index_width):
+      keybits = [0] * key_index_width
       value = i
-      for j in range(k_width):
+      for j in range(key_index_width):
         keybits[j] = value & 1
         value = value >> 1
       # print(str(keybits[::-1]))
       kidx = 0
-      for j in range(k_width):
+      for j in range(key_index_width):
         kidx = kidx | (keybits[j] << bits[j])
       rule = 'decrypt a_decrypt ' + hex(kidx) + '&&&' + hex(mask) + ' => '
       k1 = self.gen_subkey(6)
@@ -149,6 +150,35 @@ class VibrantManager(ChainSliceManager):
       resp = self.do_vdev_interpretf(enc_vdev + ' bmv2 tests/t09/commands_slice1_' \
                                      + device + '_vib_enc.txt')
       self.do_lease_append(device + ' ' + enc_vdev + ' efalse')
+
+  def rotate_keys(self):
+    for i in range(2**self.key_index_width):
+      kidx = self.keys.keys()[i]
+      self.keys[kidx] = 'unsafe'
+      rule_mod_part1 = 'encrypt a_mod_epoch_and_encrypt '
+      done = False
+      while done == False:
+        new_kidx = self.keys.keys()[random.randint(0, 2**self.key_index_width - 1)]
+        if self.keys[new_kidx] != 'unsafe':
+          k1, k2, k3, k4 = self.keys[new_kidx]
+          done = True
+
+      rule_mod_part2 = ' ' + hex(new_kidx) + ' '
+      rule_mod_part2 += ' '.join([k1, k2, k3, k4])
+
+    return 2**self.key_index_width
+
+  def do_vib_ap_rotate(self, line):
+    """ Rotate VIBRANT address protection keys: vib_ap_rotate
+    """
+    keys_rotated = 0
+    start = time.time()
+    try:
+      while True:
+        keys_rotated += self.rotate_keys()
+    except KeyboardInterrupt:
+      duration = time.time() - start
+      print('Rotated %d keys in %f seconds (%f keys/second)' % (keys_rotated, duration, keys_rotated / duration))
 
 def client(args):
   if args.user == 'admin':
