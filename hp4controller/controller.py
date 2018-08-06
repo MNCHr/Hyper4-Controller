@@ -332,6 +332,8 @@ class Slice():
         try:
           resp = getattr(lease, command)(parameters[2:], vdev)
         except AttributeError as e:
+          print(e)
+          debug()
           return "AttributeError(handle_request - " + command + "): " + str(e)
         except Exception as e:
           print "Unexpected error(" + command + "): " + str(e)
@@ -342,6 +344,8 @@ class Slice():
       try:
         resp = getattr(self, command)(parameters[1:])
       except AttributeError as e:
+        print(e)
+        debug()
         return "AttributeError(handle_request - " + command + "): " + str(e)
       except Exception as e:
         return "Unexpected error(" + command + "): " + str(e)

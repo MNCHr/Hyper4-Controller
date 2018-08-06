@@ -427,7 +427,7 @@ class Chain(Lease):
 
     parameters.insert(1, len(self.vdev_chain))
 
-    return self.insert(parameters, vdev)
+    return self.lease_insert(parameters, vdev)
 
   def lease_remove(self, parameters, vdev):
     vdev_name = parameters[0]
