@@ -1,9 +1,9 @@
-vdev_interpretf s1_vib_dec bmv2 tests/t09/commands_slice1_s1_vib_dec.txt
-vdev_interpretf s2_vib_dec bmv2 tests/t09/commands_slice1_s2_vib_dec.txt
-vdev_interpretf s3_vib_dec bmv2 tests/t09/commands_slice1_s3_vib_dec.txt
-vdev_interpretf s1_vib_enc bmv2 tests/t09/commands_slice1_s1_vib_enc.txt
-vdev_interpretf s2_vib_enc bmv2 tests/t09/commands_slice1_s2_vib_enc.txt
-vdev_interpretf s3_vib_enc bmv2 tests/t09/commands_slice1_s3_vib_enc.txt
+vdev_interpretf s1_vib_dec bmv2 tests/t09/commands_slice1_vib_dec.txt
+vdev_interpretf s2_vib_dec bmv2 tests/t09/commands_slice1_vib_dec.txt
+vdev_interpretf s3_vib_dec bmv2 tests/t09/commands_slice1_vib_dec.txt
+vdev_interpretf s1_vib_enc bmv2 tests/t09/commands_slice1_vib_enc.txt
+vdev_interpretf s2_vib_enc bmv2 tests/t09/commands_slice1_vib_enc.txt
+vdev_interpretf s3_vib_enc bmv2 tests/t09/commands_slice1_vib_enc.txt
 lease_insert s1 s1_vib_dec 0 etrue
 lease_insert s2 s2_vib_dec 0 etrue
 lease_insert s3 s3_vib_dec 0 etrue

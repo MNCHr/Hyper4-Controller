@@ -1,3 +1,0 @@
-table_add check_vibrant vibrant_present 1 =>
-table_add check_vibrant vibrant_not_present 0 =>
-table_set_default strip_vibrant a_strip_vibrant
