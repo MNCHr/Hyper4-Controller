@@ -397,9 +397,11 @@ class Chain(Lease):
 
     chain = self.vdev_chain
 
-    if position >= len(chain) - 1:
+    #debug()
+
+    if position >= len(chain):
       self.vdev2p(vdev)
-    if (len(chain) > 0) and (position < len(chain) - 1):
+    if (len(chain) > 0) and (position < len(chain)):
       rightvdev_name = chain[position]
       rightvdev = self.vdevs[rightvdev_name]
       self.vdev2vdev(vdev, rightvdev)

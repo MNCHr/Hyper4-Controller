@@ -20,7 +20,7 @@ ttyecho -n $ADMIN ./client --debug --startup tests/t09/t09_admin admin
 echo "Next: create and configure vdevs for slice 1"
 read -n 1 -s
 
-ttyecho -n $SLICEMGR ./client --debug --startup tests/t09/t09_slice1_step1 slice1
+ttyecho -n $SLICEMGR ./vibclient --debug --startup tests/t09/t09_slice1_step1 slice1
 
 echo "Next: create and configure vdevs for slice 2"
 read -n 1 -s
@@ -30,4 +30,4 @@ ttyecho -n $SLICEMGR2 ./client --debug --startup tests/t09/t09_slice2_step1 slic
 echo "Next: slice 1 enable VIBRANT protection"
 read -n 1 -s
 
-ttyecho -n $SLICEMGR ./client --debug --startup tests/t09/t09_slice1_step2 slice1
+ttyecho -n $SLICEMGR source tests/t09/t09_slice1_step2

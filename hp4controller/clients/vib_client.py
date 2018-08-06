@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import random
 import argparse
 import sys
 import socket
@@ -24,22 +25,23 @@ BUFFSIZE = 4096
 class VibrantManager(ChainSliceManager):
   def __init__(self, **kwargs):
     super(VibrantManager, self).__init__(**kwargs)
-    self.devices = []
+    self.dec_vdevs = []
+    self.enc_vdevs = []
     self.dec_path = ""
     self.enc_path = ""
     self.h_width = 64
     self.k_width = 8
-    self.keyset1 = []
+    self.keys = {} # {key index (int) : keys (list of strs)}
 
-"""
-1 command to create vibrant vdevs & initialize
-1 command to deploy decryptors to all switches
-1 command to deploy encryptors to all switches
-1 command to rotate keys via individual key rotations
-- space to stop
-1 command to rotate keys via vdev replacement
-- space to stop
-"""
+  """
+  1 command to create vibrant vdevs & initialize
+  1 command to deploy decryptors to all switches
+  1 command to deploy encryptors to all switches
+  1 command to rotate keys via individual key rotations
+  - space to stop
+  1 command to rotate keys via vdev replacement
+  - space to stop
+  """
 
   @staticmethod
   def gen_subkey(nbytes):
@@ -55,6 +57,8 @@ class VibrantManager(ChainSliceManager):
     assert(h_width > 0)
     assert(h_width > k_width)
 
+    dec_rules = []
+    enc_rules = []
     bits = []
     mask = 0
 
@@ -70,24 +74,70 @@ class VibrantManager(ChainSliceManager):
       mask = mask | (1 << bit)
     
     for i in range(2**k_width):
-    # TODO: import remainder f method from key_rotator fro line 129 down
+      keybits = [0] * k_width
+      value = i
+      for j in range(k_width):
+        keybits[j] = value & 1
+        value = value >> 1
+      # print(str(keybits[::-1]))
+      kidx = 0
+      for j in range(k_width):
+        kidx = kidx | (keybits[j] << bits[j])
+      rule = 'decrypt a_decrypt ' + hex(kidx) + '&&&' + hex(mask) + ' => '
+      k1 = self.gen_subkey(6)
+      k2 = self.gen_subkey(6)
+      k3 = self.gen_subkey(4)
+      k4 = self.gen_subkey(4)
+      self.keys[kidx] = [k1, k2, k3, k4]
+      rule += k1 + ' ' + k2 + ' ' + k3 + ' ' + k4 + ' 1'
+      dec_rules.append(rule)
+
+      rule = 'encrypt a_encrypt ' + hex(kidx) + '&&&' + hex(mask) + ' => '
+      rule += k1 + ' ' + k2 + ' ' + k3 + ' ' + k4 + ' 1'
+      enc_rules.append(rule)
+
+    return dec_rules, enc_rules
 
   def do_vib_ap_init(self, line):
     """Initialize VIBRANT address protection: vib_ap_init <decryptor p4_path>
      \r<enryptor p4_path> <list of devices>
     """
     minargs = 2
-    self.devices = line[2:].split()
-    dec_path = line[0]
-    enc_path = line[1]
-    for device in self.devices:
+    dec_path = line.split()[0]
+    enc_path = line.split()[1]
+    for device in line.split()[2:]:
       name = device + '_vib_dec'
       vdev_create_line = dec_path + ' ' + name
       resp = self.send_request(self.user + ' vdev_create ' + vdev_create_line)
+      if 'created' not in resp:
+        print('Attempt to create ' + name + ' failed with this error:')
+        print(resp)
+        debug()
+      else:
+        self.dec_vdevs.append(name)
       name = device + '_vib_enc'
       vdev_create_line = enc_path + ' ' + name
       resp = self.send_request(self.user + ' vdev_create ' + vdev_create_line)
+      if 'created' not in resp:
+        print('Attempt to create ' + name + ' failed with this error:')
+        print(resp)
+        debug()
+      else:
+        self.enc_vdevs.append(name)
 
+    self.dec_rules, self.enc_rules = self.gen_mask_and_keys()
+
+    for dec_vdev in self.dec_vdevs:
+      #handle = do_table_add(dev_id, rule)
+      #devices[dev_id][ENC_H_IDX][kidx] = handle
+      for rule in self.dec_rules:
+        resp = self.do_vdev_interpret(dec_vdev + ' bmv2 table_add ' + rule)
+        self.debug_print(resp)
+      resp = self.do_vdev_interpretf(dec_vdev + ' bmv2 tests/t09/commands_slice1_vib_dec.txt')
+
+    for device in line.split()[2:]:
+      dec_vdev = device + '_vib_dec'
+      self.do_lease_insert(device + ' ' + dec_vdev + ' 0 efalse')
 
 def client(args):
   if args.user == 'admin':
