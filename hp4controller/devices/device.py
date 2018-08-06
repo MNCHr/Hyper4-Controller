@@ -112,6 +112,7 @@ class Bmv2_SSwitch(Device):
         handle = self.do_table_add(rule)
       except AddRuleError as e:
         print('AddRuleError exception: ' + str(e))
+        raise
       except:
         raise
       return handle

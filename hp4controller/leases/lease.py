@@ -91,56 +91,75 @@ class Lease(object):
       debug()
 
     vdev.hp4_code_and_rules = {}
-    # vdev.hp4rules needs new handles
-    hp4rules = copy.copy(vdev.hp4rules.values())
-    vdev.hp4rules = {}
 
-    rulesets = {'code': vdev.hp4code, 'rules': hp4rules}
+    def func(rule):
+      table = rule.table
+      command_type = 'table_add'
+      action = rule.action
+      aparams = list(rule.aparams)
 
-    for ruleset in rulesets:
-      for rule in rulesets[ruleset]:
-        try:
-          table = rule.table
-          command_type = 'table_add'
-          action = rule.action
-          aparams = list(rule.aparams)
+      if egress_mode == 'efalse':
+        if ('t_mod_' in table) and ('mod_stdmeta_egressspec' in rule.action):
+          action = '_no_op'
+          aparams = aparams[-1]
 
-          if egress_mode == 'efalse':
-            if ('t_mod_' in table) and ('mod_stdmeta_egressspec' in rule.action):
-              action = '_no_op'
-              aparams = aparams[-1]
+      elif egress_mode == 'econd':
+        if (table == 'tset_pipeline_config'):
+          aparams[2] = '1'
 
-          elif egress_mode == 'econd':
-            if (table == 'tset_pipeline_config'):
-              aparams[2] = '1'
+      elif egress_mode != 'etrue':
+        raise LoadError('Invalid egress handling mode: ' + egress_mode)
 
-          elif egress_mode != 'etrue':
-            raise LoadError('Invalid egress handling mode: ' + egress_mode)
+      if action == 'mod_intmeta_mcast_grp_const':
+        aparams[0] = str(self.mcast_grp_id)
 
-          if action == 'mod_intmeta_mcast_grp_const':
-            aparams[0] = str(self.mcast_grp_id)
+      attribs = {'table': table,
+                 'action': action,
+                 'mparams': rule.mparams,
+                 'aparams': aparams}
 
-          attribs = {'table': table,
-                     'action': action,
-                     'mparams': rule.mparams,
-                     'aparams': aparams}
+      debug()
+      handle = self.send_command(P4Command(command_type, attribs))
+      return table, handle
 
-          #if table == 't_bit_xor_24':
-          #  debug()
-
-          handle = self.send_command(P4Command(command_type, attribs))
-          vdev.hp4_code_and_rules[(table, handle)] = rule
-
-          if ruleset == 'rules':
-            vdev.hp4rules[(table, handle)] = rule
+    def addRuleErrorHandler(e):
+      # remove all entries already added
+      for table, handle in vdev.hp4_code_and_rules.keys():
+        rule_identifier = table + ' ' + str(handle)
+        self.device.do_table_delete(rule_identifier)
+        del vdev.hp4_code_and_rules[(table, handle)]
+      raise LoadError('Lease::insert: ' + str(e))
+     
+    for rule in vdev.hp4code:
+      try:
+        table, handle = func(rule)
+        vdev.hp4_code_and_rules[(table, handle)] = rule
           
+      except AddRuleError as e:
+        addRuleErrorHandler(e)
+
+    new_hp4rules = {}
+    for nrule in vdev.nrules:
+      interp = vdev.nrules[nrule]
+      new_hp4_rule_keys = []
+      for key in interp.hp4_rule_keys:
+        rule = vdev.hp4rules[(key[0], key[2])]
+
+        try:
+          table, handle = func(rule)
+          vdev.hp4_code_and_rules[(table, handle)] = rule
+          new_hp4_rules[(table, handle)] = rule
+
         except AddRuleError as e:
-          # remove all entries already added
-          for table, handle in vdev.hp4_code_and_rules.keys():
-            rule_identifier = table + ' ' + str(handle)
-            self.device.do_table_delete(rule_identifier)
-            del vdev.hp4_code_and_rules[(table, handle)]
-          raise LoadError('Lease::insert: ' + str(e))
+          addRuleErrorHandler(e)
+        if key[2] < 0:
+          new_hp4_rule_keys.append((key[0], key[1], key[2] * -1))
+        else:
+          new_hp4_rule_keys.append(key)
+
+      interp.hp4_rule_keys = new_hp4_rule_keys
+
+    vdev.hp4rules = new_hp4rules
 
     self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
 
