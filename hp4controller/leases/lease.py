@@ -87,8 +87,8 @@ class Lease(object):
     if vdev.dev_name != 'none':
       raise LoadError('first remove ' + vdev_name + ' from ' + vdev.dev_name)
 
-    if 'vib_dec' in vdev_name:
-      debug()
+    #if 'vib_dec' in vdev_name:
+    #  debug()
 
     vdev.hp4_code_and_rules = {}
 
@@ -118,7 +118,6 @@ class Lease(object):
                  'mparams': rule.mparams,
                  'aparams': aparams}
 
-      debug()
       handle = self.send_command(P4Command(command_type, attribs))
       return table, handle
 
@@ -142,16 +141,23 @@ class Lease(object):
     for nrule in vdev.nrules:
       interp = vdev.nrules[nrule]
       new_hp4_rule_keys = []
+
       for key in interp.hp4_rule_keys:
+
+        # this case likely corresponds to default rule
+        if (key[0], key[2]) not in vdev.hp4rules:
+          continue
+
         rule = vdev.hp4rules[(key[0], key[2])]
 
         try:
           table, handle = func(rule)
           vdev.hp4_code_and_rules[(table, handle)] = rule
-          new_hp4_rules[(table, handle)] = rule
+          new_hp4rules[(table, handle)] = rule
 
         except AddRuleError as e:
           addRuleErrorHandler(e)
+
         if key[2] < 0:
           new_hp4_rule_keys.append((key[0], key[1], key[2] * -1))
         else:
