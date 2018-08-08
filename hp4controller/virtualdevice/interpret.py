@@ -267,11 +267,16 @@ class Interpreter(object):
     key = (p4command.attributes['table'], p4command.attributes['action'])
 
     if p4command.attributes['action'] == interpretation.native_rule.action:
+
+      # PROBLEM: code below shouldn't be here - we might not end up committing the changes
+      # UPDATE: this task was already in controller; suspect having it here was
+      #  not only wrong but redundant
       # update interpretation origin rule
-      interpretation.native_rule = P4Rule(interpretation.native_rule.table,
-                                          p4command.attributes['action'],
-                                          interpretation.native_rule.mparams,
-                                          p4command.attributes['aparams'])
+      #interpretation.native_rule = P4Rule(interpretation.native_rule.table,
+      #                                    p4command.attributes['action'],
+      #                                    interpretation.native_rule.mparams,
+      #                                    p4command.attributes['aparams'])
+
       # table_modifies
       # TODO: revise to be less 'hacky' - this quality arises from lack of separation
       # in Interpretation class between the match rule and the primitive rules
@@ -281,6 +286,7 @@ class Interpreter(object):
         arule = copy.deepcopy(guide.templates[key]['primitives'][i-1])
         if (arule.attributes['table'] != table) or (arule.attributes['action'] != action):
           print("Error: Interpret::table_modify observed interpretation out-of-sync w/ guide")
+          debug()
           exit()
         arule_action_params = arule.attributes['aparams']
         del arule_action_params[len(arule_action_params)-1] # last is tern priority
@@ -343,7 +349,7 @@ class Interpreter(object):
     return p4commands
 
   @staticmethod
-  def table_delete(guide, p4command, hp4_rule_keys):
+  def table_delete(p4command, hp4_rule_keys):
     p4commands = []
     for table, action, handle in hp4_rule_keys:
       attribs = {'table': table,

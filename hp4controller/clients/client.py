@@ -233,6 +233,7 @@ class SliceManager(Client):
     if self.confirm_syntax('vdev_interpret ' + line, minargs, self.syntax['vdev_interpret']):
       resp = self.send_request(self.user + ' vdev_interpret ' + line)
       self.debug_print(resp)
+      return resp
 
   def help_vdev_interpretf(self):
     print('Interpret API commands in file: vdev_interpretf ' + self.syntax_msg['vdev_interpretf'])
@@ -248,6 +249,7 @@ class SliceManager(Client):
           resp += pre + self.send_request(self.user + ' vdev_interpret ' + newline)
           pre = '\n'
       self.debug_print(resp)
+      return resp
 
   def do_vdev_stage_clear(self, line):
     "Clear staged entries: vdev_stage_clear <virtual device>"

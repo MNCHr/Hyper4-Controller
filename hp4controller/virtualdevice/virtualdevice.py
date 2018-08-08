@@ -190,7 +190,6 @@ class VirtualDevice():
                                                  self.virtual_device_ID,
                                                  self.mcast_grp_id)
     else:
-      debug()
       native_handle = p4command.attributes['handle']
       if native_handle == 0:
         print("Error(VirtualDevice::interpret) - table_modify / table_delete using native handle 0")
@@ -204,8 +203,7 @@ class VirtualDevice():
                                               self.virtual_device_ID,
                                               self.mcast_grp_id)
       elif p4command.command_type == 'table_delete':
-        p4commands = Interpreter.table_delete(self.guide,
-                                              p4command,
+        p4commands = Interpreter.table_delete(p4command,
                                               interpretation.hp4_rule_keys)
 
     return p4commands

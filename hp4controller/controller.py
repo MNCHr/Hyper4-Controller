@@ -485,11 +485,13 @@ class Slice():
       return 'Error - ' + vdev_name + ' not a recognized virtual device'
     vdev = self.vdevs[vdev_name]
 
+    #if vdev_name == 's1_vib_enc' and parameters[2] == 'table_modify' and parameters[4] == 'a_mod_epoch_and_encrypt':
+    #  debug()
+    #if vdev_name == 's1_vib_enc':
+    #  debug()
+
     # intepret
     hp4commands = vdev.interpret(native_command)
-
-    if native_command.command_type == 'table_modify':
-      debug()
 
     # destination
     dev_name = vdev.dev_name
@@ -499,17 +501,25 @@ class Slice():
 
     def get_table_action_rule(hp4command, hp4handle, dev_name):
       table = hp4command.attributes['table']
-      action = hp4command.attributes['action']
+      try:
+        action = hp4command.attributes['action']
+      except Exception as e:
+        print(e)
+        debug()
 
       if hp4command.command_type == 'table_add':
         rule = p4rule.P4Rule(table, action,
                              hp4command.attributes['mparams'],
                              hp4command.attributes['aparams'])
       else: # 'table_modify'
+        # TODO: fix this?  hp4rules should work whether vdev is loaded or not, right?
         if dev_name == 'none':
           mparams = vdev.hp4rules[(table, hp4handle)].mparams
         else:
           mparams = vdev.hp4_code_and_rules[(table, hp4handle)].mparams
+          if mparams != vdev.hp4rules[(table, hp4handle)].mparams:
+            print('Investigate why hp4rules and hp4_code_and_rules differ')
+            debug()
         rule = p4rule.P4Rule(table, action,
                              mparams,
                              hp4command.attributes['aparams'])
@@ -565,6 +575,7 @@ class Slice():
           diff -= 1
       # abort if insufficient capacity
       if diff > entries_available:
+        debug()
         return 'Error - entries net increase(' + str(diff) \
              + ') exceeds availability(' + str(entries_available) + ')'
 
@@ -572,7 +583,10 @@ class Slice():
       for hp4command in hp4commands:
         # return value should be handle for all commands
         hp4handle = int(self.leases[dev_name].send_command(hp4command))
-        table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
+        if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
+          table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
+        else: # command_type == 'table_delete'
+          table = hp4command.attributes['table']
 
         if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
           vdev.hp4rules[(table, hp4handle)] = rule
@@ -586,34 +600,57 @@ class Slice():
           self.leases[dev_name].entry_usage -= 1
 
     # record changes to ruleset
-    table = native_command.attributes['table']
+    try:
+      table = native_command.attributes['table']
+    except Exception as e:
+      print(e)
+      debug()
+    nhandle_str = ''
     if native_command.command_type == 'table_add':
       # new Origin_to_HP4Map w/ new hp4_rule_keys list
-      rule = p4rule.P4Rule(table, native_command.attributes['action'],
-                           native_command.attributes['mparams'],
-                           native_command.attributes['aparams'])
+      try:
+        rule = p4rule.P4Rule(table, native_command.attributes['action'],
+                             native_command.attributes['mparams'],
+                             native_command.attributes['aparams'])
+      except Exception as e:
+        print(e)
+        debug()
 
       match_ID = int(hp4commands[0].attributes['aparams'][1])
+      nhandle_str = '; handle: ' + str(match_ID)
       vdev.nrules[(table, match_ID)] = \
                                          Interpretation(rule, match_ID, hp4_rule_keys)
 
     elif native_command.command_type == 'table_modify':
       # update interpretation origin rule
       match_ID = native_command.attributes['handle']
+      nhandle_str = '; handle: ' + str(match_ID)
       interpretation = vdev.nrules[(table, match_ID)]
-      rule = p4rule.P4Rule(table, native_command.attributes['action'],
-                           interpretation.native_rule.mparams,
-                           native_command.attributes['aparams'])
+      try:
+        rule = p4rule.P4Rule(table, native_command.attributes['action'],
+                             interpretation.native_rule.mparams,
+                             native_command.attributes['aparams'])
+      except Exception as e:
+        print(e)
+        debug()
+
+      # retain match rule
+      hp4_match_rule_key = vdev.nrules[(table, match_ID)].hp4_rule_keys[0]
+      hp4_rule_keys.insert(0, hp4_match_rule_key)
 
       vdev.nrules[(table, match_ID)] = \
                                         Interpretation(rule, match_ID, hp4_rule_keys)
 
     elif native_command.command_type == 'table_set_default':
       match_ID = 0
-      rule = p4rule.P4Rule(table, native_command.attributes['action'],
-                           [],
-                           native_command.attributes['aparams'],
-                           default=True)
+      try:
+        rule = p4rule.P4Rule(table, native_command.attributes['action'],
+                             [],
+                             native_command.attributes['aparams'],
+                             default=True)
+      except Exception as e:
+        print(e)
+        debug()
       vdev.nrules[(table, match_ID)] = Interpretation(rule, match_ID, hp4_rule_keys)
       # print("CHECKPOINT: CC")
 
@@ -621,7 +658,13 @@ class Slice():
       handle = native_command.attributes['handle']
       del vdev.nrules[(table, handle)]
 
-    return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' + dev_name
+    #if vdev_name == 's1_vib_enc' and parameters[2] == 'table_modify' and parameters[4] == 'a_mod_epoch_and_encrypt':
+    #  debug()
+    #if vdev_name == 's1_vib_enc':
+    #  debug()
+
+    return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' \
+                           + dev_name + ' ' + nhandle_str
 
 class CompTypeException(Exception):
   pass

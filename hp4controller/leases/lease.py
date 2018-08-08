@@ -71,6 +71,65 @@ class Lease(object):
 
     self.device.reserved_entries -= self.entry_limit
 
+  def debug_lvd(self, vdev):
+      ret = ''
+      keyst2_hp4rules = []
+      keyst2_hp4_code_and_rules = []
+      keys21_hp4rules = []
+      keys21_hp4_code_and_rules = []
+      nrules_encrypt = []
+      for key in vdev.hp4rules.keys():
+        if key[0] == 't2_extracted_ternary':
+          keyst2_hp4rules.append(key)
+        elif key[0] == 't_bit_xor_21':
+          keys21_hp4rules.append(key)
+      for key in vdev.hp4_code_and_rules.keys():
+        if key[0] == 't2_extracted_ternary':
+          keyst2_hp4_code_and_rules.append(key)
+        elif key[0] == 't_bit_xor_21':
+          keys21_hp4_code_and_rules.append(key)
+      for key in vdev.nrules.keys():
+        if key[0] == 'encrypt':
+          nrules_encrypt.append(key)
+      keyst2_hp4rules.sort()
+      keyst2_hp4_code_and_rules.sort()
+      keys21_hp4rules.sort()
+      keys21_hp4_code_and_rules.sort()
+      nrules_encrypt.sort()
+      ret += 'vdev.hp4rules:\n'
+      start = str(keyst2_hp4rules[0][1])
+      stop = str(keyst2_hp4rules[-1][1])
+      ret += '\tt2_extracted_ternary: ' + start + ' - ' + stop + '\n'
+      start = str(keys21_hp4rules[0][1])
+      stop = str(keys21_hp4rules[-1][1])
+      ret += '\tt_bit_xor_21: ' + start + ' - ' + stop + '\n'
+      ret += 'vdev.hp4_code_and_rules: ' + str(len(vdev.hp4_code_and_rules)) + ' entries\n'
+      if keyst2_hp4_code_and_rules:
+        start = str(keyst2_hp4_code_and_rules[0][1])
+        stop = str(keyst2_hp4_code_and_rules[-1][1])
+        ret += '\tt2_extracted_ternary: ' + start + ' - ' + stop + '\n'
+      if keys21_hp4_code_and_rules:
+        start = str(keys21_hp4_code_and_rules[0][1])
+        stop = str(keys21_hp4_code_and_rules[-1][1])
+        ret += '\tt_bit_xor_21: ' + start + ' - ' + stop + '\n'
+      ret += 'vdev.nrules:\n'
+      start = str(nrules_encrypt[0][1])
+      stop = str(nrules_encrypt[-1][1])
+      ret += '\tencrypt: ' + start + ' - ' + stop + '\n'
+      ret += 'vdev.nrules[(encrypt, 1)].hp4_rule_keys:\n'
+      interp = vdev.nrules[('encrypt', 1)]
+      t2val = 9999
+      tbx21val = 9999
+      for key in interp.hp4_rule_keys:
+        if key[0] == 't2_extracted_ternary':
+          t2val = key[2]
+        elif key[0] == 't_bit_xor_21':
+          tbx21val = key[2]
+      ret += '\tt2_extracted_ternary: ' + str(t2val) + '\n'
+      ret += '\tt_bit_xor_21: ' + str(tbx21val)
+      debug()
+      return ret
+
   def load_virtual_device(self, vdev_name, vdev, egress_mode):
     # validate request
     # - validate vdev_name
@@ -87,7 +146,7 @@ class Lease(object):
     if vdev.dev_name != 'none':
       raise LoadError('first remove ' + vdev_name + ' from ' + vdev.dev_name)
 
-    #if 'vib_dec' in vdev_name:
+    #if vdev_name == 's1_vib_enc':
     #  debug()
 
     vdev.hp4_code_and_rules = {}
@@ -158,16 +217,16 @@ class Lease(object):
         except AddRuleError as e:
           addRuleErrorHandler(e)
 
-        if key[2] < 0:
-          new_hp4_rule_keys.append((key[0], key[1], key[2] * -1))
-        else:
-          new_hp4_rule_keys.append(key)
+        new_hp4_rule_keys.append((key[0], key[1], handle))
 
       interp.hp4_rule_keys = new_hp4_rule_keys
 
     vdev.hp4rules = new_hp4rules
 
-    self.entry_usage += len(vdev.hp4code) + len(vdev.hp4rules)
+    self.entry_usage = len(vdev.hp4code) + len(vdev.hp4rules)
+
+    #if vdev_name == 's1_vib_enc':
+    #  debug()
 
   def send_command(self, p4cmd):
     "Send command to associated device, return handle"

@@ -132,6 +132,8 @@ class Bmv2_SSwitch(Device):
       return handle
 
     elif cmd_str_rep.split()[0] == 'table_delete':
+      #if cmd_str_rep.split()[1] == 't_bit_xor_21':
+      #  debug()
       try:
         self.debug_print(cmd_str_rep)
         self.do_table_delete(cmd_str_rep.split('table_delete ' )[1])

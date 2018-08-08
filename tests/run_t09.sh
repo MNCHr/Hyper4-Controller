@@ -31,3 +31,8 @@ echo "Next: slice 1 enable VIBRANT protection"
 read -n 1 -s
 
 ttyecho -n $SLICEMGR source tests/t09/t09_slice1_step2
+
+echo "Next: slice 1 start rotating keys"
+read -n 1 -s
+
+ttyecho -n $SLICEMGR source tests/t09/t09_slice1_step3
