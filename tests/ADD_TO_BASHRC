@@ -1,0 +1,22 @@
+# testing for VIBRANT evaluation
+if [[ "$XTERM_VERSION" ]]
+then
+  winname=$(xprop -id $(xdotool getactivewindow) | grep "WM_NAME(STRING)" | sed 's/.*=[ 	"]*\([^"]*\)["]*$/\1/')  
+  if [[ "$winname" == "Node: h2" ]]
+  then
+    ./t9h2.sh
+  elif [[ "$winname" == "Node: h3" ]]
+  then
+    ./t9h3.sh
+  elif [[ "$winname" == "Node: h1" ]]
+  then
+    ./t9h1.sh
+  elif [[ "$winname" == "Node: h6" ]]
+  then
+    ./t9h6.sh
+  elif [[ "$winname" == "Node: h5" ]]
+  then
+    ./t9h5.sh
+  fi
+fi
+

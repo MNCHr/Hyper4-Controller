@@ -4,7 +4,7 @@
 TEST=0
 RUN=0
 SWITCHES=1
-IFACES=3
+IFACES=1
 
 while [[ $# -gt 1 ]]
 do
@@ -38,7 +38,7 @@ done
 suffix=1
 for i in `seq 1 $SWITCHES`;
 do
-  for j in `seq $IFACES $IFACES`;
+  for j in `seq 1 $IFACES`;
   do
     fname=t${TEST}"/t"${TEST}"_s"${i}"_eth"${j}"_run_"${RUN}".dump"
     tcpdump -i s$i"-eth"$j -n -s 50 -w $fname &

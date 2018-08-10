@@ -118,9 +118,6 @@ class Bmv2_SSwitch(Device):
       return handle
 
     elif cmd_str_rep.split()[0] == 'table_modify':
-      #if cmd_str_rep.split()[1] == 't_virtnet':
-      #  print("Bmv2_SSwitch::send_command, table_modify")
-      #  code.interact(local=dict(globals(), **locals()))
       try:
         
         self.do_table_modify(cmd_str_rep.split('table_modify ')[1])
@@ -132,8 +129,6 @@ class Bmv2_SSwitch(Device):
       return handle
 
     elif cmd_str_rep.split()[0] == 'table_delete':
-      #if cmd_str_rep.split()[1] == 't_bit_xor_21':
-      #  debug()
       try:
         self.debug_print(cmd_str_rep)
         self.do_table_delete(cmd_str_rep.split('table_delete ' )[1])
@@ -159,6 +154,10 @@ class Bmv2_SSwitch(Device):
       self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
         raise DeleteRuleError(out)
+      if ('Deleting entry 0 from t_bit_xor_25' in out) and (self.port == 22222):
+        print(rule_identifier)
+        print("Device on port " + str(self.port))
+        debug()
 
   def do_table_add(self, rule):
     """ rule: P4Rule

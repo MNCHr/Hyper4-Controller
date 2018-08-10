@@ -286,7 +286,7 @@ class Controller(object):
         if code != errno.EINTR:
           raise
       if killer.kill_now:
-        self.dbugprint("GracefulKiller triggered")
+        self.dbugprint("\rConViDa terminated")
         break
 
     if clientsocket:
@@ -485,8 +485,14 @@ class Slice():
       return 'Error - ' + vdev_name + ' not a recognized virtual device'
     vdev = self.vdevs[vdev_name]
 
-    #if vdev_name == 's1_vib_enc' and parameters[2] == 'table_modify' and parameters[4] == 'a_mod_epoch_and_encrypt':
-    #  debug()
+    """
+    if (vdev_name == 's1_vib_enc' and
+        parameters[2] == 'table_modify' and 
+        parameters[4] == 'a_mod_epoch_and_encrypt' and 
+        native_command.attributes['table'] == 'encrypt' and 
+        native_command.attributes['handle'] == 1):
+      debug()
+    """
     #if vdev_name == 's1_vib_enc':
     #  debug()
 
@@ -525,6 +531,8 @@ class Slice():
                              hp4command.attributes['aparams'])
 
       return table, action, rule
+
+    #trap = False
 
     if dev_name == 'none':
       if native_command.command_type == 'table_set_default':
@@ -582,7 +590,13 @@ class Slice():
       # push hp4 rules, collect handles, gather changes to ruleset
       for hp4command in hp4commands:
         # return value should be handle for all commands
-        hp4handle = int(self.leases[dev_name].send_command(hp4command))
+        #if hp4command.attributes['table'] == 't_bit_xor_25' and hp4command.command_type == 'table_delete':
+        #  debug()
+        try:
+          hp4handle = int(self.leases[dev_name].send_command(hp4command))
+        except Exception as e:
+          print(e)
+          debug()
         if hp4command.command_type == 'table_add' or hp4command.command_type == 'table_modify':
           table, action, rule = get_table_action_rule(hp4command, hp4handle, dev_name)
         else: # command_type == 'table_delete'
@@ -598,6 +612,10 @@ class Slice():
           del vdev.hp4_code_and_rules[(table, hp4handle)]
           del vdev.hp4rules[(table, hp4handle)]
           self.leases[dev_name].entry_usage -= 1
+
+        #if hp4command.command_type == 'table_delete' and hp4command.attributes['table'] == 't_bit_xor_25' and hp4handle == 0 and vdev_name == 's1_vib_enc':
+        #  debug()
+        #  trap = True
 
     # record changes to ruleset
     try:
@@ -658,9 +676,17 @@ class Slice():
       handle = native_command.attributes['handle']
       del vdev.nrules[(table, handle)]
 
-    #if vdev_name == 's1_vib_enc' and parameters[2] == 'table_modify' and parameters[4] == 'a_mod_epoch_and_encrypt':
-    #  debug()
+    """
+    if (vdev_name == 's1_vib_enc' and
+        parameters[2] == 'table_modify' and 
+        parameters[4] == 'a_mod_epoch_and_encrypt' and 
+        native_command.attributes['table'] == 'encrypt' and 
+        native_command.attributes['handle'] == 1):
+      debug()
+    """
     #if vdev_name == 's1_vib_enc':
+    #  debug()
+    #if trap:
     #  debug()
 
     return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' \
@@ -671,7 +697,7 @@ class CompTypeException(Exception):
 
 def server(args):
   ctrl = Controller(args)
-  ctrl.dbugprint('Starting server at %s:%d' % (args.host, args.port))
+  ctrl.dbugprint('ConViDa listening at %s:%d' % (args.host, args.port))
   ctrl.serverloop()
 
 def parse_args(args):
