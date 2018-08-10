@@ -41,7 +41,7 @@ do
   for j in `seq 1 $IFACES`;
   do
     fname=t${TEST}"/t"${TEST}"_s"${i}"_eth"${j}"_run_"${RUN}".dump"
-    tcpdump -i s$i"-eth"$j -n -s 50 -w $fname &
+    tcpdump -i s$i"-eth"$j -n -s 100 -w $fname &
     var="PID_$suffix"
     declare "$var"=$!
     ((suffix++))

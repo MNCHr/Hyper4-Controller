@@ -164,6 +164,9 @@ class VibrantManager(ChainSliceManager):
                                      + device + '_vib_enc.txt')
       self.do_lease_append(device + ' ' + enc_vdev + ' efalse')
 
+    print ("Complete")
+    print (time.strftime("%H:%M:%S"))
+
   def rotate_keys(self):
 
     # DEBUG: for i in range(1):
@@ -276,6 +279,7 @@ class VibrantManager(ChainSliceManager):
       pass
     duration = time.time() - start
     print('Rotated %d keys in %f seconds (%f keys/second)' % (keys_rotated, duration, keys_rotated / duration))
+    print (time.strftime("%H:%M:%S"))
 
 def client(args):
   if args.user == 'admin':

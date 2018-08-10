@@ -1,6 +1,0 @@
-vdev_create tests/vibrant.p4 vib_s1
-lease_insert alpha vib_s1 0 etrue
-vdev_create tests/vibrant.p4 vib_s2
-lease_insert bravo vib_s2 0 etrue
-vdev_create tests/vibrant.p4 vib_s3
-lease_insert charlie vib_s3 0 etrue
