@@ -90,7 +90,7 @@ min_y <- min(min_y_h1,min_y_h5)
 
 max_x <- max(t09_h1bandwidth[[1]])
 
-# ------ H1 Bandwidth ------
+# ------ Bandwidth ------
 
 # Start pdf driver
 pdf(file="plots/t09_bandwidth_r1.pdf", height=4, width=8)
@@ -116,39 +116,24 @@ legend("topright", c("slice 1: h1 <-> h3","slice 2: h5 <-> h6"), col=plot_colors
 # Flush output to PDF
 dev.off()
 
-# ------ H5 Bandwidth ------
-
-# Start pdf driver
-#pdf(file="t09_h5bandwidth_r1.pdf", height=4, width=8)
-
-# Trim excess margin space
-#par(mar=c(4.2, 3.9, 0.2, 0.5))
-
-# Plot
-#plot(t09_h5bandwidth, type="n", col=plot_colors[1], ann=FALSE, mgp=c(3, 0.5, 0), ylim=c(min_y, max_y), xlim=c(0, max_x))
-#lines(t09_h5bandwidth, type="b", pch=20)
-#axis(1,at=phvals1,labels=phlabels1,las=1,mgp=c(3, 1.5, 0))
-#axis(1,at=phvals2,labels=phlabels2,las=1,mgp=c(3, 1.5, 0))
-
-#title(xlab="time (s)")
-#title(ylab="Mbps, non-VIBRANT slice")
-
-# Flush output to PDF
-#dev.off()
-
 # ------ H2 Latency ------
 
 # Start pdf driver
 pdf(file="plots/t09_h2latency_r1.pdf", height=4, width=8)
 
-op <- par(mar=c(5,4,1,1))
+# Trim excess margin space
+par(mar=c(4.2, 3.9, 0.2, 0.5))
+
 plot(t09_h2latency, type="p", pch=".", col=plot_colors[1], ann=FALSE, mgp=c(3, 0.5, 0), xlab="")
+points(t09_h2latency_p95, type="p", pch=".", col=plot_colors[2])
 axis(1,at=phvals1,labels=phlabels1,las=1,mgp=c(3, 1.5, 0))
 axis(1,at=phvals2,labels=phlabels2,las=1,mgp=c(3, 1.5, 0))
-par(op)
 
 title(xlab="time (s)")
 title(ylab="latency (ms)")
+
+# Create legend
+legend("topright", legend=c(expression('individual latency, p'[i]), expression('95th percentile, (p'[i-100]*',...,p'[i]*']')), col=plot_colors, pch=16, cex=0.8, box.lwd = 0, box.col = "white", bg = "white", inset=c(0.01, 0.01))
 
 # Flush output to PDF
 dev.off()
