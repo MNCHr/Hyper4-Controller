@@ -1,0 +1,11 @@
+start tcpdump Fri Aug 10 17:58:18 MDT 2018
+start h2 Fri Aug 10 17:58:20 MDT 2018
+start h3 Fri Aug 10 17:58:21 MDT 2018
+start h1 Fri Aug 10 17:58:23 MDT 2018
+start h6 Fri Aug 10 17:58:24 MDT 2018
+start h5 Fri Aug 10 17:58:25 MDT 2018
+start vib Fri Aug 10 17:58:32 MDT 2018
+complete vib Fri Aug 10 17:59:03 MDT 2018
+start rotation Fri Aug 10 17:59:15 MDT 2018
+complete rotation Fri Aug 10 17:59:44 MDT 2018
+stop xterms Fri Aug 10 17:59:54 MDT 2018
