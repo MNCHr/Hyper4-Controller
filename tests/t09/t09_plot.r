@@ -12,12 +12,12 @@ require(plotrix)
 #stop xterms 56:30 		  	 102
 
 # Load data
-t09_l2_addresses <- read.table("t09_analysis_l2_addresses_r1",header=TRUE,sep=",")
-t09_l3_addresses <- read.table("t09_analysis_l3_addresses_r1",header=TRUE,sep=",")
-t09_h2latency <-read.table("t09_analysis_latency_r1",header=TRUE,sep=",")
-t09_h2latency_p95 <- read.table("t09_analysis_latency_p95_r1",header=TRUE,sep=",")
-t09_h1bandwidth <- read.table("t09_analysis_h1bandwidth_r1",header=TRUE,sep=",")
-t09_h5bandwidth <- read.table("t09_analysis_h5bandwidth_r1",header=TRUE,sep=",")
+t09_l2_addresses <- read.table("data/t09_analysis_l2_addresses_r1",header=TRUE,sep=",")
+t09_l3_addresses <- read.table("data/t09_analysis_l3_addresses_r1",header=TRUE,sep=",")
+t09_h2latency <-read.table("data/t09_analysis_latency_r1",header=TRUE,sep=",")
+t09_h2latency_p95 <- read.table("data/t09_analysis_latency_p95_r1",header=TRUE,sep=",")
+t09_h1bandwidth <- read.table("data/t09_analysis_h1bandwidth_r1",header=TRUE,sep=",")
+t09_h5bandwidth <- read.table("data/t09_analysis_h5bandwidth_r1",header=TRUE,sep=",")
 
 phvals1=c(2, 11, 43, 50, 88)
 phlabels1=c("A", "C", "D", "E", "F")
@@ -29,7 +29,7 @@ plot_colors <- c("black","red")
 # ------ L2 Addresses ------
 
 # Start pdf driver
-pdf(file="t09_l2_addresses_r1.pdf", height=4, width=8)
+pdf(file="plots/t09_l2_addresses_r1.pdf", height=4, width=8)
 
 # Trim excess margin space
 par(mar=c(4.2, 3.9, 0.2, 0.5))
@@ -55,7 +55,7 @@ dev.off()
 # ------ L3 Addresses ------
 
 # Start pdf driver
-pdf(file="t09_l3_addresses_r1.pdf", height=4, width=8)
+pdf(file="plots/t09_l3_addresses_r1.pdf", height=4, width=8)
 
 # Trim excess margin space
 par(mar=c(4.2, 3.9, 0.2, 0.5))
@@ -93,7 +93,7 @@ max_x <- max(t09_h1bandwidth[[1]])
 # ------ H1 Bandwidth ------
 
 # Start pdf driver
-pdf(file="t09_h1bandwidth_r1.pdf", height=4, width=8)
+pdf(file="plots/t09_bandwidth_r1.pdf", height=4, width=8)
 
 # Trim excess margin space
 par(mar=c(4.2, 3.9, 0.2, 0.5))
@@ -102,11 +102,16 @@ par(mar=c(4.2, 3.9, 0.2, 0.5))
 #plot(t05_data[,4], t05_data[,8], type="n", xlim=c(min_x, max_x), ann=FALSE)
 plot(t09_h1bandwidth, type="n", col=plot_colors[1], ann=FALSE, mgp=c(3, 0.5, 0), ylim=c(min_y, max_y), xlim=c(0, max_x))
 lines(t09_h1bandwidth, type="b", pch=20)
+points(t09_h5bandwidth, type="n", col=plot_colors[2], ann=FALSE, mgp=c(3, 0.5, 0), ylim=c(min_y, max_y), xlim=c(0, max_x))
+lines(t09_h5bandwidth, type="b", pch=18, col=plot_colors[2])
 axis(1,at=phvals1,labels=phlabels1,las=1,mgp=c(3, 1.5, 0))
 axis(1,at=phvals2,labels=phlabels2,las=1,mgp=c(3, 1.5, 0))
 
 title(xlab="time (s)")
-title(ylab="Mbps, VIBRANT slice")
+title(ylab="Mbps")
+
+# Create legend
+legend("topright", c("slice 1: h1 <-> h3","slice 2: h5 <-> h6"), col=plot_colors, pch=c(20,18), cex=0.8, box.lwd = 0, box.col = "white", bg = "white", inset=c(0.01, 0.01))
 
 # Flush output to PDF
 dev.off()
@@ -114,27 +119,27 @@ dev.off()
 # ------ H5 Bandwidth ------
 
 # Start pdf driver
-pdf(file="t09_h5bandwidth_r1.pdf", height=4, width=8)
+#pdf(file="t09_h5bandwidth_r1.pdf", height=4, width=8)
 
 # Trim excess margin space
-par(mar=c(4.2, 3.9, 0.2, 0.5))
+#par(mar=c(4.2, 3.9, 0.2, 0.5))
 
 # Plot
-plot(t09_h5bandwidth, type="n", col=plot_colors[1], ann=FALSE, mgp=c(3, 0.5, 0), ylim=c(min_y, max_y), xlim=c(0, max_x))
-lines(t09_h5bandwidth, type="b", pch=20)
-axis(1,at=phvals1,labels=phlabels1,las=1,mgp=c(3, 1.5, 0))
-axis(1,at=phvals2,labels=phlabels2,las=1,mgp=c(3, 1.5, 0))
+#plot(t09_h5bandwidth, type="n", col=plot_colors[1], ann=FALSE, mgp=c(3, 0.5, 0), ylim=c(min_y, max_y), xlim=c(0, max_x))
+#lines(t09_h5bandwidth, type="b", pch=20)
+#axis(1,at=phvals1,labels=phlabels1,las=1,mgp=c(3, 1.5, 0))
+#axis(1,at=phvals2,labels=phlabels2,las=1,mgp=c(3, 1.5, 0))
 
-title(xlab="time (s)")
-title(ylab="Mbps, non-VIBRANT slice")
+#title(xlab="time (s)")
+#title(ylab="Mbps, non-VIBRANT slice")
 
 # Flush output to PDF
-dev.off()
+#dev.off()
 
 # ------ H2 Latency ------
 
 # Start pdf driver
-pdf(file="t09_h2latency_r1.pdf", height=4, width=8)
+pdf(file="plots/t09_h2latency_r1.pdf", height=4, width=8)
 
 op <- par(mar=c(5,4,1,1))
 plot(t09_h2latency, type="p", pch=".", col=plot_colors[1], ann=FALSE, mgp=c(3, 0.5, 0), xlab="")
