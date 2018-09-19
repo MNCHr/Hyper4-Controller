@@ -1,0 +1,1 @@
+vib_ap_init tests/vib_dec.p4 tests/vib_enc.p4 s0 s1 s2
