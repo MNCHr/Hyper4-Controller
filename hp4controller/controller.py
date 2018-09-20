@@ -123,9 +123,9 @@ class Controller(object):
 
     # TODO: fix this
     json = '/home/ubuntu/hp4-src/hp4/hp4.json'
-    hjp_check = Path('hp4_json_path')
+    hjp_check = Path('hp4controller/hp4_json_path')
     if hjp_check.is_file():
-      with open(hp4_json_path, 'r') as hjp:
+      with open('hp4_json_path', 'r') as hjp:
         json = hjp.readline()[:-1]
 
     runtime_CLI.load_json_config(std_client, json)
