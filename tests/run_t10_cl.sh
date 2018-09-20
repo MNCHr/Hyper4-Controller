@@ -70,8 +70,8 @@ $pause
 ttyecho -n $SLICEMGR2 sudo ./client --debug --startup tests/t10/t10_slice2_step1 slice2
 
 echo "NEXT: tcpdump"
-fname="t10_"$(cat iface1)"_run_"${RUN}".dump"
-ttyecho -n $EVALUATOR sudo tcpdump -i $(cat iface1) -n -s 100 -w $fname &
+fname="t10_run_"${RUN}".dump"
+ttyecho -n $EVALUATOR "sudo tcpdump -i \$(cat /opt/iface1) -n -s 100 -w $fname" &
 
 date
 echo start tcpdump $(date) > t10/t10r$RUN
