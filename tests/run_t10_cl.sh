@@ -6,7 +6,7 @@ echo Test t10 run $RUN...
 
 pause="read -n 1 -s"
 
-nodes=( 706 353 270 330 271 272 342 341 268 274 340 )
+source ssh_vals.sh
 
 MININET="$(cat /tmp/pts_mininet)"
 CONTROLLER="$(cat /tmp/pts_controller)"
@@ -17,12 +17,12 @@ SLICEMGR2="$(cat /tmp/pts_slice_manager2)"
 EVALUATOR="$(cat /tmp/pts_evaluator)"
 
 # connect each window
-ttyecho -n $MININET ssh -p 22 dhancock@pc${nodes[0]}.emulab.net
-ttyecho -n $CONTROLLER ssh -p 22 dhancock@pc${nodes[0]}.emulab.net
-ttyecho -n $ADMIN ssh -p 22 dhancock@pc${nodes[0]}.emulab.net
-ttyecho -n $SLICEMGR ssh -p 22 dhancock@pc${nodes[0]}.emulab.net
-ttyecho -n $SLICEMGR2 ssh -p 22 dhancock@pc${nodes[0]}.emulab.net
-ttyecho -n $EVALUATOR ssh -p 22 dhancock@pc${nodes[0]}.emulab.net
+ttyecho -n $MININET ssh -p 22 $user@pc${nodes[0]}.emulab.net
+ttyecho -n $CONTROLLER ssh -p 22 $user@pc${nodes[0]}.emulab.net
+ttyecho -n $ADMIN ssh -p 22 $user@pc${nodes[0]}.emulab.net
+ttyecho -n $SLICEMGR ssh -p 22 $user@pc${nodes[0]}.emulab.net
+ttyecho -n $SLICEMGR2 ssh -p 22 $user@pc${nodes[0]}.emulab.net
+ttyecho -n $EVALUATOR ssh -p 22 $user@pc${nodes[0]}.emulab.net
 
 echo "If necessary acknowledge SSH key update; next: launch controller"
 $pause
@@ -33,13 +33,13 @@ ttyecho -n $ADMIN cd /opt/hp4-ctrl
 ttyecho -n $SLICEMGR cd /opt/hp4-ctrl
 ttyecho -n $SLICEMGR2 cd /opt/hp4-ctrl
 
-s1_ip="$(ssh -p 22 dhancock@pc${nodes[1]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
+s1_ip="$(ssh -p 22 $user@pc${nodes[1]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
 echo s1@$s1_ip
-s2_ip="$(ssh -p 22 dhancock@pc${nodes[2]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
+s2_ip="$(ssh -p 22 $user@pc${nodes[2]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
 echo s2@$s2_ip
-s3_ip="$(ssh -p 22 dhancock@pc${nodes[3]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
+s3_ip="$(ssh -p 22 $user@pc${nodes[3]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
 echo s3@$s3_ip
-s4_ip="$(ssh -p 22 dhancock@pc${nodes[4]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
+s4_ip="$(ssh -p 22 $user@pc${nodes[4]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
 echo s4@$s4_ip
 
 printf "#!/bin/bash\n" > infr_manifest.sh
@@ -48,8 +48,8 @@ printf "s2_ip=${s2_ip}\n" >> infr_manifest.sh
 printf "s3_ip=${s3_ip}\n" >> infr_manifest.sh
 printf "s4_ip=${s4_ip}\n" >> infr_manifest.sh
 
-scp infr_manifest.sh dhancock@pc${nodes[0]}.emulab.net:~/
-ttyecho -n $CONTROLLER sudo cp ~/infr_manifest.sh /opt/hp4-ctrl/tests/t10/
+scp infr_manifest.sh $user@pc${nodes[0]}.emulab.net:~/
+ttyecho -n $CONTROLLER sudo cp /users/$user/infr_manifest.sh /opt/hp4-ctrl/tests/t10/
 ttyecho -n $CONTROLLER sudo ./tests/update_t10.sh
 
 ttyecho -n $CONTROLLER sudo ./controller --debug
@@ -92,11 +92,11 @@ H3="$(cat /tmp/pts_h3)"
 H5="$(cat /tmp/pts_h5)"
 H6="$(cat /tmp/pts_h6)"
 
-ttyecho -n $H1 ssh -p 22 dhancock@pc${nodes[5]}.emulab.net
-ttyecho -n $H2 ssh -p 22 dhancock@pc${nodes[6]}.emulab.net
-ttyecho -n $H3 ssh -p 22 dhancock@pc${nodes[7]}.emulab.net
-ttyecho -n $H5 ssh -p 22 dhancock@pc${nodes[9]}.emulab.net
-ttyecho -n $H6 ssh -p 22 dhancock@pc${nodes[10]}.emulab.net
+ttyecho -n $H1 ssh -p 22 $user@pc${nodes[5]}.emulab.net
+ttyecho -n $H2 ssh -p 22 $user@pc${nodes[6]}.emulab.net
+ttyecho -n $H3 ssh -p 22 $user@pc${nodes[7]}.emulab.net
+ttyecho -n $H5 ssh -p 22 $user@pc${nodes[9]}.emulab.net
+ttyecho -n $H6 ssh -p 22 $user@pc${nodes[10]}.emulab.net
 echo "xterms should be up and connected; ack SSH key update if necessary"
 $pause
 
@@ -120,7 +120,7 @@ echo start h3 $(date) >> t10/t10r$RUN
 sleep 1
 
 #t9h1.sh
-ttyecho -n $H1 iperf3 -c $H3ip -t 120 --logfile ~/t10h1iperf
+ttyecho -n $H1 iperf3 -c $H3ip -t 120 --logfile /users/$user/t10h1iperf
 echo start h1 $(date) >> t10/t10r$RUN
 sleep 1
 
@@ -130,7 +130,7 @@ echo start h6 $(date) >> t10/t10r$RUN
 sleep 1
 
 #t9h5.sh
-ttyecho -n $H5 iperf3 -c $H6ip -t 120 --logfile ~/t10h5iperf
+ttyecho -n $H5 iperf3 -c $H6ip -t 120 --logfile /users/$user/t10h5iperf
 echo time h5 kicked off:
 date
 echo start h5 $(date) >> t10/t10r$RUN
@@ -174,7 +174,7 @@ sleep 1
 echo "--terminate xterm processes"
 #sudo kill -s SIGINT "$(ps -ft $H2 | grep "10.1.0.104" | awk '{print $2}')"
 $pause
-ssh -p 22 dhancock@pc${nodes[6]}.emulab.net "kill -s SIGINT $(ps -ft | grep 10.10.4.1 | awk '{print $2}')"
+ssh -p 22 $user@pc${nodes[6]}.emulab.net "kill -s SIGINT $(ps -ft | grep 10.10.4.1 | awk '{print $2}')"
 $pause
 #sudo kill -s SIGINT "$(ps -ft $H5 | grep "iperf3" | awk '{print $2}')"
 #sudo kill -s SIGINT "$(ps -ft $H1 | grep "iperf3" | awk '{print $2}')"
