@@ -7,6 +7,6 @@ lease_insert s4 s4_switch 0 etrue
 lease_config_egress s0 5 mcast filtered
 lease_config_egress s3 5 mcast filtered
 lease_config_egress s4 5 mcast filtered
-vdev_interpretf s0_switch bmv2 tests/t09/commands_slice2_s0_switch.txt
-vdev_interpretf s3_switch bmv2 tests/t09/commands_slice2_s3_switch.txt
-vdev_interpretf s4_switch bmv2 tests/t09/commands_slice2_s4_switch.txt
+vdev_interpretf s0_switch bmv2 tests/t10/commands_slice2_s0_switch.txt
+vdev_interpretf s3_switch bmv2 tests/t10/commands_slice2_s3_switch.txt
+vdev_interpretf s4_switch bmv2 tests/t10/commands_slice2_s4_switch.txt
