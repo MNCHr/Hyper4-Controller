@@ -81,16 +81,26 @@ echo "Next: xterms for h1, h2, h3, h5, h6"
 $pause
 
 xterm -title "Node: h2" -geometry 80x20+1434+0 &
+sleep 1
 xterm -title "Node: h3" -geometry 80x20+550+500 &
+sleep 1
 xterm -title "Node: h1" -geometry 80x20+0+500 &
+sleep 1
 xterm -title "Node: h6" -geometry 80x20+550+810 &
+sleep 1
 xterm -title "Node: h5" -geometry 80x20+0+810 &
+
+echo "strategic pause..."
+$pause
 
 H1="$(cat /tmp/pts_h1)"
 H2="$(cat /tmp/pts_h2)"
 H3="$(cat /tmp/pts_h3)"
 H5="$(cat /tmp/pts_h5)"
 H6="$(cat /tmp/pts_h6)"
+
+echo "strategic pause..."
+$pause
 
 ttyecho -n $H1 ssh -p 22 $user@pc${nodes[5]}.emulab.net
 ttyecho -n $H2 ssh -p 22 $user@pc${nodes[6]}.emulab.net
