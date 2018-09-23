@@ -1,5 +1,5 @@
-table_add dmac forward 0x000400000001 => 0
-table_add dmac forward 0x000400000002 => 0
-table_add dmac forward 0x000400000003 => 1
-table_add dmac forward 0x000400000004 => 2
+table_add dmac forward 0x000400000001 => 1
+table_add dmac forward 0x000400000002 => 1
+table_add dmac forward 0x000400000003 => 2
+table_add dmac forward 0x000400000004 => 3
 table_add dmac broadcast 0xFFFFFFFFFFFF => 5
