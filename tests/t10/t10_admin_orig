@@ -1,4 +1,4 @@
-create_device s0 localhost 9090 bmv2_SSwitch SimplePreLAG 5000 1 2 3 4
+create_device s0 localhost 9090 bmv2_SSwitch SimplePreLAG 10000 1 2 3 4
 create_device s1 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 0 1 2
 create_device s2 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 0 1 2
 create_device s3 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 0 1
