@@ -110,15 +110,15 @@ ttyecho -n $H6 ssh -p 22 $user@pc${nodes[10]}.emulab.net
 echo "xterms should be up and connected; ack SSH key update if necessary"
 $pause
 
-H1ip="10.10.1.1"
-H2ip="10.10.2.1"
-H3ip="10.10.3.1"
-H4ip="10.10.4.1"
-H5ip="10.10.5.1"
-H6ip="10.10.6.1"
+H1ip="10.10.5.1"
+H2ip="10.10.6.1"
+H3ip="10.10.7.1"
+H4ip="10.10.8.1"
+H5ip="10.10.9.1"
+H6ip="10.10.10.1"
 
 #t9h2.sh
-ttyecho -n $H2 ping $H4ip -i 0.02 -w 120
+ttyecho -n $H2 ping $H4ip -i 0.2 -w 120
 echo time h2 kicked off:
 date
 sudo echo start h2 $(date) >> t10/t10r$RUN

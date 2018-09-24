@@ -143,7 +143,7 @@ class VibrantManager(ChainSliceManager):
         resp = self.do_vdev_interpret(dec_vdev + ' bmv2 table_add ' + rule[0])
         handle = resp.split('handle: ')[1]
         self.dec_vdev_handles[(dec_vdev, rule[1])] = int(handle)
-      resp = self.do_vdev_interpretf(dec_vdev + ' bmv2 tests/t09/commands_slice1_vib_dec.txt')
+      resp = self.do_vdev_interpretf(dec_vdev + ' bmv2 tests/t10/commands_slice1_vib_dec.txt')
 
     for enc_vdev in self.enc_vdevs:
 
@@ -160,7 +160,7 @@ class VibrantManager(ChainSliceManager):
 
     for device in line.split()[2:]:
       enc_vdev = device + '_vib_enc'
-      resp = self.do_vdev_interpretf(enc_vdev + ' bmv2 tests/t09/commands_slice1_' \
+      resp = self.do_vdev_interpretf(enc_vdev + ' bmv2 tests/t10/commands_slice1_' \
                                      + device + '_vib_enc.txt')
       self.do_lease_append(device + ' ' + enc_vdev + ' efalse')
 
