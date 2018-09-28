@@ -52,7 +52,7 @@ scp infr_manifest.sh $user@pc${nodes[0]}.emulab.net:~/
 ttyecho -n $CONTROLLER sudo cp /users/$user/infr_manifest.sh /opt/hp4-ctrl/tests/t10/
 ttyecho -n $CONTROLLER sudo ./tests/update_t10.sh
 
-ttyecho -n $CONTROLLER sudo ./controller --debug
+ttyecho -n $CONTROLLER sudo ./controller --debug | tee -i controller.out
 
 echo "Next: create/provision slice1 with lease to s1, s2, and s3, slice2 w/ lease to s1, s4, and s5"
 $pause
@@ -62,7 +62,7 @@ ttyecho -n $ADMIN sudo ./client --debug --startup tests/t10/t10_admin admin
 echo "Next: create and configure vdevs for slice 1"
 $pause
 
-ttyecho -n $SLICEMGR sudo ./vibclient --debug --startup tests/t10/t10_slice1_step1 slice1
+ttyecho -n $SLICEMGR sudo ./vibclient --enc_cmd_path tests/t10 --debug --startup tests/t10/t10_slice1_step1 slice1
 
 echo "Next: create and configure vdevs for slice 2"
 $pause

@@ -1,0 +1,28 @@
+# testing for VIBRANT evaluation
+if [[ "$XTERM_VERSION" ]]
+then
+  winname=$(xprop -id $(xdotool getactivewindow) | grep "WM_COMMAND(STRING)" | tr '\"\\' ' ' | awk '{print $9}')
+
+  if [[ "$winname" == "h2" ]]
+  then
+    tty > /tmp/pts_h2
+    #./t9h2.sh
+  elif [[ "$winname" == "h3" ]]
+  then
+    tty > /tmp/pts_h3
+    #./t9h3.sh
+  elif [[ "$winname" == "h1" ]]
+  then
+    tty > /tmp/pts_h1
+    #./t9h1.sh
+  elif [[ "$winname" == "h6" ]]
+  then
+    tty > /tmp/pts_h6
+    #./t9h6.sh
+  elif [[ "$winname" == "h5" ]]
+  then
+    tty > /tmp/pts_h5
+    #./t9h5.sh
+  fi
+fi
+

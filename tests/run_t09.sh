@@ -31,7 +31,7 @@ ttyecho -n $ADMIN ./client --debug --startup tests/t09/t09_admin admin
 echo "Next: create and configure vdevs for slice 1"
 $pause
 
-ttyecho -n $SLICEMGR ./vibclient --debug --startup tests/t09/t09_slice1_step1 slice1
+ttyecho -n $SLICEMGR ./vibclient --enc_cmd_path tests/t09 --debug --startup tests/t09/t09_slice1_step1 slice1
 
 echo "Next: create and configure vdevs for slice 2"
 $pause

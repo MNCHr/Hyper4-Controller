@@ -34,6 +34,7 @@ class VibrantManager(ChainSliceManager):
     self.enc_vdev_handles = {} # (enc_vdev (str), kidx (int)) : handle (int)
     self.dec_path = ""
     self.enc_path = ""
+    self.enc_cmd_path = kwargs['enc_cmd_path']
     self.h_width = 64
     self.key_index_width = 8
     self.keys = {} # {key index (int) : keys (list of strs)}
@@ -108,7 +109,7 @@ class VibrantManager(ChainSliceManager):
 
   def do_vib_ap_init(self, line):
     """Initialize VIBRANT address protection: vib_ap_init <decryptor p4_path>
-     \r<enryptor p4_path> <list of devices>
+     \r<encryptor p4_path> <list of devices>
     """
     minargs = 2
     dec_path = line.split()[0]
@@ -143,7 +144,14 @@ class VibrantManager(ChainSliceManager):
         resp = self.do_vdev_interpret(dec_vdev + ' bmv2 table_add ' + rule[0])
         handle = resp.split('handle: ')[1]
         self.dec_vdev_handles[(dec_vdev, rule[1])] = int(handle)
-      resp = self.do_vdev_interpretf(dec_vdev + ' bmv2 tests/t10/commands_slice1_vib_dec.txt')
+      #resp = self.do_vdev_interpretf(dec_vdev + ' bmv2 tests/t10/commands_slice1_vib_dec.txt')
+      resp = self.do_vdev_interpret(dec_vdev + ' bmv2 ' \
+                          + 'table_add check_vibrant vibrant_present 1 =>')
+      resp += self.do_vdev_interpret(dec_vdev + ' bmv2 ' \
+                          + 'table_add check_vibrant vibrant_not_present 0 =>')
+      resp += self.do_vdev_interpret(dec_vdev + ' bmv2 ' \
+                          + 'table_set_default strip_vibrant a_strip_vibrant')
+      #print(resp)
 
     for enc_vdev in self.enc_vdevs:
 
@@ -160,8 +168,8 @@ class VibrantManager(ChainSliceManager):
 
     for device in line.split()[2:]:
       enc_vdev = device + '_vib_enc'
-      resp = self.do_vdev_interpretf(enc_vdev + ' bmv2 tests/t10/commands_slice1_' \
-                                     + device + '_vib_enc.txt')
+      resp = self.do_vdev_interpretf(enc_vdev + ' bmv2 ' + self.enc_cmd_path \
+                               + '/commands_slice1_' + device + '_vib_enc.txt')
       self.do_lease_append(device + ' ' + enc_vdev + ' efalse')
 
     print ("Complete")
@@ -302,6 +310,8 @@ def parse_args(args):
                       type=int, action="store", default=33333)
   parser.add_argument('--startup', help='file with commands to run at startup',
                       type=str, action="store")
+  parser.add_argument('--enc_cmd_path', help='path to encryptor commands files',
+                      type=str, default="tests/t10")
   parser.add_argument('user', help='<slice name> | \'admin\'', type=str, action="store")
   parser.set_defaults(func=client)
 
