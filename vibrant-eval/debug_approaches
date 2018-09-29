@@ -1,8 +1,23 @@
 Approaches to debugging VIBRANT-CloudLab:
 
-Mininet experiment t09 works (except that xterms no longer automatically launch traffic generating scripts as before - fix is to edit run_t09.sh to send the commands via ttyecho as we do in run_t10_cl.sh).
+Next steps:
+- Check for assumptions in vib_client.
+- Install vib_enc vdev as passthrough, still no traffic?
+- Install vib_enc only at s1 and only do h2 -> h4 pings; run tcpdump on
+  the three interfaces of s1, and view pcap in wireshark to see whether
+  traffic is being forwarded.
+- If yes, repeat for s0, and s2.
+- Recompile bmv2 with debugging / nano output enabled.  Check nano logs on h2 -> h4 single ping.
+
+Checked each relevant file in tests/t10/.  Did not find any errors.
+
+
+Controller should be using correct json for each device - a d430 version for the d430,
+a pc3000 version for the others.
+
+Mininet experiment t09 works (haven't tested that xterms automatically generate traffic as before - implemented fix in run_t09.sh to send the commands via ttyecho as we do in run_t10_cl.sh).
 
 Collect increasingly detailed symptoms until we spot the problem.
 
 Current status: Packets flow until the encryptors are installed.  There are no evident errors thrown by encryptor installation.
-We have figured out how to use tee with python: python -u forces unbuffered output so that tee will show it on stdout while writing to a file at the same time.  Let's run the experiment and see whether there are any errors during encryptor vdev installation.
+We have figured out how to use tee with python: python -u forces unbuffered output so that tee will show it on stdout while writing to a file at the same time.  Ran the experiment and did not detect any errors during encryptor vdev installation.
