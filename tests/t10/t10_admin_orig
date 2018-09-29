@@ -1,8 +1,8 @@
-create_device s0 localhost 9090 bmv2_SSwitch SimplePreLAG 10000 1 2 3 4
-create_device s1 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 0 1 2
-create_device s2 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 0 1 2
-create_device s3 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 0 1
-create_device s4 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 0 1
+create_device s0 localhost 9090 bmv2_SSwitch SimplePreLAG 10000 tests/t10/hp4_d430.json 1 2 3 4
+create_device s1 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 tests/t10/hp4_pc3000.json 0 1 2
+create_device s2 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 tests/t10/hp4_pc3000.json 0 1 2
+create_device s3 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 tests/t10/hp4_pc3000.json 0 1
+create_device s4 <ip> <port> bmv2_SSwitch SimplePreLAG 10000 tests/t10/hp4_pc3000.json 0 1
 create_slice slice1
 create_slice slice2
 grant_lease slice1 s0 5000 Chain 1 2

@@ -368,7 +368,7 @@ class Administrator(Client):
   def do_create_device(self, line):
     """Create device: create_device <name> <ip_addr> <port>
      \r<dev_type: bmv2_SSwitch | Agilio> <pre: \'SimplePre\'|\'SimplePreLAG\'|\'None\'>
-     \r<# entries> <ports>
+     \r<# entries> [json path] <ports>
     """
     resp = self.send_request(self.user + ' create_device ' + line)
     self.debug_print(resp)

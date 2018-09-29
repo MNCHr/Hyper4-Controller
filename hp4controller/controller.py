@@ -18,6 +18,7 @@ import signal
 import errno
 import traceback
 from pathlib2 import Path
+import getpass
 
 import code
 from inspect import currentframe, getframeinfo
@@ -101,14 +102,31 @@ class Controller(object):
   def create_device(self, parameters):
     # parameters:
     # <'admin'> <name> <ip_addr> <port> <dev_type: 'bmv2_SSwitch' | 'Agilio'>
-    # <pre: 'None' | 'SimplePre' | 'SimplePreLAG'> <# entries> <ports>
+    # <pre: 'None' | 'SimplePre' | 'SimplePreLAG'> <# entries> <json path> <ports>
     dev_name = parameters[1]
     ip = parameters[2]
     port = parameters[3]
     dev_type = parameters[4]
     pre = parameters[5]
     max_entries = int(parameters[6])
-    ports = parameters[7:]
+
+    try:
+      int(parameters[7])
+    except ValueError:
+      json = parameters[7]
+      ports = parameters[8:]
+    else:
+      json = '/home/' + getpass.getuser() + '/hp4-src/hp4/hp4.json'
+      hjp_check = Path('hp4controller/hp4_json_path')
+      if hjp_check.is_file():
+        with open('hp4controller/hp4_json_path', 'r') as hjp:
+          json = hjp.readline()[:-1]
+      ports = parameters[7:]
+
+    json_check = Path(json)
+    if json_check.is_file() == False:
+      return 'Error - ' + json + ' not found'
+
     prelookup = {'None': runtime_CLI.PreType.None,
                  'SimplePre': runtime_CLI.PreType.SimplePre,
                  'SimplePreLAG': runtime_CLI.PreType.SimplePreLAG}
@@ -121,12 +139,6 @@ class Controller(object):
     except:
         return "Error - create_device(" + dev_name + "): " + str(sys.exc_info()[0])
 
-    # TODO: fix this
-    json = '/home/ubuntu/hp4-src/hp4/hp4.json'
-    hjp_check = Path('hp4controller/hp4_json_path')
-    if hjp_check.is_file():
-      with open('hp4controller/hp4_json_path', 'r') as hjp:
-        json = hjp.readline()[:-1]
 
     runtime_CLI.load_json_config(std_client, json)
     rta = SimpleSwitchAPI(prelookup[pre], std_client, mc_client, sswitch_client)
@@ -145,7 +157,7 @@ class Controller(object):
   def create_slice(self, parameters):
     "Create a slice"
     hp4slice = parameters[1]
-    self.slices[hp4slice] = Slice(hp4slice)
+    self.slices[hp4slice] = Slice(hp4slice, self.debug)
     return "Created slice: " + hp4slice
 
   def list_slices(self, parameters):
@@ -303,12 +315,15 @@ class Controller(object):
   def dbugprint(self, msg):
     if self.debug:
       print(msg)
+      with open('controller_debug', 'a') as out:
+        out.write(msg + '\n')
 
 class Slice():
-  def __init__(self, name):
+  def __init__(self, name, debug):
     self.name = name
     self.vdevs = {} # {vdev_name (string): vdev (VirtualDevice)}
     self.leases = {} # {dev_name (string): lease (Lease)}
+    self.debug = debug
 
   def handle_request(self, parameters):
     # parameters:
@@ -383,11 +398,20 @@ class Slice():
     return resp
   """
 
+  def dbug_print(self, msg):
+    if self.debug:
+      with open('controller_debug', 'a') as out:
+        out.write(msg + '\n')
+      print(msg)
+
   def vdev_dump(self, parameters):
     "Display all pushed entries"
     if parameters[0] not in self.vdevs:
       return parameters[0] + ' not recognized'
-    return self.vdevs[parameters[0]].dump()
+    msg = self.vdevs[parameters[0]].dump()
+    self.dbug_print('vdev_dump: ' + parameters[0])
+    self.dbug_print(msg)
+    return msg
 
   def vdev_info(self, parameters):
     if parameters[0] not in self.vdevs:
@@ -398,19 +422,28 @@ class Slice():
     if parameters[0] not in self.vdevs:
       return parameters[0] + ' not recognized'
     vdev = self.vdevs[parameters[0]]
-    return vdev.str_hp4code()
+    msg = vdev.str_hp4code()
+    self.dbug_print('list_vdev_hp4code: ' + parameters[0])
+    self.dbug_print(msg)
+    return msg
 
   def list_vdev_hp4rules(self, parameters):
     if parameters[0] not in self.vdevs:
       return parameters[0] + ' not recognized'
     vdev = self.vdevs[parameters[0]]
-    return vdev.str_hp4rules()
+    msg = vdev.str_hp4rules()
+    self.dbug_print('list_vdev_hp4rules: ' + parameters[0])
+    self.dbug_print(msg)
+    return msg
 
   def list_vdev_hp4_code_and_rules(self, parameters):
     if parameters[0] not in self.vdevs:
       return parameters[0] + ' not recognized'
     vdev = self.vdevs[parameters[0]]
-    return vdev.str_hp4_code_and_rules()
+    msg = vdev.str_hp4_code_and_rules()
+    self.dbug_print('list_vdev_hp4_code_and_rules: ' + parameters[0])
+    self.dbug_print(msg)
+    return msg
 
   """
   def list_devs(self, parameters):
