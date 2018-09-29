@@ -52,7 +52,7 @@ scp infr_manifest.sh $user@pc${nodes[0]}.emulab.net:~/
 ttyecho -n $CONTROLLER sudo cp /users/$user/infr_manifest.sh /opt/hp4-ctrl/tests/t10/
 ttyecho -n $CONTROLLER sudo ./tests/update_t10.sh
 
-ttyecho -n $CONTROLLER sudo ./controller --debug | tee -i controller.out
+ttyecho -n $CONTROLLER sudo ./controller --debug | sudo tee -i controller.out
 
 echo "Next: create/provision slice1 with lease to s1, s2, and s3, slice2 w/ lease to s1, s4, and s5"
 $pause
