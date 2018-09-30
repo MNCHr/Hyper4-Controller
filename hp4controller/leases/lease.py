@@ -398,6 +398,7 @@ class Chain(Lease):
           handle = self.send_command(P4Command(command_type, attribs))
           src_vdev.t_egr_virtnet_handles[vegress] = handle
 
+      debug()
       for vegress in src_vdev.t_virtnet_handles:
         # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                       # VALUE: hp4-facing handle (int)
@@ -488,16 +489,21 @@ class Chain(Lease):
 
     if position >= len(chain):
       self.vdev2p(vdev)
+      print('vdev2p: ' + vdev_name)
     if (len(chain) > 0) and (position < len(chain)):
       rightvdev_name = chain[position]
       rightvdev = self.vdevs[rightvdev_name]
       self.vdev2vdev(vdev, rightvdev)
+      print('vdev2vdev: ' + rightvdev_name + ' -> ' + vdev_name)
     if len(chain) > 0 and position > 0:
       leftvdev_name = chain[position - 1]
       leftvdev = self.vdevs[leftvdev_name]
       self.vdev2vdev(leftvdev, vdev)
+      print('vdev2vdev: ' + leftvdev_name + ' -> ' + vdev_name)
+      
     if position == 0:
       self.p2vdev(vdev)
+      print('p2vdev: ' + vdev_name)
 
     chain.insert(position, vdev_name)
 

@@ -1,6 +1,7 @@
 from hp4controller.p4command import P4Command
 from hp4controller.virtualdevice.p4rule import P4Rule
-from hp4controller.errors import AddRuleError, ModRuleError, DeleteRuleError, MCastError
+from hp4controller.errors import AddRuleError, ModRuleError, DeleteRuleError,
+                                 MCastError, SendCommandError
 
 from sswitch_CLI import SimpleSwitchAPI
 
@@ -111,7 +112,7 @@ class Bmv2_SSwitch(Device):
         rule = P4Rule(table, action, mparams, aparams)
         handle = self.do_table_add(rule)
       except AddRuleError as e:
-        print('AddRuleError exception: ' + str(e))
+        print('AddRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
         raise
       except:
         raise
@@ -119,11 +120,11 @@ class Bmv2_SSwitch(Device):
 
     elif cmd_str_rep.split()[0] == 'table_modify':
       try:
-        
         self.do_table_modify(cmd_str_rep.split('table_modify ')[1])
         handle = cmd_str_rep.split('table_modify ')[1].split()[2]
       except ModRuleError as e:
-        print('ModRuleError exception: ' + str(e))
+        print('ModRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
+        raise
       except:
         raise
       return handle
@@ -135,13 +136,14 @@ class Bmv2_SSwitch(Device):
         handle = cmd_str_rep.split()[2]
       except DeleteRuleError as e:
         print('DeleteRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
+        raise
       except:
-          raise
+        raise
       return handle
 
     else:
       print("ERROR: Bmv2_SSwitch::send_command: " + cmd_str_rep + ")")
-      exit()
+      raise SendCommandError("Not understood: " + cmd_str_rep)
 
   def do_table_delete(self, rule_identifier):
     "rule_identifier: \'<table name> <entry handle>\'"
@@ -154,7 +156,7 @@ class Bmv2_SSwitch(Device):
       self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
         raise DeleteRuleError(out)
-      if ('Deleting entry 0 from t_bit_xor_25' in out) and (self.port == 22222):
+      if ('Deleting entry 0 from t_bit_xor_25' in out) and (self.port == 9090):
         print(rule_identifier)
         print("Device on port " + str(self.port))
         debug()

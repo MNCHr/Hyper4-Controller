@@ -18,3 +18,6 @@ class MCastError(Exception):
 
 class InterpretError(Exception):
   pass
+
+class SendCommandError(Exception):
+  pass

@@ -532,8 +532,8 @@ class Slice():
         native_command.attributes['handle'] == 1):
       debug()
     """
-    #if vdev_name == 's1_vib_enc':
-    #  debug()
+    if vdev_name == 's1_vib_enc':
+      debug()
 
     # intepret
     hp4commands = vdev.interpret(native_command)
@@ -543,6 +543,9 @@ class Slice():
 
     # prepare to track changes to ruleset
     hp4_rule_keys = [] # list of (table, action, handle) tuples
+
+    if vdev_name == 's1_vib_enc':
+      debug()
 
     def get_table_action_rule(hp4command, hp4handle, dev_name):
       table = hp4command.attributes['table']
@@ -610,6 +613,9 @@ class Slice():
             hp4handle = int(hp4command.attributes['handle'])
             del vdev.hp4rules[(table, hp4handle)]
 
+      if vdev_name == 's1_vib_enc':
+        debug()
+
     else:
       # accounting
       entries_available = (self.leases[dev_name].entry_limit
@@ -656,6 +662,9 @@ class Slice():
         #  debug()
         #  trap = True
 
+      if vdev_name == 's1_vib_enc':
+        debug()
+
     # record changes to ruleset
     try:
       table = native_command.attributes['table']
@@ -675,10 +684,13 @@ class Slice():
 
       match_ID = int(hp4commands[0].attributes['aparams'][1])
       nhandle_str = '; handle: ' + str(match_ID)
-      vdev.nrules[(table, match_ID)] = \
-                                         Interpretation(rule, match_ID, hp4_rule_keys)
+      vdev.nrules[(table, match_ID)] = Interpretation(rule, match_ID, hp4_rule_keys)
 
     elif native_command.command_type == 'table_modify':
+
+      if vdev_name == 's1_vib_enc':
+        debug()
+
       # update interpretation origin rule
       match_ID = native_command.attributes['handle']
       nhandle_str = '; handle: ' + str(match_ID)
@@ -695,8 +707,7 @@ class Slice():
       hp4_match_rule_key = vdev.nrules[(table, match_ID)].hp4_rule_keys[0]
       hp4_rule_keys.insert(0, hp4_match_rule_key)
 
-      vdev.nrules[(table, match_ID)] = \
-                                        Interpretation(rule, match_ID, hp4_rule_keys)
+      vdev.nrules[(table, match_ID)] = Interpretation(rule, match_ID, hp4_rule_keys)
 
     elif native_command.command_type == 'table_set_default':
       match_ID = 0
@@ -709,7 +720,6 @@ class Slice():
         print(e)
         debug()
       vdev.nrules[(table, match_ID)] = Interpretation(rule, match_ID, hp4_rule_keys)
-      # print("CHECKPOINT: CC")
 
     elif native_command.command_type == 'table_delete':
       handle = native_command.attributes['handle']
@@ -723,10 +733,8 @@ class Slice():
         native_command.attributes['handle'] == 1):
       debug()
     """
-    #if vdev_name == 's1_vib_enc':
-    #  debug()
-    #if trap:
-    #  debug()
+    if vdev_name == 's1_vib_enc':
+      debug()
 
     return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' \
                            + dev_name + ' ' + nhandle_str
