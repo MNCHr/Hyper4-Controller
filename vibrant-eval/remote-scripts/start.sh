@@ -1,9 +1,11 @@
 #!/bin/bash
 
 cd /opt/hp4-src
+sudo git reset --hard
 sudo git pull
 
 cd /opt/hp4-ctrl
+sudo git reset --hard
 sudo git pull
 
 hname="$(hostname | tr "." " " | awk '{print $1}')"
