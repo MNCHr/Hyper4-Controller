@@ -12,3 +12,4 @@ controller_debug
 tests/infr_manifest.sh
 tests/ssh_vals.sh
 tools.tar.gz
+*.pyc
