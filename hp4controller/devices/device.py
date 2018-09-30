@@ -1,7 +1,7 @@
 from hp4controller.p4command import P4Command
 from hp4controller.virtualdevice.p4rule import P4Rule
-from hp4controller.errors import AddRuleError, ModRuleError, DeleteRuleError,
-                                 MCastError, SendCommandError
+from hp4controller.errors import AddRuleError, ModRuleError, DeleteRuleError
+from hp4controller.errors import MCastError, SendCommandError
 
 from sswitch_CLI import SimpleSwitchAPI
 
