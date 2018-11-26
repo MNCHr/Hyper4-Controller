@@ -126,6 +126,7 @@ class Bmv2_SSwitch(Device):
         print('ModRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
         raise
       except:
+        debug()
         raise
       return handle
 
@@ -136,8 +137,10 @@ class Bmv2_SSwitch(Device):
         handle = cmd_str_rep.split()[2]
       except DeleteRuleError as e:
         print('DeleteRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
+        debug()
         raise
       except:
+        debug()
         raise
       return handle
 

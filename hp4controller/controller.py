@@ -89,8 +89,8 @@ class Controller(object):
         resp = getattr(self, command)(parameters)
       except AttributeError as e:
         return "AttributeError(handle_request - " + command + "): " + str(e)
-      except Exception as e:
-        return "Unexpected error(" + command + "): " + str(e)
+      #except Exception as e:
+      #  return "Unexpected error(" + command + "): " + str(e)
     elif command == 'vdev_create':
       resp = self.vdev_create(parameters)
     else:
@@ -134,10 +134,11 @@ class Controller(object):
     services = runtime_CLI.RuntimeAPI.get_thrift_services(prelookup[pre])
     services.extend(SimpleSwitchAPI.get_thrift_services())
 
-    try:
-      std_client, mc_client, sswitch_client = runtime_CLI.thrift_connect(ip, port, services)
-    except:
-        return "Error - create_device(" + dev_name + "): " + str(sys.exc_info()[0])
+    #try:
+    #  std_client, mc_client, sswitch_client = runtime_CLI.thrift_connect(ip, port, services)
+    #except:
+    #    return "Error - create_device(" + dev_name + "): " + str(sys.exc_info()[0])
+    std_client, mc_client, sswitch_client = runtime_CLI.thrift_connect(ip, port, services)
 
 
     runtime_CLI.load_json_config(std_client, json)
@@ -360,7 +361,7 @@ class Slice():
         except Exception as e:
           print "Unexpected error(" + command + "): " + str(e)
           debug()
-          return "Unexpected error(" + command + "): " + str(e)
+        #  return "Unexpected error(" + command + "): " + str(e)
         return resp
     else:
       try:
@@ -372,7 +373,7 @@ class Slice():
       except Exception as e:
         print(e)
         debug()
-        return "Unexpected error(" + command + "): " + str(e)
+      #  return "Unexpected error(" + command + "): " + str(e)
       return resp
 
   def slice_dump(self, parameters):
