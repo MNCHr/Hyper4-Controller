@@ -14,22 +14,9 @@ EVALUATOR="$(cat /tmp/pts_evaluator)"
 echo "Manually kill controller and tcpdump"
 $pause
 
-#ssh -p 22 $user@pc${nodes[0]}.emulab.net <<zzzL1zzz
-#  tcpdpid="$(pgrep -f "tcpdump")"
-#  if [ -n "$tcpdpid" ]
-#  then
-#    sudo kill -SIGINT $tcpdpid
-#  fi
-#  ctrlpid="$(pgrep -f "controller")"
-#  if [ -n "$ctrlpid" ]
-#  then
-#    sudo kill -SIGINT $ctrlpid
-#  fi
-#zzzL1zzz
-
 for i in `seq 0 4`; do
   echo "Resetting pc${nodes[$i]}..."
-  ssh -tt -p 22 $user@pc${nodes[$i]}.emulab.net <<zzzLIMITzzz
+  ssh -oStrictHostKeyChecking=no -tt -p 22 $user@pc${nodes[$i]}.emulab.net <<zzzLIMITzzz
   sudo /opt/rs/reset.sh > /dev/null 2>&1 &
   exit
 zzzLIMITzzz
