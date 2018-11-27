@@ -11,6 +11,9 @@ from cStringIO import StringIO
 import code
 from inspect import currentframe, getframeinfo
 
+# CSR: Command String Representation
+CSR_CMD_TYPE = 0
+
 def debug():
   """ Break and enter interactive method after printing location info """
   # written before I knew about the pdb module
@@ -101,40 +104,59 @@ class Device():
 
 class Bmv2_SSwitch(Device):
 
+  def parse_table_add(self, cmd_str_rep):
+    left = cmd_str_rep.split('=>')[0]
+    right = cmd_str_rep.split('=>')[1]
+    table = left.split()[1]
+    action = left.split()[2]
+    mparams = left.split()[3:]
+    aparams = right.split()
+    return table, action, mparams, aparams
+
+  def parse_table_modify(self, cmd_str_rep):
+    tm_cmd = cmd_str_rep.split('table_modify ')[1]
+    handle = tm_cmd.split()[2]
+    return tm_cmd, handle
+
+  def parse_table_delete(self, cmd_str_rep):
+    td_cmd = cmd_str_rep.split('table_delete ')[1]
+    handle = td_cmd.split()[2]
+    return td_cmd, handle
+
   def send_command(self, cmd_str_rep):
     "send bmv2-formatted command to P4 device"
-    if cmd_str_rep.split()[0] == 'table_add':
+    csr_cmd = cmd_str_rep.split()[CSR_CMD_TYPE]
+    if csr_cmd == 'table_add':
+      table, action, mparams, aparams = self.parse_table_add(cmd_str_rep)
+      rule = P4Rule(table, action, mparams, aparams)
       try:
-        table = cmd_str_rep.split()[1]
-        action = cmd_str_rep.split()[2]
-        mparams = cmd_str_rep.split('=>')[0].split()[3:]
-        aparams = cmd_str_rep.split('=>')[1].split()
-        rule = P4Rule(table, action, mparams, aparams)
         handle = self.do_table_add(rule)
       except AddRuleError as e:
         print('AddRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
-        raise
-      except:
-        raise
-      return handle
-
-    elif cmd_str_rep.split()[0] == 'table_modify':
-      try:
-        self.do_table_modify(cmd_str_rep.split('table_modify ')[1])
-        handle = cmd_str_rep.split('table_modify ')[1].split()[2]
-      except ModRuleError as e:
-        print('ModRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
+        debug()
         raise
       except:
         debug()
         raise
       return handle
 
-    elif cmd_str_rep.split()[0] == 'table_delete':
+    elif csr_cmd == 'table_modify':
+      tm_cmd, handle = self.parse_table_modify(cmd_str_rep)
       try:
-        self.debug_print(cmd_str_rep)
-        self.do_table_delete(cmd_str_rep.split('table_delete ' )[1])
-        handle = cmd_str_rep.split()[2]
+        self.do_table_modify(tm_cmd)
+      except ModRuleError as e:
+        print('ModRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
+        debug()
+        raise
+      except:
+        debug()
+        raise
+      return handle
+
+    elif csr_cmd == 'table_delete':
+      td_cmd, handle = self.parse_table_delete(cmd_str_rep)
+      try:
+        self.do_table_delete(td_cmd)
       except DeleteRuleError as e:
         print('DeleteRuleError exception: ' + str(e) + ' :: ' + cmd_str_rep)
         debug()
@@ -146,6 +168,7 @@ class Bmv2_SSwitch(Device):
 
     else:
       print("ERROR: Bmv2_SSwitch::send_command: " + cmd_str_rep + ")")
+      debug()
       raise SendCommandError("Not understood: " + cmd_str_rep)
 
   def do_table_delete(self, rule_identifier):
@@ -154,10 +177,12 @@ class Bmv2_SSwitch(Device):
       try:
         self.rta.do_table_delete(rule_identifier)
       except:
+        debug()
         raise DeleteRuleError("table_delete raised an exception (rule: " + rule_identifier + ")")
     for out in output:
       self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
+        debug()
         raise DeleteRuleError(out)
       if ('Deleting entry 0 from t_bit_xor_25' in out) and (self.port == 9090):
         print(rule_identifier)
@@ -172,18 +197,17 @@ class Bmv2_SSwitch(Device):
     bmv2_rule = rule.table + ' ' + rule.action + ' ' + ' '.join(rule.mparams) \
                            + ' => ' + ' '.join(rule.aparams)
 
-    #if rule.table == 't_bit_xor_24':
-    #  debug()
-
     with Capturing() as output:
       try:
         self.rta.do_table_add(bmv2_rule)
       except:
+        debug()
         raise AddRuleError("table_add raised an exception (rule: " + rule + ")")
 
     for out in output:
       self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
+        debug()
         raise AddRuleError(out)
       if 'Entry has been added' in out:
         return int(out.split('handle ')[1])
@@ -191,19 +215,21 @@ class Bmv2_SSwitch(Device):
   def do_table_modify(self, rule_mod):
     "rule_mod: \'<table name> <action> <handle> <[aparams]>\'"
 
-    # Bug in current version of bmv2/tools/run_CLI.sh:
+    # Bug in current version of bmv2/tools/run_CLI.sh: <-- what?  runtime_CLI.py?
     #  if no aparams, crashes unless '=>' present on the end
-    if len(rule_mod.split()) == 3:
-      rule_mod += ' =>'
+    #if len(rule_mod.split()) == 3:
+    #  rule_mod += ' =>'
 
     with Capturing() as output:
       try:
         self.rta.do_table_modify(rule_mod)
       except:
+        debug()
         raise ModRuleError("table_modify raised an exception (rule_mod: " + rule_mod + ")")
     for out in output:
       self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
+        debug()
         raise ModRuleError(out)
 
   @staticmethod
@@ -257,6 +283,7 @@ class Bmv2_SSwitch(Device):
       try:
         self.rta.do_mc_mgrp_create(str(mcast_grp_id))
       except:
+        debug()
         raise MCastError("mc_mgrp_create raised an exception:" + str(sys.exc_info()[0]))
     for out in output:
       self.debug_print(out) 
@@ -266,6 +293,7 @@ class Bmv2_SSwitch(Device):
       try:
         self.rta.do_mc_node_create("1 " + ' '.join(str(port) for port in ports))
       except:
+        debug()
         raise MCastError("mc_node_create raised an exception")
     node_handle = -1
     for out in output:
@@ -273,6 +301,7 @@ class Bmv2_SSwitch(Device):
       if 'was created with handle' in out:
         node_handle = int(out.split('handle ')[1])
     if node_handle == -1:
+      debug()
       raise MCastError("mc_node_create error - node_handle not assigned \
                        (did not receive success message?)")
 
@@ -281,6 +310,7 @@ class Bmv2_SSwitch(Device):
       try:
         self.rta.do_mc_node_associate(str(mcast_grp_id) + ' ' + str(node_handle))
       except:
+        debug()
         raise MCastError("mc_node_associate raised an exception")
     for out in output:
       self.debug_print(out)
@@ -300,6 +330,7 @@ class Bmv2_SSwitch(Device):
       try:
         self.rta.do_mc_node_destroy(str(node_handle))
       except:
+        debug()
         raise MCastError("mc_node_destroy raised an exception")
     for out in output:
       self.debug_print(out)
@@ -307,6 +338,7 @@ class Bmv2_SSwitch(Device):
       try:
         self.rta.do_mc_mgrp_destroy(str(mcast_grp_id))
       except:
+        debug()
         raise MCastError("mc_mgrp_destroy raised an exception")
     for out in output:
       self.debug_print(out)
