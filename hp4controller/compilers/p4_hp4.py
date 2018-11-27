@@ -191,6 +191,7 @@ class HP4_Command(object):
   def __str__(self):
     """ assumes command is \'table_add\' """
     if self.command != 'table_add':
+      debug()
       raise Exception("Incorrect table command %s, table %s" % (self.command, self.table))
     ret = self.table + ' ' + self.action + ' :'
     ret += ' '.join(self.match_params)
@@ -1128,6 +1129,7 @@ def get_parse_select_table_code(first_byte):
       ret = '[PARSE_SELECT_'
       ret += '%02d_%02d]' % (lowerbound, upperbound - 1)
       return ret
+  debug()
   raise Exception("Did not find parse_select table; first_byte: %d" % first_byte)
 
 def get_pc_action(pcs):
@@ -1705,6 +1707,7 @@ def process_extract_statements(pcs):
       if pcs.hp4_bits_extracted < pcs.p4_bits_extracted:
         pcs.hp4_bits_extracted = pcs.p4_bits_extracted
     else:
+      debug()
       raise Exception('Unsupported parse call: %s' % call[PS_CALL_TYPE])
 
 def process_parse_tree_clr(pcs, h):
@@ -1743,6 +1746,7 @@ def process_parse_tree_clr(pcs, h):
       values = []
       for value in branch[BRANCH_VALUES]:
         if value[VAL_TYPE] != 'value' and value[VAL_TYPE] != 'default':
+          debug()
           raise Exception('Unsupported branch value type: %s' % value[VAL_TYPE])
         if value[VAL_TYPE] == 'default':
           values.append('default')
@@ -1762,6 +1766,7 @@ def process_parse_tree_clr(pcs, h):
         next_pcs = add_next(next_parse_state)
         process_parse_tree_clr(next_pcs, h)
   else:
+    debug()
     raise Exception('Unsupported return type: %s' % \
                     pcs.parse_state.return_statement[PS_RET_TYPE])
 

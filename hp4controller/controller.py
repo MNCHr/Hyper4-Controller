@@ -303,6 +303,7 @@ class Controller(object):
         break
       except socket.error as (code, msg):
         if code != errno.EINTR:
+          debug()
           raise
       if killer.kill_now:
         self.dbugprint("\rConViDa terminated")

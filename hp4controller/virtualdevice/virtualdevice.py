@@ -344,8 +344,10 @@ class VirtualDeviceFactory():
           self.compiled_programs[program_path] = \
              self.hp4c.compile_to_hp4(program_path, out_path, mt_out_path, 9)
         except CompileError as e:
+          debug()
           return "Compile Error: " + str(e)
       else:
+        debug()
         raise CompileError('filetype not supported')
 
     object_code_path = self.compiled_programs[program_path].object_code_path

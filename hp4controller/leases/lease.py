@@ -134,16 +134,19 @@ class Lease(object):
     # validate request
     # - validate vdev_name
     if vdev_name in self.vdevs:
+      debug()
       raise LoadError(vdev_name + ' already present')
 
     # - validate lease has sufficient entries
     entries_available = self.entry_limit - self.entry_usage
     if (len(vdev.hp4_code_and_rules) > entries_available):
+      debug()
       raise LoadError('request('+ str(len(vdev.hp4_code_and_rules)) + ') \
               exceeds entries available(' + str(entries_available) + ')')
 
     # - validate virtual device not already somewhere else
     if vdev.dev_name != 'none':
+      debug()
       raise LoadError('first remove ' + vdev_name + ' from ' + vdev.dev_name)
 
     #if vdev_name == 's1_vib_enc':
@@ -167,6 +170,7 @@ class Lease(object):
           aparams[2] = '1'
 
       elif egress_mode != 'etrue':
+        debug()
         raise LoadError('Invalid egress handling mode: ' + egress_mode)
 
       if action == 'mod_intmeta_mcast_grp_const':
@@ -186,6 +190,7 @@ class Lease(object):
         rule_identifier = table + ' ' + str(handle)
         self.device.do_table_delete(rule_identifier)
         del vdev.hp4_code_and_rules[(table, handle)]
+      debug()
       raise LoadError('Lease::insert: ' + str(e))
      
     for rule in vdev.hp4code:
@@ -355,6 +360,7 @@ class Chain(Lease):
         
     else:
       if len(vdev.t_egr_virtnet_handles) > 0:
+        debug()
         raise VirtnetError('vdev2p: t_egr_virtnet has entries when t_virtnet doesn\'t')
 
     for vegress in self.mcast_egress_specs:
@@ -412,6 +418,7 @@ class Chain(Lease):
     else:
       # table_add
       if len(src_vdev.t_egr_virtnet_handles) > 0:
+        debug()
         raise VirtnetError('vdev2vdev: t_egr_virtnet has entries when t_virtnet doesn\'t')
 
       command_type = 'table_add'
