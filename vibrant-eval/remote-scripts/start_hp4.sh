@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# update paths in hp4-src/env.sh
+cd /opt/hp4-src
+sudo sed -i 's/\/home\/ubuntu/\/opt/g' env.sh
+
 cd /opt
 script_path=/opt/hp4-ctrl/vibrant-eval/remote-scripts
 
