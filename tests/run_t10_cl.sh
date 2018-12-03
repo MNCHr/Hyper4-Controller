@@ -42,7 +42,7 @@ echo s3@$s3_ip
 s4_ip="$(ssh -p 22 $user@pc${nodes[4]}.emulab.net "ifconfig eth0 | grep 'inet ' | tr ':' ' '" | awk '{print $3}' )"
 echo s4@$s4_ip
 
-printf "#!/bin/bash\n" > infr_manifest.sh
+printf '#!/bin/bash\n' > infr_manifest.sh
 printf "s1_ip=${s1_ip}\n" >> infr_manifest.sh
 printf "s2_ip=${s2_ip}\n" >> infr_manifest.sh
 printf "s3_ip=${s3_ip}\n" >> infr_manifest.sh
@@ -53,6 +53,23 @@ ttyecho -n $CONTROLLER sudo cp /users/$user/infr_manifest.sh /opt/hp4-ctrl/tests
 ttyecho -n $CONTROLLER sudo ./tests/update_t10.sh
 
 ttyecho -n $CONTROLLER "sudo ./controller --debug | sudo tee -i controller.out"
+
+ttyecho -n $ADMIN sudo cp /opt/hp4-src/hp4/hp4.json /opt/hp4-ctrl/tests/t10/node-0-hp4.json
+scp $user@pc${nodes[1]}.emulab.net:/opt/hp4-src/hp4/hp4.json node-1-hp4.json
+scp $user@pc${nodes[2]}.emulab.net:/opt/hp4-src/hp4/hp4.json node-2-hp4.json
+scp $user@pc${nodes[3]}.emulab.net:/opt/hp4-src/hp4/hp4.json node-3-hp4.json
+scp $user@pc${nodes[4]}.emulab.net:/opt/hp4-src/hp4/hp4.json node-4-hp4.json
+scp node-1-hp4.json $user@pc${nodes[0]}.emulab.net:~/
+ttyecho -n $ADMIN sudo cp /users/$user/node-1-hp4.json /opt/hp4-ctrl/tests/t10/node-1-hp4.json
+scp node-2-hp4.json $user@pc${nodes[0]}.emulab.net:~/
+ttyecho -n $ADMIN sudo cp /users/$user/node-2-hp4.json /opt/hp4-ctrl/tests/t10/node-2-hp4.json
+scp node-3-hp4.json $user@pc${nodes[0]}.emulab.net:~/
+ttyecho -n $ADMIN sudo cp /users/$user/node-3-hp4.json /opt/hp4-ctrl/tests/t10/node-3-hp4.json
+scp node-4-hp4.json $user@pc${nodes[0]}.emulab.net:~/
+ttyecho -n $ADMIN sudo cp /users/$user/node-4-hp4.json /opt/hp4-ctrl/tests/t10/node-4-hp4.json
+
+echo "Check for presence of JSONs in hp4-ctrl/tests/t10..."
+$pause
 
 echo "Next: create/provision slice1 with lease to s1, s2, and s3, slice2 w/ lease to s1, s4, and s5"
 $pause

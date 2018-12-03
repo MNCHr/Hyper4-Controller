@@ -1,8 +1,8 @@
-create_device s0 localhost 9090 bmv2_SSwitch SimplePreLAG 5000 1 2 3 4
-create_device s1 155.98.39.153 9090 bmv2_SSwitch SimplePreLAG 5000 0 1 2
-create_device s2 155.98.39.70 9090 bmv2_SSwitch SimplePreLAG 5000 0 1 2
-create_device s3 155.98.39.130 9090 bmv2_SSwitch SimplePreLAG 5000 0 1
-create_device s4 155.98.39.71 9090 bmv2_SSwitch SimplePreLAG 5000 0 1
+create_device s0 localhost 9090 bmv2_SSwitch SimplePreLAG 5000 /opt/hp4-ctrl/tests/t10/node-0-hp4.json 1 2 3 4
+create_device s1 155.98.39.153 9090 bmv2_SSwitch SimplePreLAG 5000 /opt/hp4-ctrl/tests/t10/node-1-hp4.json 0 1 2
+create_device s2 155.98.39.70 9090 bmv2_SSwitch SimplePreLAG 5000 /opt/hp4-ctrl/tests/t10/node-2-hp4.json 0 1 2
+create_device s3 155.98.39.130 9090 bmv2_SSwitch SimplePreLAG 5000 /opt/hp4-ctrl/tests/t10/node-3-hp4.json 0 1
+create_device s4 155.98.39.71 9090 bmv2_SSwitch SimplePreLAG 5000 /opt/hp4-ctrl/tests/t10/node-4-hp4.json 0 1
 create_slice slice1
 create_slice slice2
 grant_lease slice1 s0 2500 Chain 1 2
