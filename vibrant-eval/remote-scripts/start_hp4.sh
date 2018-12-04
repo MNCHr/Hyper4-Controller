@@ -2,7 +2,6 @@
 
 # remove remnants of previous run (if any)
 cd /opt
-sudo rm -f iface*
 sudo rm -f prep_hp4.out
 
 # compile hp4
