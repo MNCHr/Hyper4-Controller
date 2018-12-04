@@ -534,8 +534,8 @@ class Slice():
         native_command.attributes['handle'] == 1):
       debug()
     """
-    if vdev_name == 's1_vib_enc':
-      debug()
+    #if vdev_name == 's1_vib_enc':
+    #  debug()
 
     # intepret
     hp4commands = vdev.interpret(native_command)
@@ -546,8 +546,8 @@ class Slice():
     # prepare to track changes to ruleset
     hp4_rule_keys = [] # list of (table, action, handle) tuples
 
-    if vdev_name == 's1_vib_enc':
-      debug()
+    #if vdev_name == 's1_vib_enc':
+    #  debug()
 
     def get_table_action_rule(hp4command, hp4handle, dev_name):
       table = hp4command.attributes['table']
@@ -615,8 +615,8 @@ class Slice():
             hp4handle = int(hp4command.attributes['handle'])
             del vdev.hp4rules[(table, hp4handle)]
 
-      if vdev_name == 's1_vib_enc':
-        debug()
+      #if vdev_name == 's1_vib_enc':
+      #  debug()
 
     else:
       # accounting
@@ -664,8 +664,8 @@ class Slice():
         #  debug()
         #  trap = True
 
-      if vdev_name == 's1_vib_enc':
-        debug()
+      #if vdev_name == 's1_vib_enc':
+      #  debug()
 
     # record changes to ruleset
     try:
@@ -690,8 +690,8 @@ class Slice():
 
     elif native_command.command_type == 'table_modify':
 
-      if vdev_name == 's1_vib_enc':
-        debug()
+      #if vdev_name == 's1_vib_enc':
+      #  debug()
 
       # update interpretation origin rule
       match_ID = native_command.attributes['handle']
@@ -735,8 +735,8 @@ class Slice():
         native_command.attributes['handle'] == 1):
       debug()
     """
-    if vdev_name == 's1_vib_enc':
-      debug()
+    #if vdev_name == 's1_vib_enc':
+    #  debug()
 
     return 'Interpreted: ' + vdev_command_str + ' for ' + vdev_name + ' on ' \
                            + dev_name + ' ' + nhandle_str

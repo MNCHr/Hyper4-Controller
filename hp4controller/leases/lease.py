@@ -404,7 +404,7 @@ class Chain(Lease):
           handle = self.send_command(P4Command(command_type, attribs))
           src_vdev.t_egr_virtnet_handles[vegress] = handle
 
-      debug()
+      #debug()
       for vegress in src_vdev.t_virtnet_handles:
         # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                       # VALUE: hp4-facing handle (int)

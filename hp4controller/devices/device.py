@@ -184,10 +184,10 @@ class Bmv2_SSwitch(Device):
       if ('Invalid' in out) or ('Error' in out):
         debug()
         raise DeleteRuleError(out)
-      if ('Deleting entry 0 from t_bit_xor_25' in out) and (self.port == 9090):
-        print(rule_identifier)
-        print("Device on port " + str(self.port))
-        debug()
+      #if ('Deleting entry 0 from t_bit_xor_25' in out) and (self.port == 9090):
+      #  print(rule_identifier)
+      #  print("Device on port " + str(self.port))
+      #  debug()
 
   def do_table_add(self, rule):
     """ rule: P4Rule
