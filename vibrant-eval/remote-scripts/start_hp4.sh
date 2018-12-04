@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# remove remnants of previous run (if any)
+cd /opt
+sudo rm -f iface*
+sudo rm -f prep_hp4.out
+
 # compile hp4
 cd /opt/hp4-src
 sudo p4c-bmv2 --json hp4/hp4.json hp4/p4src/hp4.p4
