@@ -52,21 +52,10 @@ for i in `seq 0 4`; do
   fi
 done
 
-while [[ $# -gt 1 ]]
-do
-key="$1"
-
-case $key in
-    --log)
-    hp4command+=(" --nanolog $2")
-    shift # past argument
-    ;;
-    *)
-            # unknown option
-    ;;
-esac
-shift # past argument or value
-done
+if [ -e /opt/nanolog ]
+  then
+    hp4command+=( "--nanolog ipc:///tmp/bm-log.ipc" )
+fi
 
 echo "${ifacescommand[@]}"
 "${ifacescommand[@]}"
