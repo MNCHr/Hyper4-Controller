@@ -52,6 +52,22 @@ for i in `seq 0 4`; do
   fi
 done
 
+while [[ $# -gt 1 ]]
+do
+key="$1"
+
+case $key in
+    --log)
+    hp4command+=(" --nanolog $2")
+    shift # past argument
+    ;;
+    *)
+            # unknown option
+    ;;
+esac
+shift # past argument or value
+done
+
 echo "${ifacescommand[@]}"
 "${ifacescommand[@]}"
 
