@@ -13,7 +13,7 @@ sudo sed -i 's/\/home\/ubuntu/\/opt/g' env.sh
 
 # update hp4 json path, needed by controller
 cd /opt/hp4-ctrl
-sudo echo "/opt/hp4-src/hp4/hp4.json" > hp4controller/hp4_json_path
+sudo sh -c 'echo /opt/hp4-src/hp4/hp4.json > hp4controller/hp4_json_path'
 
 cd /opt
 script_path=/opt/hp4-ctrl/vibrant-eval/remote-scripts
