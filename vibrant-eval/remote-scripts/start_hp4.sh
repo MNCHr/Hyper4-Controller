@@ -63,6 +63,6 @@ echo "${ifacescommand[@]}"
 hp4command+=( /opt/hp4-src/hp4/hp4.json )
 
 echo "${hp4command[@]}"
-"${hp4command[@]}" 2> /dev/null &
+eval "${hp4command[@]} 2> /dev/null &"
 sleep 5
 sudo sh -c "nohup ${script_path}/prep_hp4.sh > prep_hp4.out 2> /dev/null &"
