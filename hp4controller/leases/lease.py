@@ -380,11 +380,14 @@ class Chain(Lease):
     src_vdev_ID = src_vdev.virtual_device_ID
     dest_vdev_ID = dest_vdev.virtual_device_ID
     vingress = str(len(self.ports) + dest_vdev_ID)
+    print("vdev2vdev: ln 383")
     # t_virtnet src -> dest
     # t_egr_virtnet src -> dest
     if len(src_vdev.t_virtnet_handles) > 0:
+      print("vdev2vdev: ln 387")
       # table_modify
       if len(src_vdev.t_egr_virtnet_handles) > 0:
+        print("vdev2vdev: ln 390")
         # table_modify
         for vegress in src_vdev.t_virtnet_handles:
           command_type = 'table_modify'
@@ -394,6 +397,7 @@ class Chain(Lease):
                      'aparams': [str(dest_vdev_ID), vingress]}
           self.send_command(P4Command(command_type, attribs))
       else:
+        print("vdev2vdev: ln 400")
         # table_add
         for vegress in src_vdev.t_virtnet_handles:
           command_type = 'table_add'
@@ -404,7 +408,7 @@ class Chain(Lease):
           handle = self.send_command(P4Command(command_type, attribs))
           src_vdev.t_egr_virtnet_handles[vegress] = handle
 
-      #debug()
+      print("vdev2vdev: ln 411")
       for vegress in src_vdev.t_virtnet_handles:
         # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                       # VALUE: hp4-facing handle (int)
@@ -416,8 +420,10 @@ class Chain(Lease):
         self.send_command(P4Command(command_type, attribs))
         
     else:
+      print("vdev2vdev: ln 423")
       # table_add
       if len(src_vdev.t_egr_virtnet_handles) > 0:
+        print("vdev2vdev: ln 426")
         debug()
         raise VirtnetError('vdev2vdev: t_egr_virtnet has entries when t_virtnet doesn\'t')
 
@@ -436,6 +442,8 @@ class Chain(Lease):
                    'aparams': []}
         handle = self.send_command(P4Command(command_type, attribs))
         src_vdev.t_virtnet_handles[vegress] = handle
+
+    print("vdev2vdev: end of function")
 
   def lease_replace(self, parameters, vdev, new_vdev):
     # parameters:
@@ -495,18 +503,21 @@ class Chain(Lease):
     #debug()
 
     if position >= len(chain):
+      print('STARTING vdev2p: ' + vdev_name)
       self.vdev2p(vdev)
-      print('vdev2p: ' + vdev_name)
+      print('COMPLETED vdev2p: ' + vdev_name)
     if (len(chain) > 0) and (position < len(chain)):
       rightvdev_name = chain[position]
       rightvdev = self.vdevs[rightvdev_name]
+      print('STARTING vdev2vdev: ' + rightvdev_name + ' -> ' + vdev_name)
       self.vdev2vdev(vdev, rightvdev)
-      print('vdev2vdev: ' + rightvdev_name + ' -> ' + vdev_name)
+      print('COMPLETED vdev2vdev: ' + rightvdev_name + ' -> ' + vdev_name)
     if len(chain) > 0 and position > 0:
       leftvdev_name = chain[position - 1]
       leftvdev = self.vdevs[leftvdev_name]
+      print('STARTING vdev2vdev: ' + leftvdev_name + ' -> ' + vdev_name)
       self.vdev2vdev(leftvdev, vdev)
-      print('vdev2vdev: ' + leftvdev_name + ' -> ' + vdev_name)
+      print('COMPLETED vdev2vdev: ' + leftvdev_name + ' -> ' + vdev_name)
       
     if position == 0:
       self.p2vdev(vdev)

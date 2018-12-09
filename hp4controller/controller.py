@@ -354,6 +354,7 @@ class Slice():
           print('controller.py::Slice::handle_request; parameters: ' + str(parameters))
           debug()
         try:
+          debug()
           resp = getattr(lease, command)(parameters[2:], vdev)
         except AttributeError as e:
           print(e)
