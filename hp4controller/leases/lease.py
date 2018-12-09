@@ -380,14 +380,11 @@ class Chain(Lease):
     src_vdev_ID = src_vdev.virtual_device_ID
     dest_vdev_ID = dest_vdev.virtual_device_ID
     vingress = str(len(self.ports) + dest_vdev_ID)
-    print("vdev2vdev: ln 383")
     # t_virtnet src -> dest
     # t_egr_virtnet src -> dest
     if len(src_vdev.t_virtnet_handles) > 0:
-      print("vdev2vdev: ln 387")
       # table_modify
       if len(src_vdev.t_egr_virtnet_handles) > 0:
-        print("vdev2vdev: ln 390")
         # table_modify
         for vegress in src_vdev.t_virtnet_handles:
           command_type = 'table_modify'
@@ -397,7 +394,6 @@ class Chain(Lease):
                      'aparams': [str(dest_vdev_ID), vingress]}
           self.send_command(P4Command(command_type, attribs))
       else:
-        print("vdev2vdev: ln 400")
         # table_add
         for vegress in src_vdev.t_virtnet_handles:
           command_type = 'table_add'
@@ -408,7 +404,8 @@ class Chain(Lease):
           handle = self.send_command(P4Command(command_type, attribs))
           src_vdev.t_egr_virtnet_handles[vegress] = handle
 
-      print("vdev2vdev: ln 411")
+      print("vdev2vdev: ln 407")
+      debug()
       for vegress in src_vdev.t_virtnet_handles:
         # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                       # VALUE: hp4-facing handle (int)
@@ -420,10 +417,8 @@ class Chain(Lease):
         self.send_command(P4Command(command_type, attribs))
         
     else:
-      print("vdev2vdev: ln 423")
       # table_add
       if len(src_vdev.t_egr_virtnet_handles) > 0:
-        print("vdev2vdev: ln 426")
         debug()
         raise VirtnetError('vdev2vdev: t_egr_virtnet has entries when t_virtnet doesn\'t')
 
