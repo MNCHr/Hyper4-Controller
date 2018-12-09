@@ -201,7 +201,7 @@ sleep 1
 echo "--terminate xterm processes"
 #sudo kill -s SIGINT "$(ps -ft $H2 | grep "10.1.0.104" | awk '{print $2}')"
 $pause
-ssh -p 22 $user@pc${nodes[6]}.emulab.net "kill -s SIGINT $(ps -ft | grep 10.10.4.1 | awk '{print $2}')"
+ssh -p 22 $user@pc${nodes[6]}.emulab.net "kill -s SIGINT $(ps -ft | grep 10.10.6.1 | awk '{print $2}')"
 $pause
 #sudo kill -s SIGINT "$(ps -ft $H5 | grep "iperf3" | awk '{print $2}')"
 #sudo kill -s SIGINT "$(ps -ft $H1 | grep "iperf3" | awk '{print $2}')"

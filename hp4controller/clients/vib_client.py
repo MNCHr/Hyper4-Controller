@@ -124,6 +124,7 @@ class VibrantManager(ChainSliceManager):
         debug()
       else:
         self.dec_vdevs.append(name)
+      
       name = device + '_vib_enc'
       vdev_create_line = enc_path + ' ' + name
       resp = self.send_request(self.user + ' vdev_create ' + vdev_create_line)
@@ -133,6 +134,9 @@ class VibrantManager(ChainSliceManager):
         debug()
       else:
         self.enc_vdevs.append(name)
+
+    print("===== Checkpoint: GUMBO =====")
+    time.sleep(5)
 
     self.dec_rules, self.enc_rules = self.gen_mask_and_keys()
 
@@ -144,6 +148,8 @@ class VibrantManager(ChainSliceManager):
         resp = self.do_vdev_interpret(dec_vdev + ' bmv2 table_add ' + rule[0])
         handle = resp.split('handle: ')[1]
         self.dec_vdev_handles[(dec_vdev, rule[1])] = int(handle)
+        time.sleep(0.5)
+
       #resp = self.do_vdev_interpretf(dec_vdev + ' bmv2 tests/t10/commands_slice1_vib_dec.txt')
       resp = self.do_vdev_interpret(dec_vdev + ' bmv2 ' \
                           + 'table_add check_vibrant vibrant_present 1 =>')
@@ -152,6 +158,8 @@ class VibrantManager(ChainSliceManager):
       resp += self.do_vdev_interpret(dec_vdev + ' bmv2 ' \
                           + 'table_set_default strip_vibrant a_strip_vibrant')
       #print(resp)
+      print("===== " + dec_vdev + " ready =====")
+      time.sleep(2.5)
 
     for enc_vdev in self.enc_vdevs:
 
@@ -161,16 +169,23 @@ class VibrantManager(ChainSliceManager):
         resp = self.do_vdev_interpret(enc_vdev + ' bmv2 table_add ' + rule[0])
         handle = resp.split('handle: ')[1]
         self.enc_vdev_handles[(enc_vdev, rule[1])] = int(handle)
+        time.sleep(0.5)
+      print("===== " + enc_vdev + " ready =====")
+      time.sleep(2.5)
 
     for device in line.split()[2:]:
       dec_vdev = device + '_vib_dec'
       self.do_lease_insert(device + ' ' + dec_vdev + ' 0 efalse')
+      print("===== Inserted " + dec_vdev + " =====")
+      sleep(5)
 
     for device in line.split()[2:]:
       enc_vdev = device + '_vib_enc'
       resp = self.do_vdev_interpretf(enc_vdev + ' bmv2 ' + self.enc_cmd_path \
                                + '/commands_slice1_' + device + '_vib_enc.txt')
       self.do_lease_append(device + ' ' + enc_vdev + ' efalse')
+      print("===== Inserted " + enc_vdev + " =====")
+      sleep(5)
 
     print ("Complete")
     print (time.strftime("%H:%M:%S"))
