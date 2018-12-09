@@ -217,15 +217,15 @@ class Bmv2_SSwitch(Device):
 
     # Bug in current version of bmv2/tools/run_CLI.sh: <-- what?  runtime_CLI.py?
     #  if no aparams, crashes unless '=>' present on the end
-    #if len(rule_mod.split()) == 3:
-    #  rule_mod += ' =>'
+    if len(rule_mod.split()) == 3:
+      rule_mod += ' =>'
 
     with Capturing() as output:
       try:
         self.rta.do_table_modify(rule_mod)
       except:
-        debug()
         raise ModRuleError("table_modify raised an exception (rule_mod: " + rule_mod + ")")
+
     for out in output:
       self.debug_print(out)
       if ('Invalid' in out) or ('Error' in out):
