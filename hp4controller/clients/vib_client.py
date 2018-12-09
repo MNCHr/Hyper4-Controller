@@ -135,8 +135,8 @@ class VibrantManager(ChainSliceManager):
       else:
         self.enc_vdevs.append(name)
 
-    print("===== Checkpoint: GUMBO =====")
-    time.sleep(5)
+    #print("===== Checkpoint: GUMBO =====")
+    #time.sleep(5)
 
     self.dec_rules, self.enc_rules = self.gen_mask_and_keys()
 
@@ -158,7 +158,7 @@ class VibrantManager(ChainSliceManager):
                           + 'table_set_default strip_vibrant a_strip_vibrant')
       #print(resp)
       print("===== " + dec_vdev + " ready =====")
-      time.sleep(2.5)
+      #time.sleep(2.5)
 
     for enc_vdev in self.enc_vdevs:
 
@@ -170,14 +170,17 @@ class VibrantManager(ChainSliceManager):
         self.enc_vdev_handles[(enc_vdev, rule[1])] = int(handle)
 
       print("===== " + enc_vdev + " ready =====")
-      time.sleep(2.5)
+      #time.sleep(2.5)
 
     for device in line.split()[2:]:
       dec_vdev = device + '_vib_dec'
       self.do_lease_insert(device + ' ' + dec_vdev + ' 0 efalse')
-      print("===== Inserted " + dec_vdev + " =====")
-      time.sleep(5)
+      #print("===== Inserted " + dec_vdev + " =====")
+      #time.sleep(5)
 
+    print("Debug... start entering commands manually")
+    """
+    # TO REINSTATE after manual testing
     for device in line.split()[2:]:
       enc_vdev = device + '_vib_enc'
       resp = self.do_vdev_interpretf(enc_vdev + ' bmv2 ' + self.enc_cmd_path \
@@ -188,6 +191,7 @@ class VibrantManager(ChainSliceManager):
 
     print ("Complete")
     print (time.strftime("%H:%M:%S"))
+    """
 
   def rotate_keys(self):
 

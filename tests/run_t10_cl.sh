@@ -68,9 +68,6 @@ ttyecho -n $ADMIN sudo cp /users/$user/node-3-hp4.json /opt/hp4-ctrl/tests/t10/n
 scp node-4-hp4.json $user@pc${nodes[0]}.emulab.net:~/
 ttyecho -n $ADMIN sudo cp /users/$user/node-4-hp4.json /opt/hp4-ctrl/tests/t10/node-4-hp4.json
 
-echo "Check for presence of JSONs in hp4-ctrl/tests/t10..."
-$pause
-
 echo "Next: create/provision slice1 with lease to s1, s2, and s3, slice2 w/ lease to s1, s4, and s5"
 $pause
 
@@ -116,9 +113,6 @@ H3="$(cat /tmp/pts_h3)"
 H5="$(cat /tmp/pts_h5)"
 H6="$(cat /tmp/pts_h6)"
 
-echo "strategic pause..."
-$pause
-
 ttyecho -n $H1 ssh -p 22 $user@pc${nodes[5]}.emulab.net
 ttyecho -n $H2 ssh -p 22 $user@pc${nodes[6]}.emulab.net
 ttyecho -n $H3 ssh -p 22 $user@pc${nodes[7]}.emulab.net
@@ -138,7 +132,7 @@ H6ip="10.10.10.1"
 ttyecho -n $H2 ping $H4ip -i 0.2 -w 120
 echo time h2 kicked off:
 date
-sudo echo start h2 $(date) >> t10/t10r$RUN
+echo start h2 $(date) >> t10/t10r$RUN
 sleep 1
 
 #t9h3.sh
