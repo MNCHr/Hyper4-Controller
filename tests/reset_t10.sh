@@ -10,7 +10,6 @@ ADMIN="$(cat /tmp/pts_admin)"
 SLICEMGR="$(cat /tmp/pts_slice_manager)"
 SLICEMGR2="$(cat /tmp/pts_slice_manager2)"
 EVALUATOR="$(cat /tmp/pts_evaluator)"
-BMV2_CLI="$(cat /tmp/pts_bmv2_cli)"
 
 echo "Manually kill controller and tcpdump"
 $pause
@@ -34,4 +33,3 @@ ttyecho -n $ADMIN exit
 ttyecho -n $SLICEMGR exit
 ttyecho -n $SLICEMGR2 exit
 ttyecho -n $EVALUATOR exit
-ttyecho -n $BMV2_CLI exit

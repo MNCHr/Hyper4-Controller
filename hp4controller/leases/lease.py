@@ -405,7 +405,6 @@ class Chain(Lease):
           src_vdev.t_egr_virtnet_handles[vegress] = handle
 
       print("vdev2vdev: ln 407")
-      debug()
       for vegress in src_vdev.t_virtnet_handles:
         # self.t_virtnet_handles = {} # KEY: vegress_spec (int)
                                       # VALUE: hp4-facing handle (int)
