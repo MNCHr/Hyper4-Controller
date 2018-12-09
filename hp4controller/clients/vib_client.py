@@ -178,8 +178,6 @@ class VibrantManager(ChainSliceManager):
       #print("===== Inserted " + dec_vdev + " =====")
       #time.sleep(5)
 
-    print("Debug... start entering commands manually")
-    """
     # TO REINSTATE after manual testing
     for device in line.split()[2:]:
       enc_vdev = device + '_vib_enc'
@@ -191,7 +189,6 @@ class VibrantManager(ChainSliceManager):
 
     print ("Complete")
     print (time.strftime("%H:%M:%S"))
-    """
 
   def rotate_keys(self):
 
